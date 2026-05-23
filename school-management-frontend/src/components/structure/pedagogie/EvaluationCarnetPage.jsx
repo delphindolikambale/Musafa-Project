@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Plus, Loader2, Send, ArrowLeft, Calendar, X, CheckCircle2 } from 'lucide-react';
+import { Save, Plus, Loader2, ArrowLeft, CheckCircle2, FileText } from 'lucide-react';
 import EvaluationService from '../../../services/pedagogieService/EvaluationService';
 import { enrollmentService } from '../../../services/enrollmentService';
-import courseAcademicConfigService from '../../../services/pedagogieService/courseAcademicConfigService';
 import { toast } from 'react-hot-toast';
+import EvaluationCarnetAdd from './EvaluationCarnetAdd';
+import GradeSheetPage from './GradeSheetPage';
 
 const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
     const [period, setPeriod] = useState(1);
@@ -12,12 +13,12 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
     const [loading, setLoading] = useState(true);
     const [visaStatus, setVisaStatus] = useState('DRAFT');
     const [currentPeriodMax, setCurrentPeriodMax] = useState(0);
-    const [configuredPeriodMax, setConfiguredPeriodMax] = useState(0); // NOUVEAU: Le plafond global de la période
+    const [configuredPeriodMax, setConfiguredPeriodMax] = useState(0); 
+    const [courseConfig, setCourseConfig] = useState(null); 
     
-    // États de sauvegarde et modal
     const [isSaving, setIsSaving] = useState(false);
-    const [isSubmittingVisa, setIsSubmittingVisa] = useState(false);
     const [showModal, setShowModal] = useState(false);
+    const [showGradeSheet, setShowGradeSheet] = useState(false);
     
     const [evalForm, setEvalForm] = useState({
         id: null,
@@ -28,14 +29,12 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
 
     const [marksForm, setMarksForm] = useState({});
 
-    // 1. Chargement global des données
     const loadData = async () => {
         if (!assignment?.id || !activeYear?.id) return;
         
         try {
             setLoading(true);
             
-            // A. Extraction et formatage robuste des élèves inscrits
             const enrollments = await enrollmentService.getEnrollmentReport(assignment.classroomId, activeYear.id);
             const formattedStudents = enrollments.map(item => {
                 const sId = item.studentId || item.id;
@@ -52,26 +51,21 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
             formattedStudents.sort((a, b) => a.fullName.localeCompare(b.fullName));
             setStudents(formattedStudents);
 
-            // B. Récupérer l'affectation complète pour extraire le Max configuré pour ce cours
             try {
-                const assignmentDetails = await EvaluationService.getTeacherAssignmentById(assignment.id);
-                // On utilise le filter du course config si on n'a pas accès direct au CourseAssignment depuis TeacherAssignmentDTO
-                const configList = await courseAcademicConfigService.getCourseConfigurationFilter(
-                    null, null, null, activeYear.id // On pourrait cibler plus précisément, mais on filtre ci-dessous
-                );
-                const currentConfig = configList.find(c => c.subjectName === assignmentDetails.subjectName);
-                if (currentConfig) {
-                    if (period === 1) setConfiguredPeriodMax(currentConfig.maxP1 || 0);
-                    else if (period === 2) setConfiguredPeriodMax(currentConfig.maxP2 || 0);
-                    else if (period === 3) setConfiguredPeriodMax(currentConfig.maxP3 || 0);
-                    else if (period === 4) setConfiguredPeriodMax(currentConfig.maxP4 || 0);
+                const config = await EvaluationService.getAssignmentConfig(assignment.id);
+                if (config) {
+                    setCourseConfig(config);
+                    
+                    if (period === 1) setConfiguredPeriodMax(config.maxP1 || 0);
+                    else if (period === 2) setConfiguredPeriodMax(config.maxP2 || 0);
+                    else if (period === 3) setConfiguredPeriodMax(config.maxP3 || 0);
+                    else if (period === 4) setConfiguredPeriodMax(config.maxP4 || 0);
                 }
             } catch (err) {
                 console.error("Impossible de récupérer la config du cours:", err);
-                setConfiguredPeriodMax(0); // Fallback
+                setConfiguredPeriodMax(0);
             }
 
-            // C. Récupération des évaluations et notes de la période
             const evals = await EvaluationService.getEvaluationsByAssignment(assignment.id, period);
             const evalsArray = Array.isArray(evals) ? evals : [];
             
@@ -93,7 +87,6 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
             setEvaluations(evalsWithMarks);
             setMarksForm(initialMarks);
 
-            // D. Statuts et Totaux consommés
             const visa = await EvaluationService.getVisaStatus(assignment.id, period);
             setVisaStatus(visa?.status || visa || 'DRAFT');
 
@@ -112,17 +105,36 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
         loadData();
     }, [assignment?.id, activeYear?.id, period]);
 
-    // 2. Interaction au clavier dans le tableau
+    const regularEvaluations = evaluations.filter(ev => ev.type !== 'EXAMEN');
+    const examEvaluation = evaluations.find(ev => ev.type === 'EXAMEN');
+
     const handleMarkChange = (evalId, studentId, value) => {
         if (visaStatus !== 'DRAFT') return;
         
         const evaluation = evaluations.find(e => e.id === evalId);
-        const maxPts = evaluation?.maxPoints || 10;
+        let maxPts = evaluation?.maxPoints;
+        
+        if (!maxPts && examEvaluation && evalId === examEvaluation.id) {
+            maxPts = period === 2 ? courseConfig?.maxExam1 : courseConfig?.maxExam2;
+        }
+        if (!maxPts) maxPts = 10;
+
+        if (value === '') {
+            setMarksForm(prev => ({
+                ...prev,
+                [evalId]: {
+                    ...(prev[evalId] || {}),
+                    [studentId]: ''
+                }
+            }));
+            return;
+        }
+
         const numValue = parseFloat(value);
         
-        if (value !== '' && (isNaN(numValue) || numValue < 0 || numValue > maxPts)) {
-            toast.error(`La cote doit être entre 0 et ${maxPts}`);
-            return;
+        if (isNaN(numValue) || numValue < 0 || numValue > maxPts) {
+            toast.error(`Saisie refusée : Le maximum autorisé pour cette évaluation est de ${maxPts} points.`);
+            return; 
         }
 
         setMarksForm(prev => ({
@@ -134,7 +146,6 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
         }));
     };
 
-    // 3. Ouvrir le Modal
     const handleOpenAddModal = () => {
         if (visaStatus !== 'DRAFT') {
             toast.error("Période verrouillée. Ajout impossible.");
@@ -155,27 +166,43 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
         setShowModal(true);
     };
 
-    // 4. Sauvegarder la configuration de la colonne (Modal) avec BLOCAGE DU MAXIMA
     const handleSaveColumnConfig = async (e) => {
         e.preventDefault();
         
-        // --- LOGIQUE DE VALIDATION DU PLAFOND (MAXIMA GLOBAL) ---
         const futurePoints = parseFloat(evalForm.maxPoints);
-        let previousPointsOfThisEval = 0;
-        
-        // Si c'est une modification, on retire l'ancien max de cette colonne de la somme actuelle
-        if (evalForm.id) {
-            const existingEval = evaluations.find(ev => ev.id === evalForm.id);
-            if (existingEval) previousPointsOfThisEval = existingEval.maxPoints;
+
+        if (evalForm.type === 'EXAMEN') {
+            const maxAllowed = period === 2 ? courseConfig?.maxExam1 : courseConfig?.maxExam2;
+            if (futurePoints > maxAllowed) {
+                toast.error(`Action bloquée : Le maxima de l'examen (${futurePoints}) dépasse le barème configuré (${maxAllowed}).`);
+                return;
+            }
+        } else {
+            let previousPointsOfThisEval = 0;
+            if (evalForm.id) {
+                const existingEval = evaluations.find(ev => ev.id === evalForm.id);
+                if (existingEval) previousPointsOfThisEval = existingEval.maxPoints;
+            }
+            
+            const projectedSum = currentPeriodMax - previousPointsOfThisEval + futurePoints;
+            
+            if (configuredPeriodMax > 0 && projectedSum > configuredPeriodMax) {
+                toast.error(`Action bloquée : Le total cumulé (${projectedSum}) dépasserait le maxima configuré pour cette période (${configuredPeriodMax}).`);
+                return;
+            }
+
+            if (evalForm.id) {
+                const existingMarksForEval = marksForm[evalForm.id] || {};
+                const pupils = Object.keys(existingMarksForEval);
+                for (const pId of pupils) {
+                    const savedVal = parseFloat(existingMarksForEval[pId]);
+                    if (!isNaN(savedVal) && savedVal > futurePoints) {
+                        toast.error(`Action refusée : Des élèves possèdent déjà des cotes (${savedVal}) supérieures au nouveau maxima proposé (${futurePoints}).`);
+                        return;
+                    }
+                }
+            }
         }
-        
-        const projectedSum = currentPeriodMax - previousPointsOfThisEval + futurePoints;
-        
-        if (configuredPeriodMax > 0 && projectedSum > configuredPeriodMax) {
-            toast.error(`Action bloquée : Le total cumulé (${projectedSum}) dépasserait le maxima configuré pour cette période (${configuredPeriodMax}).`);
-            return;
-        }
-        // --------------------------------------------------------
 
         try {
             setIsSaving(true);
@@ -203,9 +230,25 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
         }
     };
 
-    // 5. Sauvegarde globale de TOUTES les notes encodées dans le tableau
     const handleSaveAllMarks = async () => {
         if (evaluations.length === 0) return;
+        
+        for (const ev of evaluations) {
+            let maxPts = ev.maxPoints;
+            if (ev.type === 'EXAMEN') {
+                maxPts = period === 2 ? courseConfig?.maxExam1 : courseConfig?.maxExam2;
+            }
+            for (const st of students) {
+                const val = marksForm[ev.id]?.[st.id];
+                if (val !== undefined && val !== '') {
+                    const numVal = parseFloat(val);
+                    if (numVal > maxPts) {
+                        toast.error(`Erreur critique : La cote de l'élève ${st.fullName} (${numVal}) excède le maximum de ${maxPts}.`);
+                        return;
+                    }
+                }
+            }
+        }
         
         try {
             setIsSaving(true);
@@ -242,26 +285,9 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
         }
     };
 
-    // 6. Transmission au Proviseur
-    const handleSubmitForVisa = async () => {
-        if (window.confirm(`Confirmez-vous la transmission définitive des cotes de la Période ${period} ?`)) {
-            try {
-                setIsSubmittingVisa(true);
-                await handleSaveAllMarks(); 
-                await EvaluationService.submitForVisa(assignment.id, period);
-                toast.success("Carnet officiellement transmis à la direction.");
-                loadData();
-            } catch (error) {
-                toast.error(error.response?.data || "Erreur lors de la transmission.");
-            } finally {
-                setIsSubmittingVisa(false);
-            }
-        }
-    };
-
     const getStudentTotal = (studentId) => {
         let total = 0;
-        evaluations.forEach(ev => {
+        regularEvaluations.forEach(ev => {
             const val = marksForm[ev.id]?.[studentId];
             if (val !== undefined && val !== '') total += parseFloat(val);
         });
@@ -269,11 +295,32 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
     };
 
     const formatDisplayType = (type) => {
-        if (type === 'IE') return 'LE';
-        if (type === 'IO') return 'LO';
+        if (type === 'IE') return 'I.E';
+        if (type === 'IO') return 'I.O';
         if (type === 'CC') return 'C.C';
+        if (type === 'DEV') return 'DEV';
         return type;
     };
+
+    const formatDateFull = (dateStr) => {
+        if (!dateStr) return '-';
+        const cleanDate = dateStr.split('T')[0];
+        const parts = cleanDate.split('-');
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}/${parts[0]}`;
+        }
+        return dateStr;
+    };
+
+    if (showGradeSheet) {
+        return (
+            <GradeSheetPage 
+                assignment={assignment} 
+                activeYear={activeYear} 
+                onBack={() => setShowGradeSheet(false)} 
+            />
+        );
+    }
 
     if (loading && students.length === 0) {
         return (
@@ -285,32 +332,31 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
     }
 
     return (
-        <div className="space-y-6 animate-fade-in pb-12 select-none">
-            {/* EN-TÊTE ET COMMANDES */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div className="flex items-center gap-4">
-                    <button onClick={onBack} className="p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all duration-200 active:scale-95">
+        <div className="space-y-6 animate-fade-in pb-12 select-none w-full max-w-full overflow-x-hidden">
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 w-full md:w-auto">
+                    <button onClick={onBack} className="self-start sm:self-auto p-2.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all duration-200 active:scale-95 shrink-0">
                         <ArrowLeft size={18} className="text-slate-600" />
                     </button>
-                    <div>
+                    <div className="w-full break-words">
                         <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black uppercase tracking-widest bg-slate-800 text-white px-2 py-1 rounded">
+                            <span className="text-[10px] font-black uppercase tracking-widest bg-slate-800 text-white px-2 py-1 rounded inline-block">
                                 {assignment?.classroomName}
                             </span>
                         </div>
-                        <h2 className="text-xl font-black text-slate-800 uppercase tracking-tight mt-1">
+                        <h2 className="text-lg sm:text-xl font-black text-slate-800 uppercase tracking-tight mt-1 whitespace-normal break-words leading-tight">
                             {assignment?.subjectName}
                         </h2>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 overflow-x-auto">
+                <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0 hide-scrollbar">
+                    <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 min-w-max">
                         {[1, 2, 3, 4].map(p => (
                             <button
                                 key={p}
                                 onClick={() => setPeriod(p)}
-                                className={`px-4 py-2 rounded-lg text-xs font-black uppercase transition-all duration-200 whitespace-nowrap ${
+                                className={`px-3 py-2 sm:px-4 sm:py-2 rounded-lg text-xs font-black uppercase transition-all duration-200 whitespace-nowrap ${
                                     period === p ? 'bg-white text-slate-900 shadow-sm border border-slate-200/50' : 'text-slate-500 hover:text-slate-800'
                                 }`}
                             >
@@ -321,107 +367,171 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
                 </div>
             </div>
 
-            {/* AVERTISSEMENT SI VERROUILLÉ */}
             {visaStatus !== 'DRAFT' && (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3 animate-scale-in">
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 animate-scale-in">
                     <CheckCircle2 className="text-emerald-600 shrink-0" size={24} />
                     <div>
                         <h4 className="font-bold text-emerald-800 text-sm">Carnet Verrouillé (Transmis)</h4>
-                        <p className="text-emerald-600 text-xs mt-0.5">Les cotes ont été transmises à la direction. Modification désactivée.</p>
+                        <p className="text-emerald-600 text-xs mt-0.5">Les cotes ont été transmises à la direction. Modification désactivée depuis ce carnet.</p>
                     </div>
                 </div>
             )}
 
-            {/* LE CARNET DE NOTES (STRICTEMENT REPRODUIT) */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-300 overflow-hidden flex flex-col">
-                <div className="bg-slate-50 p-4 border-b border-slate-300 flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-300 overflow-hidden flex flex-col w-full">
+                <div className="bg-slate-50 p-3 sm:p-4 border-b border-slate-300 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <h3 className="font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 text-xs sm:text-sm">
-                        SEMESTRE {period <= 2 ? '1' : '2'} — PÉRIODE {period === 1 || period === 3 ? 'I' : 'II'}
+                        SEMESTRE {period <= 2 ? '1' : '2'} — PÉRIODE {period === 1 ? 'I' : period === 2 ? 'II' : period === 3 ? 'III' : 'IV'}
                     </h3>
                     
-                    <div className="flex items-center flex-wrap gap-2 sm:gap-3">
+                    <div className="flex items-center flex-wrap gap-2 w-full lg:w-auto">
                         {visaStatus === 'DRAFT' && (
                             <>
                                 <button 
                                     onClick={handleOpenAddModal}
-                                    className="px-3 py-2 sm:px-4 sm:py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-slate-100 hover:text-slate-900 flex items-center gap-2 transition-all duration-200 shadow-sm active:scale-95"
+                                    className="flex-1 sm:flex-none justify-center px-3 py-2 sm:px-4 sm:py-2.5 bg-white border border-slate-300 text-slate-700 rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-slate-100 hover:text-slate-900 flex items-center gap-2 transition-all duration-200 shadow-sm active:scale-95"
                                 >
                                     <Plus size={16} /> <span className="hidden sm:inline">Ajouter une colonne</span><span className="sm:hidden">Colonne</span>
                                 </button>
                                 <button 
                                     onClick={handleSaveAllMarks}
                                     disabled={isSaving || evaluations.length === 0}
-                                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-blue-700 flex items-center gap-2 transition-all duration-200 shadow-md disabled:opacity-50 active:scale-95"
+                                    className="flex-1 sm:flex-none justify-center px-3 py-2 sm:px-5 sm:py-2.5 bg-blue-600 text-white rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-blue-700 flex items-center gap-2 transition-all duration-200 shadow-md disabled:opacity-50 active:scale-95"
                                 >
                                     {isSaving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
                                     Enregistrer
                                 </button>
-                                <button 
-                                    onClick={handleSubmitForVisa}
-                                    disabled={isSubmittingVisa || evaluations.length === 0}
-                                    className="px-4 py-2 sm:px-5 sm:py-2.5 bg-slate-900 text-white rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-slate-800 flex items-center gap-2 transition-all duration-200 shadow-md disabled:opacity-50 active:scale-95"
-                                >
-                                    {isSubmittingVisa ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                                    Transmettre
-                                </button>
                             </>
                         )}
+                        <button 
+                            onClick={() => setShowGradeSheet(true)}
+                            className="flex-1 sm:flex-none justify-center px-3 py-2 sm:px-4 sm:py-2.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg font-bold text-xs uppercase tracking-wider hover:bg-indigo-100 flex items-center gap-2 transition-all duration-200 shadow-sm active:scale-95"
+                        >
+                            <FileText size={16} /> 
+                            <span className="hidden sm:inline">Fiche de Notes</span>
+                            <span className="sm:hidden">Fiche</span>
+                        </button>
                     </div>
                 </div>
 
-                <div className="overflow-x-auto p-4 custom-scrollbar">
-                    <table className="w-full text-sm border-collapse border-2 border-slate-900 table-fixed sm:table-auto">
+                <div className="overflow-x-auto p-0 sm:p-4 custom-scrollbar w-full">
+                    <table className="w-full text-sm border-collapse border-2 border-slate-900 min-w-max">
                         <thead>
-                            {/* Ligne 1 : Date (Verticale) */}
                             <tr>
                                 <th rowSpan={3} className="border border-slate-900 p-2 w-12 text-center font-black bg-slate-100 text-slate-800">N°</th>
-                                <th rowSpan={3} className="border border-slate-900 p-3 min-w-[250px] sm:min-w-[320px] font-black text-left uppercase bg-slate-100 text-slate-800">
+                                <th rowSpan={3} className="border border-slate-900 p-2 sm:p-3 min-w-[200px] sm:min-w-[320px] font-black text-left uppercase bg-slate-100 text-slate-800">
                                     NOMS & POST-NOM
                                 </th>
-                                <th className="border border-slate-900 p-0 text-center font-black text-[10px] w-12 h-24 align-middle bg-slate-100 relative overflow-hidden">
-                                    <span className="absolute inset-0 flex items-center justify-center -rotate-90 whitespace-nowrap text-slate-600 font-bold">DATE</span>
+                                <th className="border border-slate-900 p-0 text-center font-black text-[10px] w-12 min-w-[48px] h-28 align-middle bg-slate-100 group">
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <span className="-rotate-90 whitespace-nowrap text-slate-600 font-bold block">DATE</span>
+                                    </div>
                                 </th>
                                 
-                                {evaluations.map(ev => (
-                                    <th key={`date-${ev.id}`} className="border border-slate-900 p-0 text-center font-bold text-[10px] w-12 h-24 align-middle bg-white relative overflow-hidden group">
-                                        <span className="absolute inset-0 flex items-center justify-center -rotate-90 whitespace-nowrap text-slate-700 font-black tracking-wider">
-                                            {ev.date || ev.evaluationDate ? new Date(ev.date || ev.evaluationDate).toLocaleDateString('fr-FR', {day: '2-digit', month: '2-digit'}) : '-'}
-                                        </span>
+                                {regularEvaluations.map(ev => (
+                                    <th key={`date-${ev.id}`} className="border border-slate-900 p-0 text-center font-bold text-[10px] w-12 min-w-[48px] h-28 align-middle bg-white group">
+                                        <div className="w-full h-full flex items-center justify-center">
+                                            <span className="-rotate-90 whitespace-nowrap text-slate-700 font-black tracking-wider block">
+                                                {formatDateFull(ev.date || ev.evaluationDate)}
+                                            </span>
+                                        </div>
                                     </th>
                                 ))}
-                                <th className="border border-slate-900 bg-slate-200 w-24"></th>
+                                <th className="border border-slate-900 bg-slate-200 w-16 sm:w-24"></th>
+                                
+                                {period === 2 && (
+                                    <>
+                                        <th className="border border-slate-900 bg-orange-100 w-12 sm:w-16"></th>
+                                        <th className="border border-slate-900 bg-emerald-100 w-12 sm:w-16"></th>
+                                    </>
+                                )}
+                                
+                                {period === 4 && (
+                                    <>
+                                        <th className="border border-slate-900 bg-orange-100 w-12 sm:w-16"></th>
+                                        <th className="border border-slate-900 bg-emerald-100 w-12 sm:w-16"></th>
+                                        <th className="border border-slate-900 bg-indigo-100 w-12 sm:w-16"></th>
+                                    </>
+                                )}
                             </tr>
                             
-                            {/* Ligne 2 : Type d'évaluation */}
                             <tr>
                                 <th className="border border-slate-900 bg-slate-100 h-8"></th>
-                                {evaluations.map(ev => (
+                                {regularEvaluations.map(ev => (
                                     <th 
                                         key={`type-${ev.id}`} 
                                         onClick={() => visaStatus === 'DRAFT' && handleOpenEditModal(ev)}
-                                        className={`border border-slate-900 p-1 text-center font-black text-xs uppercase transition-colors duration-150 ${visaStatus === 'DRAFT' ? 'cursor-pointer hover:bg-blue-50 hover:text-blue-700 bg-slate-50' : 'bg-white'}`}
+                                        className={`border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs uppercase transition-colors duration-150 ${visaStatus === 'DRAFT' ? 'cursor-pointer hover:bg-blue-50 hover:text-blue-700 bg-slate-50' : 'bg-white'}`}
                                         title={visaStatus === 'DRAFT' ? "Cliquer pour modifier la colonne" : ""}
                                     >
                                         {formatDisplayType(ev.type)}
                                     </th>
                                 ))}
-                                <th className="border border-slate-900 p-1 text-center font-black text-xs bg-slate-200 text-slate-800">TOT</th>
+                                <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs bg-slate-200 text-slate-800">TOT</th>
+                                
+                                {period === 2 && (
+                                    <>
+                                        <th 
+                                            onClick={() => examEvaluation && visaStatus === 'DRAFT' && handleOpenEditModal(examEvaluation)}
+                                            className={`border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs text-orange-900 bg-orange-200 ${examEvaluation && visaStatus === 'DRAFT' ? 'cursor-pointer hover:bg-orange-300' : ''}`}
+                                        >
+                                            EX1
+                                        </th>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs text-emerald-900 bg-emerald-200">TS1</th>
+                                    </>
+                                )}
+
+                                {period === 4 && (
+                                    <>
+                                        <th 
+                                            onClick={() => examEvaluation && visaStatus === 'DRAFT' && handleOpenEditModal(examEvaluation)}
+                                            className={`border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs text-orange-900 bg-orange-200 ${examEvaluation && visaStatus === 'DRAFT' ? 'cursor-pointer hover:bg-orange-300' : ''}`}
+                                        >
+                                            EX2
+                                        </th>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs text-emerald-900 bg-emerald-200">TS2</th>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs text-indigo-900 bg-indigo-200">TG</th>
+                                    </>
+                                )}
                             </tr>
 
-                            {/* Ligne 3 : Maxima (Avec affichage du Plafond Global) */}
                             <tr>
-                                <th className="border border-slate-900 p-1 text-center font-bold italic text-[11px] bg-slate-100 text-slate-600">Max</th>
-                                {evaluations.map(ev => (
-                                    <th key={`max-${ev.id}`} className="border border-slate-900 p-1 text-center font-black text-[11px] bg-slate-100 text-slate-700">
+                                <th className="border border-slate-900 p-1 text-center font-bold italic text-[10px] sm:text-[11px] bg-slate-100 text-slate-600">Max</th>
+                                {regularEvaluations.map(ev => (
+                                    <th key={`max-${ev.id}`} className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-[11px] bg-slate-100 text-slate-700">
                                         {ev.maxPoints}
                                     </th>
                                 ))}
-                                <th className="border border-slate-900 p-1 text-center font-black text-[11px] bg-slate-300 text-slate-900">
+                                <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-[11px] bg-slate-300 text-slate-900">
                                     <span className={currentPeriodMax > configuredPeriodMax ? 'text-red-600' : ''}>
                                         {currentPeriodMax} 
                                     </span>
-                                    <span className="text-slate-500 font-bold ml-1">/ {configuredPeriodMax > 0 ? configuredPeriodMax : '?'}</span>
+                                    <span className="text-slate-500 font-bold ml-0.5 sm:ml-1">/ {configuredPeriodMax > 0 ? configuredPeriodMax : '0'}</span>
                                 </th>
+
+                                {period === 2 && (
+                                    <>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-[11px] bg-orange-100 text-orange-800">
+                                            {courseConfig?.maxExam1 || '-'}
+                                        </th>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-[11px] bg-emerald-100 text-emerald-800">
+                                            {courseConfig?.maxS1 || '-'}
+                                        </th>
+                                    </>
+                                )}
+
+                                {period === 4 && (
+                                    <>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-[11px] bg-orange-100 text-orange-800">
+                                            {courseConfig?.maxExam2 || '-'}
+                                        </th>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-[11px] bg-emerald-100 text-emerald-800">
+                                            {courseConfig?.maxS2 || '-'}
+                                        </th>
+                                        <th className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-[11px] bg-indigo-100 text-indigo-800">
+                                            {courseConfig?.maxTotal || '-'}
+                                        </th>
+                                    </>
+                                )}
                             </tr>
                         </thead>
                         
@@ -429,17 +539,19 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
                             {students.length > 0 ? (
                                 students.map((student, idx) => (
                                     <tr key={student.id} className="hover:bg-slate-50/80 transition-colors duration-150 group">
-                                        <td className="border border-slate-900 p-1.5 text-center font-bold text-slate-600 text-xs bg-slate-50">
+                                        <td className="border border-slate-900 p-1 sm:p-1.5 text-center font-bold text-slate-600 text-[10px] sm:text-xs bg-slate-50">
                                             {idx + 1}
                                         </td>
-                                        <td className="border border-slate-900 p-2 font-black uppercase text-slate-900 text-xs truncate">
+                                        <td className="border border-slate-900 p-1.5 sm:p-2 font-black uppercase text-slate-900 text-[11px] sm:text-xs truncate">
                                             {student.fullName}
-                                            <span className="text-[9px] text-slate-400 ml-2 font-normal block sm:inline select-all">{student.matricule}</span>
+                                            <span className="text-[9px] text-slate-400 ml-1 sm:ml-2 font-normal block sm:inline select-all">{student.matricule}</span>
                                         </td>
                                         <td className="border border-slate-900 bg-slate-50"></td>
                                         
-                                        {evaluations.map(ev => {
+                                        {regularEvaluations.map(ev => {
                                             const markValue = marksForm[ev.id]?.[student.id];
+                                            const isBelowHalf = markValue !== undefined && markValue !== '' && parseFloat(markValue) < (ev.maxPoints / 2);
+                                            
                                             return (
                                                 <td key={`${student.id}-${ev.id}`} className="border border-slate-900 p-0 text-center align-middle relative h-full">
                                                     <input 
@@ -450,21 +562,100 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
                                                         disabled={visaStatus !== 'DRAFT'}
                                                         value={markValue !== undefined ? markValue : ''}
                                                         onChange={(e) => handleMarkChange(ev.id, student.id, e.target.value)}
-                                                        className="w-full h-8 text-center bg-transparent outline-none font-bold text-sm text-slate-900 transition-all duration-150 focus:bg-blue-50/70 focus:ring-2 focus:ring-blue-600 focus:relative focus:z-10 disabled:bg-slate-50 disabled:text-slate-400 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        className={`w-full h-full min-h-[36px] min-w-[48px] text-center font-black text-xs md:text-sm focus:outline-none focus:bg-blue-50 focus:ring-2 focus:ring-inset focus:ring-blue-600 bg-transparent ${isBelowHalf ? 'text-red-600' : 'text-slate-800'} disabled:opacity-70 disabled:cursor-not-allowed`}
                                                     />
                                                 </td>
-                                            )
+                                            );
                                         })}
-                                        
-                                        <td className="border border-slate-900 p-1.5 text-center font-black bg-slate-100 text-slate-900 text-xs group-hover:bg-slate-200 transition-colors">
-                                            {getStudentTotal(student.id)}
-                                        </td>
+
+                                        {/* COLONNE TOT: Logique de couleur rouge intégrée ici */}
+                                        {(() => {
+                                            const studentTotal = getStudentTotal(student.id);
+                                            const maxTotal = configuredPeriodMax > 0 ? configuredPeriodMax : currentPeriodMax;
+                                            const isTotBelowHalf = maxTotal > 0 && studentTotal < (maxTotal / 2);
+                                            
+                                            return (
+                                                <td className={`border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs bg-slate-200 transition-colors ${isTotBelowHalf ? 'text-red-600' : 'text-slate-800'}`}>
+                                                    {studentTotal}
+                                                </td>
+                                            );
+                                        })()}
+
+                                        {period === 2 && (
+                                            <>
+                                                <td className="border border-slate-900 p-0 text-center align-middle h-full bg-orange-50/30">
+                                                    {(() => {
+                                                        const examMark = examEvaluation ? marksForm[examEvaluation.id]?.[student.id] : '';
+                                                        const maxEx = courseConfig?.maxExam1 || 10;
+                                                        const isExamBelowHalf = examMark !== undefined && examMark !== '' && parseFloat(examMark) < (maxEx / 2);
+                                                        return (
+                                                            <input 
+                                                                type="number" min="0" max={maxEx} step="0.5" disabled={visaStatus !== 'DRAFT' || !examEvaluation}
+                                                                value={examMark !== undefined ? examMark : ''}
+                                                                onChange={(e) => examEvaluation && handleMarkChange(examEvaluation.id, student.id, e.target.value)}
+                                                                className={`w-full h-full min-h-[36px] min-w-[48px] text-center font-black text-xs md:text-sm focus:outline-none focus:bg-orange-100 focus:ring-2 focus:ring-inset focus:ring-orange-600 bg-transparent ${isExamBelowHalf ? 'text-red-600' : 'text-orange-900'} disabled:opacity-70 disabled:cursor-not-allowed`}
+                                                            />
+                                                        );
+                                                    })()}
+                                                </td>
+                                                <td className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs bg-emerald-100 text-emerald-900">
+                                                    {(() => {
+                                                        const tot = getStudentTotal(student.id);
+                                                        const exMarkStr = examEvaluation ? marksForm[examEvaluation.id]?.[student.id] : '';
+                                                        const ex = exMarkStr !== undefined && exMarkStr !== '' ? parseFloat(exMarkStr) : 0;
+                                                        const ts1 = tot + ex;
+                                                        const maxTs1 = courseConfig?.maxS1 || ((configuredPeriodMax > 0 ? configuredPeriodMax : currentPeriodMax) + (courseConfig?.maxExam1 || 0));
+                                                        const isTs1BelowHalf = maxTs1 > 0 && ts1 < (maxTs1 / 2);
+                                                        return (
+                                                            <span className={isTs1BelowHalf ? 'text-red-600' : ''}>{ts1}</span>
+                                                        );
+                                                    })()}
+                                                </td>
+                                            </>
+                                        )}
+
+                                        {period === 4 && (
+                                            <>
+                                                <td className="border border-slate-900 p-0 text-center align-middle h-full bg-orange-50/30">
+                                                    {(() => {
+                                                        const examMark = examEvaluation ? marksForm[examEvaluation.id]?.[student.id] : '';
+                                                        const maxEx = courseConfig?.maxExam2 || 10;
+                                                        const isExamBelowHalf = examMark !== undefined && examMark !== '' && parseFloat(examMark) < (maxEx / 2);
+                                                        return (
+                                                            <input 
+                                                                type="number" min="0" max={maxEx} step="0.5" disabled={visaStatus !== 'DRAFT' || !examEvaluation}
+                                                                value={examMark !== undefined ? examMark : ''}
+                                                                onChange={(e) => examEvaluation && handleMarkChange(examEvaluation.id, student.id, e.target.value)}
+                                                                className={`w-full h-full min-h-[36px] min-w-[48px] text-center font-black text-xs md:text-sm focus:outline-none focus:bg-orange-100 focus:ring-2 focus:ring-inset focus:ring-orange-600 bg-transparent ${isExamBelowHalf ? 'text-red-600' : 'text-orange-900'} disabled:opacity-70 disabled:cursor-not-allowed`}
+                                                            />
+                                                        );
+                                                    })()}
+                                                </td>
+                                                <td className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs bg-emerald-100 text-emerald-900">
+                                                    {(() => {
+                                                        const tot = getStudentTotal(student.id);
+                                                        const exMarkStr = examEvaluation ? marksForm[examEvaluation.id]?.[student.id] : '';
+                                                        const ex = exMarkStr !== undefined && exMarkStr !== '' ? parseFloat(exMarkStr) : 0;
+                                                        const ts2 = tot + ex;
+                                                        const maxTs2 = courseConfig?.maxS2 || ((configuredPeriodMax > 0 ? configuredPeriodMax : currentPeriodMax) + (courseConfig?.maxExam2 || 0));
+                                                        const isTs2BelowHalf = maxTs2 > 0 && ts2 < (maxTs2 / 2);
+                                                        return (
+                                                            <span className={isTs2BelowHalf ? 'text-red-600' : ''}>{ts2}</span>
+                                                        );
+                                                    })()}
+                                                </td>
+                                                <td className="border border-slate-900 p-1 text-center font-black text-[10px] sm:text-xs bg-indigo-50 text-indigo-900">
+                                                    {/* TG peut nécessiter une autre logique backend, ici on garde la structure */}
+                                                    - 
+                                                </td>
+                                            </>
+                                        )}
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={evaluations.length + 4} className="border border-slate-900 p-8 text-center text-slate-500 font-bold uppercase tracking-wider text-xs bg-slate-50">
-                                        Aucun élève inscrit n'a été trouvé pour cette classe.
+                                    <td colSpan={100} className="border border-slate-900 p-8 text-center text-slate-500 font-bold bg-slate-50">
+                                        Aucun élève trouvé pour cette classe.
                                     </td>
                                 </tr>
                             )}
@@ -473,70 +664,18 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
                 </div>
             </div>
 
-            {/* MODAL AJOUT/MODIFICATION D'UNE COLONNE */}
+            {/* Modal Components */}
             {showModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-                    <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl overflow-hidden animate-scale-in border border-slate-200">
-                        <div className="p-5 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
-                            <h3 className="font-black text-slate-800 uppercase tracking-wider text-xs sm:text-sm">
-                                {evalForm.id ? "Modifier la colonne" : "Ajouter une colonne"}
-                            </h3>
-                            <button onClick={() => setShowModal(false)} className="p-1.5 text-slate-400 hover:text-slate-700 bg-white rounded-lg border border-slate-200 shadow-sm transition-all duration-200 active:scale-95">
-                                <X size={16} />
-                            </button>
-                        </div>
-                        <form onSubmit={handleSaveColumnConfig} className="p-6 space-y-5">
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Type d'évaluation</label>
-                                <select
-                                    required
-                                    value={evalForm.type}
-                                    onChange={(e) => setEvalForm({...evalForm, type: e.target.value})}
-                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all cursor-pointer"
-                                >
-                                    <option value="IE">L.E ou I.E (Interro Écrite)</option>
-                                    <option value="IO">L.O ou I.O (Interro Orale)</option>
-                                    <option value="DEV">DEV (Devoir)</option>
-                                    <option value="CC">C.C (Contrôle Continu)</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Cote Maximum</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    required
-                                    value={evalForm.maxPoints}
-                                    onChange={(e) => setEvalForm({...evalForm, maxPoints: e.target.value})}
-                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm font-black text-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2">Date d'évaluation</label>
-                                <div className="relative">
-                                    <Calendar className="absolute left-3 top-3.5 text-slate-400" size={16} />
-                                    <input
-                                        type="date"
-                                        required
-                                        value={evalForm.date}
-                                        onChange={(e) => setEvalForm({...evalForm, date: e.target.value})}
-                                        className="w-full bg-slate-50 border border-slate-300 rounded-xl pl-10 pr-4 py-3 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all cursor-pointer"
-                                    />
-                                </div>
-                            </div>
-                            <div className="pt-2">
-                                <button
-                                    type="submit"
-                                    disabled={isSaving}
-                                    className="w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white shadow-lg transition-all duration-200 active:scale-[0.98] disabled:opacity-50"
-                                >
-                                    {isSaving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
-                                    Valider
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                <EvaluationCarnetAdd
+                    isOpen={showModal}
+                    onClose={() => setShowModal(false)}
+                    evalForm={evalForm}
+                    setEvalForm={setEvalForm}
+                    onSave={handleSaveColumnConfig}
+                    isSaving={isSaving}
+                    currentPeriodMax={currentPeriodMax}
+                    configuredPeriodMax={configuredPeriodMax}
+                />
             )}
         </div>
     );

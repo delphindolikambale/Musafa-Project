@@ -46,7 +46,7 @@ public class EvaluationController {
 
     @PostMapping("/assignment/{taId}/period/{period}/submit")
     public ResponseEntity<String> submitForVisa(@PathVariable Long taId, @PathVariable int period) {
-        try chr{
+        try{
             evaluationService.submitPeriodForVisa(taId, period);
             return ResponseEntity.ok("Les cotes ont été transmises au Proviseur avec succès.");
         } catch (RuntimeException e) {

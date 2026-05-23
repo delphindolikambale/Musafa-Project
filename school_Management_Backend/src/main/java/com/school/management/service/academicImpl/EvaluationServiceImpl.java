@@ -100,8 +100,9 @@ public class EvaluationServiceImpl implements EvaluationService {
             Student student = studentRepository.findById(markDto.getStudentId())
                     .orElseThrow(() -> new RuntimeException("Élève non trouvé"));
 
+            // SÉCURITÉ SERVER-SIDE ANTI-CORRUPTION DES DONNÉES
             if (markDto.getObtainedValue() > dto.getMaxPoints()) {
-                throw new RuntimeException("La note de l'élève " + student.getFirstName() + " ne peut pas être supérieure au maxima de " + dto.getMaxPoints());
+                throw new RuntimeException("Sécurité : La note de l'élève " + student.getFirstName() + " (" + markDto.getObtainedValue() + ") ne peut pas être supérieure au maxima configuré de " + dto.getMaxPoints());
             }
 
             StudentMark mark = existingMarks.stream()

@@ -22,6 +22,7 @@ const ClassWorkspace = ({ assignment, activeYear, onBack }) => {
                 assignment={assignment} 
                 activeYear={activeYear} 
                 onBack={() => setCurrentSection('DASHBOARD')} 
+                onOpenGradeSheet={() => setCurrentSection('FICHE_DE_NOTES')}
             />
         );
     }
@@ -31,7 +32,7 @@ const ClassWorkspace = ({ assignment, activeYear, onBack }) => {
             <GradeSheetPage 
                 assignment={assignment} 
                 activeYear={activeYear} 
-                onBack={() => setCurrentSection('DASHBOARD')} 
+                onBack={() => setCurrentSection('CARNET_DE_NOTES')} 
             />
         );
     }
@@ -61,7 +62,7 @@ const ClassWorkspace = ({ assignment, activeYear, onBack }) => {
 
             {/* Contenu principal : Tableau de bord interne ou Modules */}
             {currentSection === 'DASHBOARD' ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {/* Carte 1 : Carnet de Notes */}
                     <button
                         onClick={() => setCurrentSection('CARNET_DE_NOTES')}
@@ -85,30 +86,7 @@ const ClassWorkspace = ({ assignment, activeYear, onBack }) => {
                         </div>
                     </button>
 
-                    {/* Carte 2 : Fiche de Notes */}
-                    <button
-                        onClick={() => setCurrentSection('FICHE_DE_NOTES')}
-                        className="group text-left bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:border-emerald-500 dark:hover:border-emerald-500 transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between min-h-[145px] relative overflow-hidden"
-                    >
-                        <div className="w-full">
-                            <div className="flex items-center justify-between">
-                                <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                                    <FileText size={20} />
-                                </div>
-                                <span className="text-[10px] font-black tracking-widest uppercase bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 px-2.5 py-1 rounded-full">
-                                    Disponible
-                                </span>
-                            </div>
-                            <h3 className="text-base font-black text-slate-800 dark:text-white mt-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
-                                Fiche de Notes
-                            </h3>
-                            <p className="text-xs text-slate-400 dark:text-slate-500 mt-1 line-clamp-2">
-                                Consultez la grille matricielle globale des résultats, les totaux semestriels et synthèses de la classe.
-                            </p>
-                        </div>
-                    </button>
-
-                    {/* Carte 3 : Contenu de Cours */}
+                    {/* Carte 2 : Contenu de Cours */}
                     <button
                         onClick={() => setCurrentSection('COURS')}
                         className="group text-left bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:border-indigo-500 dark:hover:border-indigo-500 transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between min-h-[145px] relative overflow-hidden"
@@ -131,7 +109,7 @@ const ClassWorkspace = ({ assignment, activeYear, onBack }) => {
                         </div>
                     </button>
 
-                    {/* Carte 4 : Planification / Progression */}
+                    {/* Carte 3 : Planification / Progression */}
                     <button
                         onClick={() => setCurrentSection('PLAN')}
                         className="group text-left bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:shadow-xl hover:border-slate-400 dark:hover:border-slate-500 transition-all duration-300 transform hover:-translate-y-1 flex flex-col justify-between min-h-[145px] relative overflow-hidden"

@@ -17,6 +17,6 @@ public interface EvaluationService {
     void submitPeriodForVisa(Long teacherAssignmentId, int period);
     VisaStatus getPeriodVisaStatus(Long teacherAssignmentId, int period);
 
-    // NOUVELLE METHODE : Récupérer la configuration des maxima de l'affectation
+    // Récupérer la configuration des maxima de l'affectation
     CourseAssignmentResponseDTO getCourseConfigByAssignment(Long teacherAssignmentId);
 }

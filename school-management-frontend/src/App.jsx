@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { SchoolProvider } from "./context/SchoolContext";
 
 // --- VIEWS & AUTH ---
-import Landing from "./views/Landing";
+import Welcome from "./views/Welcome"; // REMPLACEMENT DE LANDING PAR WELCOME ICI
 import Login from "./views/Login";
 import Register from "./views/Register";
 import ProtectedRoute from "./components/ProtectedRoute"; 
@@ -59,14 +59,26 @@ import TeacherEvaluationDashboard from "./components/dashboard/pedagogieDashboar
 import TeacherClassesManager from "./components/structure/pedagogie/TeacherClassesManager";
 
 export const ThemeContext = createContext();
+// --- NOUVEAU CONTEXTE POUR LA LANGUE ---
+export const LanguageContext = createContext();
 
 function App() {
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'light');
+  
+  // --- ÉTAT GLOBAL DE LA LANGUE ---
+  const [language, setLanguage] = useState(localStorage.getItem('app-lang') || 'FR');
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light';
     setTheme(newTheme);
     localStorage.setItem('app-theme', newTheme);
+  };
+
+  // --- FONCTION BASCULE DE LANGUE ---
+  const toggleLanguage = () => {
+    const newLang = language === 'FR' ? 'EN' : 'FR';
+    setLanguage(newLang);
+    localStorage.setItem('app-lang', newLang);
   };
 
   useEffect(() => {
@@ -80,79 +92,82 @@ function App() {
 
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
-      <SchoolProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<Landing />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            
-            {/* --- GROUPE ADMIN PROTÉGÉ --- */}
-            <Route element={<ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN","ROLE_ADMIN_SYSTEM"]}><AdminLayout /></ProtectedRoute>}>
-              <Route path="/dashboard" element={<DashboardStats />} />
-              <Route path="/annee-scolaire" element={<AnneeScolaire />} />
-              <Route path="/niveaux" element={<NiveauScolaire />} />
-              <Route path="/sections-options" element={<SectionsOptions />} />
-              <Route path="/classes" element={<ClassroomManager />} />
-              <Route path="/salles" element={<RoomManager />} />
-              <Route path="/registre" element={<StudentManagement />} />
-              <Route path="/inscriptions" element={<EnrollmentModule />} />
-              <Route path="/archives" element={<ArchiveDashboard />} />
-              <Route path="/finances" element={<FinanceAdmin />} />
-              <Route path="/roles" element={<RoleAccessManager />} /> 
-              <Route path="/parametres" element={<SettingsDashboard />} />
-            </Route>
+      <LanguageContext.Provider value={{ language, toggleLanguage }}>
+        <SchoolProvider>
+          <Router>
+            <Routes>
+              {/* LA ROUTE RACINE POINTE DÉSORMAIS VERS WELCOME */}
+              <Route path="/" element={<Welcome />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              
+              {/* --- GROUPE ADMIN PROTÉGÉ --- */}
+              <Route element={<ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN","ROLE_ADMIN_SYSTEM"]}><AdminLayout /></ProtectedRoute>}>
+                <Route path="/dashboard" element={<DashboardStats />} />
+                <Route path="/annee-scolaire" element={<AnneeScolaire />} />
+                <Route path="/niveaux" element={<NiveauScolaire />} />
+                <Route path="/sections-options" element={<SectionsOptions />} />
+                <Route path="/classes" element={<ClassroomManager />} />
+                <Route path="/salles" element={<RoomManager />} />
+                <Route path="/registre" element={<StudentManagement />} />
+                <Route path="/inscriptions" element={<EnrollmentModule />} />
+                <Route path="/archives" element={<ArchiveDashboard />} />
+                <Route path="/finances" element={<FinanceAdmin />} />
+                <Route path="/roles" element={<RoleAccessManager />} /> 
+                <Route path="/parametres" element={<SettingsDashboard />} />
+              </Route>
 
-            {/* --- GROUPE CAISSIER PROTÉGÉ --- */}
-            <Route element={<ProtectedRoute allowedRoles={["CAISSIER", "ROLE_CAISSIER", "ADMIN", "ROLE_ADMIN"]}><CashierLayout /></ProtectedRoute>}>
-              <Route path="/caissier/dashboard" element={<CashierDashboard />} />
-              <Route path="/caissier/paiements" element={<PaymentWindow />} />
-              <Route path="/caissier/recouvrement" element={<RecouvrementFraisManager />} />
-              <Route path="/caissier/comptes" element={<FinancialAccountManager />} />
-              <Route path="/caissier/entrees-caisse" element={<CashReceipts />} />
-              <Route path="/caissier/depenses" element={<ExpenseManager />} />
-              <Route path="/caissier/historique" element={<TransactionHistory />} />
-            </Route>
+              {/* --- GROUPE CAISSIER PROTÉGÉ --- */}
+              <Route element={<ProtectedRoute allowedRoles={["CAISSIER", "ROLE_CAISSIER", "ADMIN", "ROLE_ADMIN"]}><CashierLayout /></ProtectedRoute>}>
+                <Route path="/caissier/dashboard" element={<CashierDashboard />} />
+                <Route path="/caissier/paiements" element={<PaymentWindow />} />
+                <Route path="/caissier/recouvrement" element={<RecouvrementFraisManager />} />
+                <Route path="/caissier/comptes" element={<FinancialAccountManager />} />
+                <Route path="/caissier/entrees-caisse" element={<CashReceipts />} />
+                <Route path="/caissier/depenses" element={<ExpenseManager />} />
+                <Route path="/caissier/historique" element={<TransactionHistory />} />
+              </Route>
 
-            {/* --- GROUPE PRÉFET PROTÉGÉ --- */}
-            <Route path="/prefet" element={<ProtectedRoute allowedRoles={["PREFET", "ROLE_PREFET", "ADMIN", "ROLE_ADMIN"]}><RegisterStudents /></ProtectedRoute>}>
-              <Route path="dashboard" element={<RegisterStudentsDashboard />} />
-              <Route path="eleves" element={<StudentManagement />} />
-              <Route path="inscriptions" element={<EnrollmentModule />} />
-              <Route path="cours" element={<SectionsOptions />} />
-              <Route index element={<Navigate to="dashboard" />} />
-            </Route>
+              {/* --- GROUPE PRÉFET PROTÉGÉ --- */}
+              <Route path="/prefet" element={<ProtectedRoute allowedRoles={["PREFET", "ROLE_PREFET", "ADMIN", "ROLE_ADMIN"]}><RegisterStudents /></ProtectedRoute>}>
+                <Route path="dashboard" element={<RegisterStudentsDashboard />} />
+                <Route path="eleves" element={<StudentManagement />} />
+                <Route path="inscriptions" element={<EnrollmentModule />} />
+                <Route path="cours" element={<SectionsOptions />} />
+                <Route index element={<Navigate to="dashboard" />} />
+              </Route>
 
-            {/* --- GROUPE PROVISEUR PROTÉGÉ --- */}
-            <Route path="/proviseur" element={<ProtectedRoute allowedRoles={["PROVISEUR", "ROLE_PROVISEUR", "ADMIN", "ROLE_ADMIN"]}><ProviseurLayout /></ProtectedRoute>}>
-              <Route path="dashboard" element={<PedagogieDashboard />} />
-              <Route path="enseignants" element={<TeacherManagement />} />
-              <Route path="unites-cours" element={<CourseManagement />} />
-              <Route path="affectations" element={<TeacherAssignment />} />
-              <Route path="horaires" element={<ScheduleManagement />} />
-              <Route path="presences" element={<AttendanceManagement />} />
-              <Route index element={<Navigate to="dashboard" />} />
-            </Route>
+              {/* --- GROUPE PROVISEUR PROTÉGÉ --- */}
+              <Route path="/proviseur" element={<ProtectedRoute allowedRoles={["PROVISEUR", "ROLE_PROVISEUR", "ADMIN", "ROLE_ADMIN"]}><ProviseurLayout /></ProtectedRoute>}>
+                <Route path="dashboard" element={<PedagogieDashboard />} />
+                <Route path="enseignants" element={<TeacherManagement />} />
+                <Route path="unites-cours" element={<CourseManagement />} />
+                <Route path="affectations" element={<TeacherAssignment />} />
+                <Route path="horaires" element={<ScheduleManagement />} />
+                <Route path="presences" element={<AttendanceManagement />} />
+                <Route index element={<Navigate to="dashboard" />} />
+              </Route>
 
-            {/* --- GROUPE ENSEIGNANT PROTÉGÉ --- */}
-            <Route path="/enseignant" element={<ProtectedRoute allowedRoles={["ENSEIGNANT", "ROLE_ENSEIGNANT", "ADMIN", "ROLE_ADMIN"]}><TeacherLayout /></ProtectedRoute>}>
-              <Route path="dashboard" element={<TeacherEvaluationDashboard />} />
-              <Route path="classes" element={<TeacherClassesManager />} />
-              <Route index element={<Navigate to="dashboard" />} />
-            </Route>
+              {/* --- GROUPE ENSEIGNANT PROTÉGÉ --- */}
+              <Route path="/enseignant" element={<ProtectedRoute allowedRoles={["ENSEIGNANT", "ROLE_ENSEIGNANT", "ADMIN", "ROLE_ADMIN"]}><TeacherLayout /></ProtectedRoute>}>
+                <Route path="dashboard" element={<TeacherEvaluationDashboard />} />
+                <Route path="classes" element={<TeacherClassesManager />} />
+                <Route index element={<Navigate to="dashboard" />} />
+              </Route>
 
-            {/* --- GROUPE ÉLÈVE PROTÉGÉ --- */}
-            <Route path="/student" element={<ProtectedRoute allowedRoles={["ELEVE", "ROLE_ELEVE", "ADMIN", "ROLE_ADMIN"]}><StudentPedagogyLayout /></ProtectedRoute>}>
-              <Route path="dashboard" element={<StudentPedagogyDashboard />} />
-              <Route path="results" element={<StudentPedagogyDashboard />} />
-              <Route path="schedule" element={<StudentPedagogyDashboard />} />
-              <Route index element={<Navigate to="dashboard" />} />
-            </Route>
+              {/* --- GROUPE ÉLÈVE PROTÉGÉ --- */}
+              <Route path="/student" element={<ProtectedRoute allowedRoles={["ELEVE", "ROLE_ELEVE", "ADMIN", "ROLE_ADMIN"]}><StudentPedagogyLayout /></ProtectedRoute>}>
+                <Route path="dashboard" element={<StudentPedagogyDashboard />} />
+                <Route path="results" element={<StudentPedagogyDashboard />} />
+                <Route path="schedule" element={<StudentPedagogyDashboard />} />
+                <Route index element={<Navigate to="dashboard" />} />
+              </Route>
 
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </Router>
-      </SchoolProvider>
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </Router>
+        </SchoolProvider>
+      </LanguageContext.Provider>
     </ThemeContext.Provider>
   );
 }

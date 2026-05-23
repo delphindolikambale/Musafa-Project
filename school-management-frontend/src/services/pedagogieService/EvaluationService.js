@@ -51,7 +51,6 @@ const EvaluationService = {
         return response.data;
     },
 
-    // NOUVELLE METHODE : Extraction complète de la configuration et des barèmes du cours
     getAssignmentConfig: async (taId) => {
         const response = await axios.get(`${API_EVAL}/assignment/${taId}/config`, { headers: getHeader() });
         return response.data;
