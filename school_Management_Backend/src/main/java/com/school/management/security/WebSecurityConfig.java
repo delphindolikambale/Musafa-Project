@@ -61,6 +61,7 @@ public class WebSecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOriginPatterns(Arrays.asList(
+                "https://musafa-project.onrender.com",
                 "http://localhost:3000",
                 "http://localhost:5170",
                 "http://localhost:5171",

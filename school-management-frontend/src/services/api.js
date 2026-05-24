@@ -1,7 +1,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: "http://localhost:8080/api",
+    // Utilise la variable d'environnement de Render en production, 
+    // ou retombe automatiquement sur localhost en développement local.
+    baseURL: import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api",
+    withCredentials: true,
     headers: {
         'Content-Type': 'application/json'
     }
