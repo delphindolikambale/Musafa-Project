@@ -101,6 +101,7 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
                                 .requestMatchers("/api/academic/**").permitAll()
                                 .requestMatchers("/api/config/**").permitAll()
+                                .requestMatchers("/api/v1/admin/school-config").permitAll() // 🔥 AJOUT : Autorise l'accès public pour l'écran d'accueil/inscription
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").permitAll()
                                 .requestMatchers("/archives/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()
