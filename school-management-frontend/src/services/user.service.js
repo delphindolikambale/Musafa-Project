@@ -1,7 +1,10 @@
 import axios from "axios";
 import authHeader from "./auth-header";
 
-const API_URL = "http://localhost:8080/api/admin/users";
+// ✅ Détection automatique : URL Render en production, localhost en développement
+const API_URL = window.location.hostname.includes('onrender.com')
+  ? "https://musafa-projectbackend.onrender.com/api/admin/users"
+  : "http://localhost:8080/api/admin/users";
 
 // Récupérer tous les utilisateurs dynamiquement
 const getAllUsers = () => {
