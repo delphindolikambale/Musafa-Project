@@ -1,20 +1,25 @@
-import axios from 'axios';
+import axios from "axios";
+import authHeader from "./auth-header";
 
-const API_URL = "http://localhost:8080/api/v1/admin/school-config";
+// ✅ Détection automatique : On utilise l'URL Render en production, sinon on reste sur localhost
+const API_URL = window.location.hostname.includes('onrender.com')
+  ? "https://musafa-projectbackend.onrender.com/api/admin/users"
+  : "http://localhost:8080/api/admin/users";
 
-export const SchoolConfigService = {
-  /**
-   * Récupère la configuration globale de l'école (Nom, Logo, etc.)
-   */
-  getConfig: async () => {
-    try {
-      const response = await axios.get(API_URL);
-      return response.data;
-    } catch (error) {
-      console.error("Erreur lors de la récupération de la configuration de l'école:", error);
-      throw error;
-    }
-  }
+// Récupérer tous les utilisateurs dynamiquement
+const getAllUsers = () => {
+  return axios.get(API_URL, { headers: authHeader() });
 };
 
-export default SchoolConfigService;
+// Mettre à jour l'utilisateur (Rôle et/ou Mot de passe)
+const updateUser = (userId, userData) => {
+  // userData peut contenir { roles: ["ROLE_..."], password: "..." }
+  return axios.put(`${API_URL}/${userId}`, userData, { headers: authHeader() });
+};
+
+const UserService = {
+  getAllUsers,
+  updateUser,
+};
+
+export default UserService;

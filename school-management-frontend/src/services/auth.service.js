@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/auth/";
+// ✅ Détection automatique : On utilise l'URL Render en production, sinon on reste sur localhost
+const API_URL = window.location.hostname.includes('onrender.com')
+  ? "https://musafa-projectbackend.onrender.com/api/auth/"
+  : "http://localhost:8080/api/auth/";
 
 const login = async (username, password) => {
   localStorage.removeItem("user");
