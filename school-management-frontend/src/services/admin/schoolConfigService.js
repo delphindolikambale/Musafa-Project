@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const API_URL = "http://localhost:8080/api/v1/admin/school-config";
+// ✅ Détection automatique de l'environnement (Render ou Localhost)
+const API_URL = window.location.hostname.includes('onrender.com')
+  ? "https://musafa-projectbackend.onrender.com/api/v1/admin/school-config"
+  : "http://localhost:8080/api/v1/admin/school-config";
 
 const getSchoolConfig = async () => {
     const response = await axios.get(API_URL);

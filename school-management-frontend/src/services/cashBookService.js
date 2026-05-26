@@ -1,8 +1,16 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8080/api/financial/cash-book';
+// ✅ Détection automatique de l'environnement (Render ou Localhost)
+const isRender = window.location.hostname.includes('onrender.com');
+
+const API_URL = isRender
+  ? 'https://musafa-projectbackend.onrender.com/api/financial/cash-book'
+  : 'http://localhost:8080/api/financial/cash-book';
+
 // CORRECTION : Ajout de /v1/ pour correspondre exactement au chemin du @RequestMapping du Backend
-const CONFIG_API_URL = 'http://localhost:8080/api/v1/admin/school-config'; 
+const CONFIG_API_URL = isRender
+  ? 'https://musafa-projectbackend.onrender.com/api/v1/admin/school-config'
+  : 'http://localhost:8080/api/v1/admin/school-config'; 
 
 const getHeader = () => {
     const user = JSON.parse(localStorage.getItem('user'));

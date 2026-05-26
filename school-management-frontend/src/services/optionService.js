@@ -1,6 +1,9 @@
 import axios from "axios";
 
-const API_URL = "http://localhost:8080/api/options";
+// ✅ Détection automatique de l'environnement (Render ou Localhost)
+const API_URL = window.location.hostname.includes('onrender.com')
+  ? "https://musafa-projectbackend.onrender.com/api/options"
+  : "http://localhost:8080/api/options";
 
 const optionService = {
     getAll: () => axios.get(API_URL),
