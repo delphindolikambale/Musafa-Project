@@ -1,12 +1,13 @@
 import axios from 'axios';
 
-// Si le navigateur est sur onrender.com, on utilise le backend en production, sinon localhost
-const backendUrl = window.location.hostname.includes('onrender.com')
-    ? 'https://musafa-projectbackend.onrender.com/api'
-    : 'http://localhost:8080/api';
+// Le code vérifie l'adresse dans la barre de recherche du navigateur
+const deployeeSurRender = window.location.hostname.includes('onrender.com');
 
 const api = axios.create({
-    baseURL: backendUrl,
+    // Si on est sur Render, on tape le vrai backend, sinon on reste sur localhost
+    baseURL: deployeeSurRender 
+        ? "https://musafa-projectbackend.onrender.com/api" 
+        : "http://localhost:8080/api",
     withCredentials: true,
     headers: {
         'Content-Type': 'application/json'
