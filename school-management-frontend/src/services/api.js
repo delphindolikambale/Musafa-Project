@@ -14,4 +14,21 @@ const api = axios.create({
     }
 });
 
+// 🔥 CORRECTION : Intercepteur pour injecter automatiquement le Token JWT
+api.interceptors.request.use(
+    (config) => {
+        // On récupère l'utilisateur depuis le localStorage (exactement comme vous le faites dans vos services)
+        const user = JSON.parse(localStorage.getItem('user'));
+        
+        // Si l'utilisateur existe et qu'il a un token, on l'ajoute dans l'en-tête Authorization
+        if (user && user.accessToken) {
+            config.headers['Authorization'] = 'Bearer ' + user.accessToken;
+        }
+        return config;
+    },
+    (error) => {
+        return Promise.reject(error);
+    }
+);
+
 export default api;
