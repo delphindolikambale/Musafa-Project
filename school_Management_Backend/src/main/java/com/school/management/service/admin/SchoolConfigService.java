@@ -9,6 +9,5 @@ public interface SchoolConfigService {
 
     SchoolConfigDTO saveOrUpdateConfig(SchoolConfigDTO dto);
 
-    // Nouvelle méthode pour réinitialiser ou supprimer la configuration
     void deleteConfig();
 }

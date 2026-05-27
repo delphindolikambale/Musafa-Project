@@ -18,20 +18,20 @@ public class SchoolConfigServiceImpl implements SchoolConfigService {
     @Override
     @Transactional(readOnly = true)
     public SchoolConfigDTO getConfig() {
-        // Retourne la config existante ou un objet vide si rien n'existe
-        SchoolConfiguration config = repository.findFirstByOrderByIdAsc()
-                .orElse(new SchoolConfiguration());
-        return mapToDTO(config);
+        // Retourne la config existante, ou null si la base est vide
+        return repository.findFirstByOrderByIdAsc()
+                .map(this::mapToDTO)
+                .orElse(null);
     }
 
     @Override
     @Transactional
     public SchoolConfigDTO saveOrUpdateConfig(SchoolConfigDTO dto) {
-        // On récupère l'unique enregistrement s'il existe
+        // On récupère l'unique enregistrement s'il existe, sinon on en instancie un nouveau
         SchoolConfiguration config = repository.findFirstByOrderByIdAsc()
                 .orElse(new SchoolConfiguration());
 
-        // Mise à jour des champs (Modification)
+        // Mise à jour de tous les champs
         config.setSchoolName(dto.getSchoolName());
         config.setSlogan(dto.getSlogan());
         config.setLogoBase64(dto.getLogoBase64());
@@ -54,7 +54,6 @@ public class SchoolConfigServiceImpl implements SchoolConfigService {
     @Override
     @Transactional
     public void deleteConfig() {
-        // Supprime l'unique configuration pour permettre une réinitialisation
         repository.findFirstByOrderByIdAsc().ifPresent(repository::delete);
     }
 

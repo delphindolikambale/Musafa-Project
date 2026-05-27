@@ -34,23 +34,15 @@ const SchoolConfigForm = () => {
     const loadConfig = async () => {
         try {
             setLoading(true);
-            const data = await schoolConfigService.getSchoolConfig();
+            // On utilise la bonne méthode définie dans notre service
+            const data = await schoolConfigService.getConfig();
             
-            let configData = null;
-            if (Array.isArray(data) && data.length > 0) {
-                configData = data[0];
-            } else if (data && (data.id || Object.keys(data).length > 0)) {
-                configData = data;
-            }
-
-            if (configData) {
-                const serverId = configData.id || configData.schoolId || configData.idSchool;
-                setConfig({
-                    ...configData,
-                    id: serverId || null
-                });
-                setIsReadOnly(true);
+            // Si le backend renvoie 204 No Content, data sera null ou vide
+            if (data && Object.keys(data).length > 0 && data.id) {
+                setConfig(data);
+                setIsReadOnly(true); // Verrouille le form car les données existent
             } else {
+                // Pas de configuration en base : on déverrouille le formulaire
                 setIsReadOnly(false);
             }
         } catch (error) {
@@ -61,7 +53,6 @@ const SchoolConfigForm = () => {
         }
     };
 
-    // ⚡ NOUVELLE MÉTHODE : Compression de l'image à la volée avant conversion
     const handleFileChange = (e) => {
         if (isReadOnly) return;
         const file = e.target.files[0];
@@ -71,13 +62,11 @@ const SchoolConfigForm = () => {
         reader.onload = (event) => {
             const img = new Image();
             img.onload = () => {
-                // Dimensions maximales acceptables pour un logo d'application
                 const MAX_WIDTH = 400;
                 const MAX_HEIGHT = 400;
                 let width = img.width;
                 let height = img.height;
 
-                // Calcul du ratio pour ne pas déformer l'image
                 if (width > height) {
                     if (width > MAX_WIDTH) {
                         height *= MAX_WIDTH / width;
@@ -90,14 +79,12 @@ const SchoolConfigForm = () => {
                     }
                 }
 
-                // Dessin dans un canvas HTML5 pour reconstruction matérielle
                 const canvas = document.createElement('canvas');
                 canvas.width = width;
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
 
-                // Exportation en JPEG compressé à 70% de sa qualité d'origine
                 const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
                 
                 setConfig({ ...config, logoBase64: compressedBase64 });
@@ -112,30 +99,11 @@ const SchoolConfigForm = () => {
         try {
             let updatedData;
             
+            // Notre logique backend gère désormais l'upsert proprement
             if (config.id) {
                 updatedData = await schoolConfigService.updateSchoolConfig(config);
             } else {
-                try {
-                    updatedData = await schoolConfigService.createSchoolConfig(config);
-                } catch (postError) {
-                    if (postError.response && postError.response.status === 409) {
-                        console.warn("Conflit 409 détecté. Redirection vers PUT...");
-                        const serverData = await schoolConfigService.getSchoolConfig();
-                        const activeConfig = Array.isArray(serverData) ? serverData[0] : serverData;
-                        
-                        if (activeConfig) {
-                            const targetId = activeConfig.id || activeConfig.schoolId || activeConfig.idSchool;
-                            updatedData = await schoolConfigService.updateSchoolConfig({
-                                ...config,
-                                id: targetId
-                            });
-                        } else {
-                            throw postError;
-                        }
-                    } else {
-                        throw postError;
-                    }
-                }
+                updatedData = await schoolConfigService.createSchoolConfig(config);
             }
             
             setConfig(updatedData);
@@ -144,7 +112,7 @@ const SchoolConfigForm = () => {
             toast.success("Configuration institutionnelle sauvegardée avec succès !");
         } catch (error) {
             console.error("Erreur critique lors de la sauvegarde :", error);
-            toast.error("Erreur réseau ou payload trop lourd. Réduisez la taille de vos images.");
+            toast.error("Erreur réseau ou payload trop lourd. Vérifiez vos données.");
         }
     };
 

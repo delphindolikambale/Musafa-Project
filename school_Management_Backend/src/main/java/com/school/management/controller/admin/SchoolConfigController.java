@@ -15,22 +15,25 @@ public class SchoolConfigController {
 
     @GetMapping
     public ResponseEntity<SchoolConfigDTO> getConfig() {
-        return ResponseEntity.ok(configService.getConfig());
+        SchoolConfigDTO dto = configService.getConfig();
+        if (dto == null) {
+            // Renvoie 204 No Content si aucune config n'existe (évite l'erreur 500)
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(dto);
     }
 
-    // Utilisé pour la création initiale
+    // Le POST et le PUT feront exactement la même chose : un Upsert intelligent
     @PostMapping
     public ResponseEntity<SchoolConfigDTO> createConfig(@RequestBody SchoolConfigDTO dto) {
         return ResponseEntity.ok(configService.saveOrUpdateConfig(dto));
     }
 
-    // Utilisé pour la modification (Update)
     @PutMapping
     public ResponseEntity<SchoolConfigDTO> updateConfig(@RequestBody SchoolConfigDTO dto) {
         return ResponseEntity.ok(configService.saveOrUpdateConfig(dto));
     }
 
-    // Utilisé pour supprimer/réinitialiser la configuration
     @DeleteMapping
     public ResponseEntity<Void> deleteConfig() {
         configService.deleteConfig();
