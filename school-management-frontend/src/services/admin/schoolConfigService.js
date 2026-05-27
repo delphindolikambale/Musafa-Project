@@ -1,6 +1,6 @@
 import api from '../api'; // Ajuste ce chemin pour pointer vers ton fichier api.js global
 
-export const schoolConfigService = {
+const schoolConfigServiceObj = {
     /**
      * Récupère la configuration globale de l'école (Nom, Logo, etc.)
      * Aligné strictement sur la méthode du contrôleur Backend (getConfig)
@@ -56,4 +56,5 @@ export const schoolConfigService = {
     }
 };
 
-export default schoolConfigService;
+export const schoolConfigService = schoolConfigServiceObj;
+export default schoolConfigServiceObj;

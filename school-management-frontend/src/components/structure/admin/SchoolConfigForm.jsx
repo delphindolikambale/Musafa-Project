@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import schoolConfigService from '../../../services/admin/schoolConfigService';
+import { schoolConfigService } from '../../../services/admin/schoolConfigService';
 import { toast } from 'react-toastify'; 
 import { useSchool } from '../../../context/SchoolContext';
 
