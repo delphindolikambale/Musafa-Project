@@ -5,7 +5,7 @@ import { useSchool } from '../../../context/SchoolContext'; // IMPORT DU CONTEXT
 
 const SchoolConfigForm = () => {
     // Récupération de la fonction de mise à jour globale
-    const { updateSchoolConfig } = useSchool();
+    const { updateSchoolConfig: refreshGlobalSchoolConfig } = useSchool();
 
     const [config, setConfig] = useState({
         id: null,
@@ -36,6 +36,8 @@ const SchoolConfigForm = () => {
         try {
             setLoading(true);
             const data = await schoolConfigService.getSchoolConfig();
+            
+            // Si des données valides avec un ID existent
             if (data && data.id) {
                 setConfig(data);
                 setIsReadOnly(true);
@@ -43,7 +45,14 @@ const SchoolConfigForm = () => {
                 setIsReadOnly(false);
             }
         } catch (error) {
-            console.error("Erreur lors du chargement de la config", error);
+            console.error("Erreur lors du chargement de la configuration :", error);
+            
+            // Si le backend répond avec un code 409 ou s'il y a déjà une config existante cachée
+            if (error.response && error.response.status === 409) {
+                toast.warn("Une configuration existe déjà sur le serveur. Veuillez rafraîchir la page.");
+            }
+            
+            // On laisse la possibilité d'éditer si aucune config n'a pu être chargée
             setIsReadOnly(false);
         } finally {
             setLoading(false);
@@ -64,6 +73,9 @@ const SchoolConfigForm = () => {
         e.preventDefault();
         try {
             let updatedData;
+            
+            // Sécurité : Si l'id est absent mais qu'on a reçu une erreur 409 précédemment,
+            // On s'assure d'exécuter la bonne méthode ou d'avertir l'utilisateur
             if (config.id) {
                 updatedData = await schoolConfigService.updateSchoolConfig(config);
             } else {
@@ -73,14 +85,18 @@ const SchoolConfigForm = () => {
             setConfig(updatedData);
             
             // ACTION CRUCIALE : On met à jour le contexte global
-            // Cela va rafraîchir la Sidebar et tous les autres composants instantanément
-            await updateSchoolConfig(); 
+            await refreshGlobalSchoolConfig(); 
             
             setIsReadOnly(true); 
             toast.success("Configuration institutionnelle sauvegardée avec succès !");
         } catch (error) {
-            toast.error("Erreur lors de la sauvegarde");
-            console.error(error);
+            console.error("Erreur lors de la sauvegarde :", error);
+            
+            if (error.response && error.response.status === 409) {
+                toast.error("Conflit : Cette configuration existe déjà dans la base de données. Utilisez la mise à jour (PUT).");
+            } else {
+                toast.error("Erreur lors de la sauvegarde des paramètres.");
+            }
         }
     };
 
@@ -136,7 +152,7 @@ const SchoolConfigForm = () => {
                         <input 
                             className={getInputClasses(isReadOnly)}
                             placeholder="Nom officiel de l'établissement" 
-                            value={config.schoolName}
+                            value={config.schoolName || ''}
                             onChange={(e) => setConfig({...config, schoolName: e.target.value})}
                             required
                             readOnly={isReadOnly}
@@ -144,7 +160,7 @@ const SchoolConfigForm = () => {
                         <input 
                             className={getInputClasses(isReadOnly)}
                             placeholder="Slogan ou Devise" 
-                            value={config.slogan}
+                            value={config.slogan || ''}
                             onChange={(e) => setConfig({...config, slogan: e.target.value})}
                             readOnly={isReadOnly}
                         />
@@ -176,7 +192,7 @@ const SchoolConfigForm = () => {
                         <input 
                             className={getInputClasses(isReadOnly)}
                             placeholder="Province" 
-                            value={config.province}
+                            value={config.province || ''}
                             onChange={(e) => setConfig({...config, province: e.target.value})}
                             readOnly={isReadOnly}
                         />
@@ -184,14 +200,14 @@ const SchoolConfigForm = () => {
                             <input 
                                 className={getInputClasses(isReadOnly)}
                                 placeholder="Ville / Territoire" 
-                                value={config.city}
+                                value={config.city || ''}
                                 onChange={(e) => setConfig({...config, city: e.target.value})}
                                 readOnly={isReadOnly}
                             />
                             <input 
                                 className={getInputClasses(isReadOnly)}
                                 placeholder="Sous-Division" 
-                                value={config.subdivision}
+                                value={config.subdivision || ''}
                                 onChange={(e) => setConfig({...config, subdivision: e.target.value})}
                                 readOnly={isReadOnly}
                             />
@@ -199,7 +215,7 @@ const SchoolConfigForm = () => {
                         <input 
                             className={getInputClasses(isReadOnly)}
                             placeholder="Arrêté Ministériel" 
-                            value={config.decreeOfCreation}
+                            value={config.decreeOfCreation || ''}
                             onChange={(e) => setConfig({...config, decreeOfCreation: e.target.value})}
                             readOnly={isReadOnly}
                         />
@@ -214,7 +230,7 @@ const SchoolConfigForm = () => {
                                 <label className="text-[10px] uppercase font-bold text-slate-500 ml-1 mb-1 block">Préfet</label>
                                 <input 
                                     className={getInputClasses(isReadOnly)}
-                                    value={config.headmasterName}
+                                    value={config.headmasterName || ''}
                                     onChange={(e) => setConfig({...config, headmasterName: e.target.value})}
                                     readOnly={isReadOnly}
                                 />
@@ -223,7 +239,7 @@ const SchoolConfigForm = () => {
                                 <label className="text-[10px] uppercase font-bold text-slate-500 ml-1 mb-1 block">Proviseur</label>
                                 <input 
                                     className={getInputClasses(isReadOnly)}
-                                    value={config.academicProviseur}
+                                    value={config.academicProviseur || ''}
                                     onChange={(e) => setConfig({...config, academicProviseur: e.target.value})}
                                     readOnly={isReadOnly}
                                 />
@@ -232,7 +248,7 @@ const SchoolConfigForm = () => {
                                 <label className="text-[10px] uppercase font-bold text-slate-500 ml-1 mb-1 block">Caissier</label>
                                 <input 
                                     className={getInputClasses(isReadOnly)}
-                                    value={config.defaultCashierName}
+                                    value={config.defaultCashierName || ''}
                                     onChange={(e) => setConfig({...config, defaultCashierName: e.target.value})}
                                     readOnly={isReadOnly}
                                 />
@@ -247,7 +263,7 @@ const SchoolConfigForm = () => {
                         <input 
                             className={getInputClasses(isReadOnly)}
                             placeholder="Adresse physique" 
-                            value={config.address}
+                            value={config.address || ''}
                             onChange={(e) => setConfig({...config, address: e.target.value})}
                             readOnly={isReadOnly}
                         />
@@ -255,7 +271,7 @@ const SchoolConfigForm = () => {
                             <input 
                                 className={getInputClasses(isReadOnly)}
                                 placeholder="Téléphone" 
-                                value={config.phone}
+                                value={config.phone || ''}
                                 onChange={(e) => setConfig({...config, phone: e.target.value})}
                                 readOnly={isReadOnly}
                             />
@@ -263,7 +279,7 @@ const SchoolConfigForm = () => {
                                 className={getInputClasses(isReadOnly)}
                                 type="email"
                                 placeholder="Email" 
-                                value={config.email}
+                                value={config.email || ''}
                                 onChange={(e) => setConfig({...config, email: e.target.value})}
                                 readOnly={isReadOnly}
                             />
@@ -271,7 +287,7 @@ const SchoolConfigForm = () => {
                         <input 
                             className={getInputClasses(isReadOnly)}
                             placeholder="Site Web" 
-                            value={config.website}
+                            value={config.website || ''}
                             onChange={(e) => setConfig({...config, website: e.target.value})}
                             readOnly={isReadOnly}
                         />
