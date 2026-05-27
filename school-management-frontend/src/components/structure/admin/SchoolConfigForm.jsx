@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import schoolConfigService from '../../../services/admin/schoolConfigService';
 import { toast } from 'react-toastify'; 
-import { useSchool } from '../../../context/SchoolContext'; // IMPORT DU CONTEXTE
+import { useSchool } from '../../../context/SchoolContext';
 
 const SchoolConfigForm = () => {
-    // Récupération de la fonction de mise à jour globale
     const { updateSchoolConfig: refreshGlobalSchoolConfig } = useSchool();
 
     const [config, setConfig] = useState({
@@ -37,36 +36,75 @@ const SchoolConfigForm = () => {
             setLoading(true);
             const data = await schoolConfigService.getSchoolConfig();
             
-            // Si des données valides avec un ID existent
-            if (data && data.id) {
-                setConfig(data);
+            let configData = null;
+            if (Array.isArray(data) && data.length > 0) {
+                configData = data[0];
+            } else if (data && (data.id || Object.keys(data).length > 0)) {
+                configData = data;
+            }
+
+            if (configData) {
+                const serverId = configData.id || configData.schoolId || configData.idSchool;
+                setConfig({
+                    ...configData,
+                    id: serverId || null
+                });
                 setIsReadOnly(true);
             } else {
                 setIsReadOnly(false);
             }
         } catch (error) {
             console.error("Erreur lors du chargement de la configuration :", error);
-            
-            // Si le backend répond avec un code 409 ou s'il y a déjà une config existante cachée
-            if (error.response && error.response.status === 409) {
-                toast.warn("Une configuration existe déjà sur le serveur. Veuillez rafraîchir la page.");
-            }
-            
-            // On laisse la possibilité d'éditer si aucune config n'a pu être chargée
             setIsReadOnly(false);
         } finally {
             setLoading(false);
         }
     };
 
+    // ⚡ NOUVELLE MÉTHODE : Compression de l'image à la volée avant conversion
     const handleFileChange = (e) => {
         if (isReadOnly) return;
         const file = e.target.files[0];
+        if (!file) return;
+
         const reader = new FileReader();
-        reader.onloadend = () => {
-            setConfig({ ...config, logoBase64: reader.result });
+        reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+                // Dimensions maximales acceptables pour un logo d'application
+                const MAX_WIDTH = 400;
+                const MAX_HEIGHT = 400;
+                let width = img.width;
+                let height = img.height;
+
+                // Calcul du ratio pour ne pas déformer l'image
+                if (width > height) {
+                    if (width > MAX_WIDTH) {
+                        height *= MAX_WIDTH / width;
+                        width = MAX_WIDTH;
+                    }
+                } else {
+                    if (height > MAX_HEIGHT) {
+                        width *= MAX_HEIGHT / height;
+                        height = MAX_HEIGHT;
+                    }
+                }
+
+                // Dessin dans un canvas HTML5 pour reconstruction matérielle
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                // Exportation en JPEG compressé à 70% de sa qualité d'origine
+                const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                
+                setConfig({ ...config, logoBase64: compressedBase64 });
+            };
+            img.src = event.target.result;
         };
-        if (file) reader.readAsDataURL(file);
+        reader.readAsDataURL(file);
     };
 
     const handleSubmit = async (e) => {
@@ -74,29 +112,39 @@ const SchoolConfigForm = () => {
         try {
             let updatedData;
             
-            // Sécurité : Si l'id est absent mais qu'on a reçu une erreur 409 précédemment,
-            // On s'assure d'exécuter la bonne méthode ou d'avertir l'utilisateur
             if (config.id) {
                 updatedData = await schoolConfigService.updateSchoolConfig(config);
             } else {
-                updatedData = await schoolConfigService.createSchoolConfig(config);
+                try {
+                    updatedData = await schoolConfigService.createSchoolConfig(config);
+                } catch (postError) {
+                    if (postError.response && postError.response.status === 409) {
+                        console.warn("Conflit 409 détecté. Redirection vers PUT...");
+                        const serverData = await schoolConfigService.getSchoolConfig();
+                        const activeConfig = Array.isArray(serverData) ? serverData[0] : serverData;
+                        
+                        if (activeConfig) {
+                            const targetId = activeConfig.id || activeConfig.schoolId || activeConfig.idSchool;
+                            updatedData = await schoolConfigService.updateSchoolConfig({
+                                ...config,
+                                id: targetId
+                            });
+                        } else {
+                            throw postError;
+                        }
+                    } else {
+                        throw postError;
+                    }
+                }
             }
             
             setConfig(updatedData);
-            
-            // ACTION CRUCIALE : On met à jour le contexte global
             await refreshGlobalSchoolConfig(); 
-            
             setIsReadOnly(true); 
             toast.success("Configuration institutionnelle sauvegardée avec succès !");
         } catch (error) {
-            console.error("Erreur lors de la sauvegarde :", error);
-            
-            if (error.response && error.response.status === 409) {
-                toast.error("Conflit : Cette configuration existe déjà dans la base de données. Utilisez la mise à jour (PUT).");
-            } else {
-                toast.error("Erreur lors de la sauvegarde des paramètres.");
-            }
+            console.error("Erreur critique lors de la sauvegarde :", error);
+            toast.error("Erreur réseau ou payload trop lourd. Réduisez la taille de vos images.");
         }
     };
 
@@ -112,7 +160,6 @@ const SchoolConfigForm = () => {
 
     return (
         <div className="p-5 md:p-8 bg-gradient-to-br from-slate-900 via-[#0a1128] to-[#081a3a] text-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-blue-900/30 relative overflow-hidden">
-            
             <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
             <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
@@ -124,7 +171,7 @@ const SchoolConfigForm = () => {
                                 Paramètres de l'Institution
                             </h2>
                             {isReadOnly && config.id && (
-                                <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-black px-2 py-1 rounded-full border border-emerald-500/20 uppercase tracking-tighter animate-pulse">
+                                <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-black px-2 py-1 rounded-full border border-emerald-500/20 uppercase tracking-tighter">
                                     ✓ Validé
                                 </span>
                             )}
@@ -147,7 +194,7 @@ const SchoolConfigForm = () => {
                     
                     <div className={`space-y-5 p-5 rounded-2xl border transition-all duration-500 ${isReadOnly ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-800/20 border-slate-700/30'}`}>
                         <h3 className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-blue-200 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                            <span className="text-blue-400">🏫</span> Identité Visuelle
+                            <span>🏫</span> Identité Visuelle
                         </h3>
                         <input 
                             className={getInputClasses(isReadOnly)}
@@ -180,14 +227,14 @@ const SchoolConfigForm = () => {
                                         className="text-sm w-full file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600/20 file:text-blue-400 hover:file:bg-blue-600/30 transition-all cursor-pointer text-slate-300" 
                                     />
                                 )}
-                                {isReadOnly && <p className="text-[10px] text-slate-500 font-italic italic">Logo enregistré et sécurisé.</p>}
+                                {isReadOnly && <p className="text-[10px] text-slate-500 font-italic italic">Logo enregistré et sécurisé (allégé).</p>}
                             </div>
                         </div>
                     </div>
 
                     <div className={`space-y-5 p-5 rounded-2xl border transition-all duration-500 ${isReadOnly ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-800/20 border-slate-700/30'}`}>
                         <h3 className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-200 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                            <span className="text-emerald-400">🌍</span> Localisation & Légal
+                            <span>🌍</span> Localisation & Légal
                         </h3>
                         <input 
                             className={getInputClasses(isReadOnly)}
@@ -223,7 +270,7 @@ const SchoolConfigForm = () => {
 
                     <div className={`space-y-5 p-5 rounded-2xl border transition-all duration-500 ${isReadOnly ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-800/20 border-slate-700/30'}`}>
                         <h3 className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-200 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                            <span className="text-orange-400">✍️</span> Autorités Signataires
+                            <span>✍️</span> Autorités Signataires
                         </h3>
                         <div className="space-y-4">
                             <div>
@@ -258,7 +305,7 @@ const SchoolConfigForm = () => {
 
                     <div className={`space-y-5 p-5 rounded-2xl border transition-all duration-500 ${isReadOnly ? 'bg-slate-900/40 border-slate-800' : 'bg-slate-800/20 border-slate-700/30'}`}>
                         <h3 className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-200 font-bold uppercase tracking-wider text-sm flex items-center gap-2">
-                            <span className="text-purple-400">📞</span> Contact Officiel
+                            <span>📞</span> Contact Officiel
                         </h3>
                         <input 
                             className={getInputClasses(isReadOnly)}
@@ -304,7 +351,7 @@ const SchoolConfigForm = () => {
                             </button>
                             <button 
                                 type="submit" 
-                                className="w-full md:w-auto bg-gradient-to-r from-blue-600 via-blue-500 to-emerald-500 hover:from-blue-500 hover:to-emerald-400 text-white font-black py-4 px-10 rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] hover:-translate-y-1 transform uppercase tracking-wider text-sm"
+                                className="w-full md:w-auto bg-gradient-to-r from-blue-600 via-blue-500 to-emerald-500 hover:from-blue-500 hover:to-emerald-400 text-white font-black py-4 px-10 rounded-xl transition-all duration-300 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] uppercase tracking-wider text-sm"
                             >
                                 {config.id ? "Enregistrer les modifications" : "Sauvegarder l'Identité"}
                             </button>
