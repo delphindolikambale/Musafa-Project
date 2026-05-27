@@ -1,4 +1,4 @@
-import axios from "axios";
+import api from './api';
 
 // ✅ Détection automatique de l'environnement (Render ou Localhost)
 const API_URL = window.location.hostname.includes('onrender.com')
