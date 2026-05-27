@@ -1,50 +1,59 @@
-import axios from 'axios';
+import api, { BACKEND_BASE } from './api';
 
-const API_URL = "http://localhost:8080/api/enrollments";
-const ACADEMIC_URL = "http://localhost:8080/api/academic-years";
-const BACKEND_BASE = "http://localhost:8080";
+const API_URL = "/enrollments";
+const ACADEMIC_URL = "/academic-years";
 
 export const enrollmentService = {
     
     getActiveYear: async () => {
-        const res = await axios.get(`${ACADEMIC_URL}/active`);
+        const res = await api.get(`${ACADEMIC_URL}/active`);
+        return res.data;
+    },
+
+    /**
+     * Récupère les salles de classe (Requis par EnrollmentDashboard.js)
+     */
+    getClassrooms: async () => {
+        const res = await api.get("/classrooms");
         return res.data;
     },
 
     getAllEnrollments: async (academicYearId = null) => {
         const url = academicYearId ? `${API_URL}?yearId=${academicYearId}` : API_URL;
-        const res = await axios.get(url);
+        const res = await api.get(url);
         return res.data;
     },
 
-    // C'est cette méthode qui déclenche la création financière et la notification côté Backend
     createEnrollment: async (formData) => {
-        const res = await axios.post(API_URL, formData, {
+        const res = await api.post(API_URL, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         return res.data;
     },
 
     updateEnrollment: async (id, formData) => {
-        const res = await axios.put(`${API_URL}/${id}`, formData, {
+        const res = await api.put(`${API_URL}/${id}`, formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         });
         return res.data;
     },
 
     deleteEnrollment: async (id) => {
-        const res = await axios.delete(`${API_URL}/${id}`);
+        const res = await api.delete(`${API_URL}/${id}`);
         return res.status;
     },
 
     getEnrollmentReport: async (classroomId, academicYearId) => {
-        const res = await axios.get(`${API_URL}/report/classroom/${classroomId}/academic-year/${academicYearId}`);
+        const res = await api.get(`${API_URL}/report/classroom/${classroomId}/academic-year/${academicYearId}`);
         return res.data;
     },
 
     viewDocumentSecurely: async (fileUrl) => {
         try {
-            const token = localStorage.getItem('token');
+            // Récupération uniforme du token depuis le stockage local
+            const user = JSON.parse(localStorage.getItem('user'));
+            const token = user?.accessToken || localStorage.getItem('token');
+
             if (!fileUrl) {
                 alert("Le chemin du fichier est introuvable.");
                 return;

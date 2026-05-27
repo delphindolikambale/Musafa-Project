@@ -1,13 +1,13 @@
-import axios from 'axios';
+import api, { BACKEND_BASE } from './api';
 
-const API_URL = "http://localhost:8080/api/archives";
-const ENROLLMENT_URL = "http://localhost:8080/api/enrollments"; 
+const API_URL = "/archives";
+const ENROLLMENT_URL = "/enrollments"; 
 
 const ArchiveService = {
     
     getAllStudentsSummary: async () => {
         try {
-            const response = await axios.get(`${API_URL}/students/search`);
+            const response = await api.get(`${API_URL}/students/search`);
             return response.data;
         } catch (error) {
             console.error("Erreur lors de la récupération de la liste des élèves", error);
@@ -17,7 +17,7 @@ const ArchiveService = {
 
     getStudentFolder: async (matricule) => {
         try {
-            const response = await axios.get(`${API_URL}/student/${matricule}`);
+            const response = await api.get(`${API_URL}/student/${matricule}`);
             return response.data;
         } catch (error) {
             console.error("Erreur lors de la récupération du dossier complet", error);
@@ -30,13 +30,11 @@ const ArchiveService = {
     },
 
     /**
-     * ✅ Supprimer un document physiquement et en base de données
-     * Utilise maintenant le documentId dans l'URL pour correspondre au Backend
+     * Supprimer un document physiquement et en base de données
      */
     deleteDocument: async (enrollmentId, documentId) => {
         try {
-            // L'URL générée sera : /api/enrollments/{enrollmentId}/documents/{documentId}
-            const response = await axios.delete(`${ENROLLMENT_URL}/${enrollmentId}/documents/${documentId}`);
+            const response = await api.delete(`${ENROLLMENT_URL}/${enrollmentId}/documents/${documentId}`);
             return response.data;
         } catch (error) {
             console.error("Erreur lors de la suppression du document", error);
@@ -51,7 +49,7 @@ const ArchiveService = {
         formData.append('type', type);
 
         try {
-            const response = await axios.post(`${API_URL}/upload`, formData, {
+            const response = await api.post(`${API_URL}/upload`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
             return response.data;
@@ -63,7 +61,7 @@ const ArchiveService = {
 
     getDocumentUrl: (fileName) => {
         if (!fileName) return null;
-        return `${API_URL}/documents/view/${fileName}`;
+        return `${BACKEND_BASE}/api${API_URL}/documents/view/${fileName}`;
     }
 };
 

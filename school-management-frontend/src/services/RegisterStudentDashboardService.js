@@ -1,6 +1,6 @@
-import axios from 'axios';
+import api from './api';
 
-const API_URL = "http://localhost:8080/api/register-student-dashboard";
+const API_URL = "/register-student-dashboard";
 
 export const RegisterStudentDashboardService = {
     /**
@@ -8,7 +8,7 @@ export const RegisterStudentDashboardService = {
      */
     getStats: async () => {
         try {
-            const response = await axios.get(`${API_URL}/stats`);
+            const response = await api.get(`${API_URL}/stats`);
             return response.data;
         } catch (error) {
             console.error("Erreur service RegisterStudentDashboard:", error);
