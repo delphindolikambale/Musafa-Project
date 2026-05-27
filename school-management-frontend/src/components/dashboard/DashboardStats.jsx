@@ -84,7 +84,8 @@ const DashboardStats = () => {
         {/* Graphique en Bâtons */}
         <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col min-h-[350px]">
           <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest mb-6">Taux de Présence Hebdomadaire</h3>
-          <div className="flex-1 w-full h-full min-h-[250px]">
+          {/* CORRECTION : Remplacement des classes flex par une hauteur stricte (h-[300px]) */}
+          <div className="w-full h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={barData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
@@ -105,7 +106,8 @@ const DashboardStats = () => {
         {/* Graphique en Camembert */}
         <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col min-h-[350px]">
           <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest mb-6">Situation Financière (Frais)</h3>
-          <div className="flex-1 w-full h-full min-h-[250px]">
+          {/* CORRECTION : Remplacement des classes flex par une hauteur stricte (h-[300px]) */}
+          <div className="w-full h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

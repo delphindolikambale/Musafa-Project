@@ -21,8 +21,12 @@ api.interceptors.request.use(
     (config) => {
         const user = JSON.parse(localStorage.getItem('user'));
         
-        if (user && user.accessToken) {
-            config.headers['Authorization'] = 'Bearer ' + user.accessToken;
+        // CORRECTION : On cherche user.token (comme défini dans auth.service.js) 
+        // ou user.accessToken par sécurité au cas où le backend change.
+        const token = user?.token || user?.accessToken;
+        
+        if (token) {
+            config.headers['Authorization'] = 'Bearer ' + token;
         }
         return config;
     },
