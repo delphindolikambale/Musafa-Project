@@ -1,10 +1,10 @@
-import api from '../api';// Ajuste ce chemin pour pointer vers ton fichier api.js global
+import api from '../api'; // Ajuste ce chemin pour pointer vers ton fichier api.js global
 
 export const schoolConfigService = {
     /**
      * Récupère la configuration globale de l'école (Nom, Logo, etc.)
      */
-    getConfig: async () => {
+    getSchoolConfig: async () => {
         try {
             // L'instance 'api' gère déjà l'URL de base et le JWT
             const response = await api.get('/v1/admin/school-config');

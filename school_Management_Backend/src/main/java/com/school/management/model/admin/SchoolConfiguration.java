@@ -7,9 +7,11 @@ import lombok.*;
 @Table(name = "school_configuration")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 
+
 public class SchoolConfiguration {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+
     private Long id;
 
     // --- IDENTITÉ OFFICIELLE ---
