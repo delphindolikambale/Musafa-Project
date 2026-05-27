@@ -1,8 +1,7 @@
-import axios from 'axios';
+import api from './api';
 
-const API_URL = "http://localhost:8080/api/v1";
-const BASE_URL_NO_V1 = "http://localhost:8080/api"; // Pour les modules sans versioning
-const INSTALLMENT_API_URL = "http://localhost:8080/api/installments";
+const V1_URL = "/v1";
+const INSTALLMENT_URL = "/installments";
 
 /**
  * Service de gestion financière pour l'administration.
@@ -10,31 +9,31 @@ const INSTALLMENT_API_URL = "http://localhost:8080/api/installments";
 const financeAdminService = {
     
     // --- 1. GROUPES DE FRAIS ---
-    createGroup: (data) => axios.post(`${API_URL}/fees-groups`, data),
-    getGroupsByYear: (yearId) => axios.get(`${API_URL}/fees-groups/academic-year/${yearId}`),
-    updateGroup: (id, data) => axios.put(`${API_URL}/fees-groups/${id}`, data),
-    deleteGroup: (id) => axios.delete(`${API_URL}/fees-groups/${id}`),
-    deactivateGroup: (id) => axios.put(`${API_URL}/fees-groups/${id}/deactivate`),
+    createGroup: (data) => api.post(`${V1_URL}/fees-groups`, data),
+    getGroupsByYear: (yearId) => api.get(`${V1_URL}/fees-groups/academic-year/${yearId}`),
+    updateGroup: (id, data) => api.put(`${V1_URL}/fees-groups/${id}`, data),
+    deleteGroup: (id) => api.delete(`${V1_URL}/fees-groups/${id}`),
+    deactivateGroup: (id) => api.put(`${V1_URL}/fees-groups/${id}/deactivate`),
 
     // --- 2. ITEMS DE FRAIS ---
-    createItem: (data) => axios.post(`${API_URL}/fees-items`, data),
-    getItemsByGroup: (groupId) => axios.get(`${API_URL}/fees-items/group/${groupId}`),
-    updateItem: (id, data) => axios.put(`${API_URL}/fees-items/${id}`, data),
-    deleteItem: (id) => axios.delete(`${API_URL}/fees-items/${id}`),
+    createItem: (data) => api.post(`${V1_URL}/fees-items`, data),
+    getItemsByGroup: (groupId) => api.get(`${V1_URL}/fees-items/group/${groupId}`),
+    updateItem: (id, data) => api.put(`${V1_URL}/fees-items/${id}`, data),
+    deleteItem: (id) => api.delete(`${V1_URL}/fees-items/${id}`),
 
     // --- 3. BARÈMES ---
-    createSchedule: (data) => axios.post(`${API_URL}/schedule-fees`, data),
-    getSchedulesByYear: (yearId) => axios.get(`${API_URL}/schedule-fees/academic-year/${yearId}`),
-    updateSchedule: (id, data) => axios.put(`${API_URL}/schedule-fees/${id}`, data),
-    deleteSchedule: (id) => axios.delete(`${API_URL}/schedule-fees/${id}`),
-    deactivateSchedule: (id) => axios.patch(`${API_URL}/schedule-fees/${id}/deactivate`),
+    createSchedule: (data) => api.post(`${V1_URL}/schedule-fees`, data),
+    getSchedulesByYear: (yearId) => api.get(`${V1_URL}/schedule-fees/academic-year/${yearId}`),
+    updateSchedule: (id, data) => api.put(`${V1_URL}/schedule-fees/${id}`, data),
+    deleteSchedule: (id) => api.delete(`${V1_URL}/schedule-fees/${id}`),
+    deactivateSchedule: (id) => api.patch(`${V1_URL}/schedule-fees/${id}/deactivate`),
 
     // --- 4. TRANCHES (Installments) ---
-    getInstallmentsBySchedule: (scheduleId) => axios.get(`${INSTALLMENT_API_URL}/schedule-fees/${scheduleId}`),
-    updateInstallment: (id, data) => axios.put(`${INSTALLMENT_API_URL}/${id}`, data),
+    getInstallmentsBySchedule: (scheduleId) => api.get(`${INSTALLMENT_URL}/schedule-fees/${scheduleId}`),
+    updateInstallment: (id, data) => api.put(`${INSTALLMENT_URL}/${id}`, data),
 
     // --- 5. ANNÉES ACADÉMIQUES ---
-    getActiveAcademicYear: () => axios.get(`${BASE_URL_NO_V1}/academic-years/active`),
+    getActiveAcademicYear: () => api.get(`/academic-years/active`),
 
     // --- 6. UTILITAIRES ---
     getSchoolInfo: () => ({

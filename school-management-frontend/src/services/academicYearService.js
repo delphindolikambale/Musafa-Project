@@ -1,27 +1,19 @@
-import axios from "axios";
+import api from './api';
 
-// ✅ Détection automatique de l'environnement (Render ou Localhost)
-const API_URL = window.location.hostname.includes('onrender.com')
-  ? "https://musafa-projectbackend.onrender.com/api/academic-years"
-  : "http://localhost:8080/api/academic-years";
-
-const getHeader = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user && user.accessToken ? { Authorization: 'Bearer ' + user.accessToken } : {};
-};
+const ACADEMIC_URL = "/academic-years";
 
 const academicService = {
-    getAllAcademicYears: () => axios.get(API_URL, { headers: getHeader() }),
+    getAllAcademicYears: () => api.get(ACADEMIC_URL),
     
-    getActiveYear: () => axios.get(`${API_URL}/active`, { headers: getHeader() }),
+    getActiveYear: () => api.get(`${ACADEMIC_URL}/active`),
     
-    createAcademicYear: (data) => axios.post(API_URL, data, { headers: getHeader() }),
+    createAcademicYear: (data) => api.post(ACADEMIC_URL, data),
     
-    updateAcademicYear: (id, data) => axios.put(`${API_URL}/${id}`, data, { headers: getHeader() }),
+    updateAcademicYear: (id, data) => api.put(`${ACADEMIC_URL}/${id}`, data),
     
-    deleteAcademicYear: (id) => axios.delete(`${API_URL}/${id}`, { headers: getHeader() }),
+    deleteAcademicYear: (id) => api.delete(`${ACADEMIC_URL}/${id}`),
     
-    activateYear: (id) => axios.patch(`${API_URL}/${id}/activate`, {}, { headers: getHeader() })
+    activateYear: (id) => api.patch(`${ACADEMIC_URL}/${id}/activate`, {})
 };
 
 export default academicService;
