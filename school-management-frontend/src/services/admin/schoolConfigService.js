@@ -3,10 +3,24 @@ import api from '../api'; // Ajuste ce chemin pour pointer vers ton fichier api.
 export const schoolConfigService = {
     /**
      * Récupère la configuration globale de l'école (Nom, Logo, etc.)
+     * Aligné strictement sur la méthode du contrôleur Backend (getConfig)
+     */
+    getConfig: async () => {
+        try {
+            // L'instance 'api' gère déjà l'URL de base et le JWT
+            const response = await api.get('/v1/admin/school-config');
+            return response.data;
+        } catch (error) {
+            console.error("Erreur lors de la récupération de la configuration de l'école:", error);
+            throw error;
+        }
+    },
+
+    /**
+     * Alias de compatibilité pour sécuriser d'éventuels autres appels
      */
     getSchoolConfig: async () => {
         try {
-            // L'instance 'api' gère déjà l'URL de base et le JWT
             const response = await api.get('/v1/admin/school-config');
             return response.data;
         } catch (error) {
