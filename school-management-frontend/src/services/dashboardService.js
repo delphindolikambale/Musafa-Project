@@ -1,12 +1,9 @@
 import api from './api';
 
-// ✅ Détection automatique de l'environnement (Render ou Localhost)
-const API_URL = window.location.hostname.includes('onrender.com')
-  ? "https://musafa-projectbackend.onrender.com/api/dashboard"
-  : "http://localhost:8080/api/dashboard";
-
 const getStats = () => {
-    return axios.get(`${API_URL}/stats`);
+    // ✅ CORRECTION : Utilisation de l'instance 'api' (qui possède déjà la baseURL et l'intercepteur JWT)
+    // Au lieu de axios.get(`${API_URL}/stats`)
+    return api.get('/dashboard/stats');
 };
 
 export default { getStats };
