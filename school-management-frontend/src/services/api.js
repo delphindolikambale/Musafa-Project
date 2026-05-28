@@ -1,4 +1,5 @@
 import axios from 'axios';
+import AuthService from './auth.service';
 
 const deployeeSurRender = window.location.hostname.includes('onrender.com');
 
@@ -8,7 +9,6 @@ export const BACKEND_BASE = deployeeSurRender
 
 const api = axios.create({
     baseURL: `${BACKEND_BASE}/api`,
-    withCredentials: true,
     headers: {
         'Content-Type': 'application/json'
     }
