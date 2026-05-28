@@ -28,7 +28,6 @@ import java.util.List;
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
-
 public class WebSecurityConfig {
 
     private final UserDetailsServiceImpl userDetailsService;
@@ -79,7 +78,8 @@ public class WebSecurityConfig {
         configuration.setAllowedHeaders(Arrays.asList(
                 "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"
         ));
-        configuration.setExposedHeaders(Arrays.asList("Authorization"));
+        // ✅ Ajout de Content-Disposition pour les téléchargements de fichiers
+        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
 
@@ -101,7 +101,7 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
                                 .requestMatchers("/api/academic/**").permitAll()
                                 .requestMatchers("/api/config/**").permitAll()
-                                .requestMatchers("/api/v1/admin/school-config").permitAll() // 🔥 AJOUT : Autorise l'accès public pour l'écran d'accueil/inscription
+                                .requestMatchers("/api/v1/admin/school-config").permitAll()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").permitAll()
                                 .requestMatchers("/archives/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()

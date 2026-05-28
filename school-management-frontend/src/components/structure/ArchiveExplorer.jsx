@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ArchiveService from '../../services/ArchiveService';
+import api from '../../api'; // ✅ AJOUT : Import de l'instance api pour l'appel sécurisé avec le token
 
 const ArchiveExplorer = () => {
     const { matricule } = useParams();
@@ -16,11 +17,30 @@ const ArchiveExplorer = () => {
             } catch (err) {
                 console.error("Erreur archive:", err);
             } finally {
-                loading(false);
+                setLoading(false); // Correction: setLoading au lieu de loading
             }
         };
         if (matricule) fetchFolder();
     }, [matricule]);
+
+    // ✅ AJOUT : Fonction pour télécharger et afficher le document en injectant le token
+    const viewDocumentSecurely = async (fileName) => {
+        try {
+            const response = await api.get(`/archives/download/${encodeURIComponent(fileName)}`, {
+                responseType: 'blob' // Indispensable pour traiter le fichier binaire
+            });
+
+            const contentType = response.headers['content-type'] || 'application/pdf';
+            const blob = new Blob([response.data], { type: contentType });
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            window.open(blobUrl, '_blank');
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+        } catch (error) {
+            console.error("Erreur visualisation sécurisée:", error);
+            alert("Erreur: Impossible de charger le document (Vérifiez vos droits d'accès).");
+        }
+    };
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50">
@@ -53,7 +73,7 @@ const ArchiveExplorer = () => {
             </div>
 
             <div className="max-w-7xl mx-auto px-6 mt-10">
-                {/* 1. Bloc Identité (Pochette du dossier) */}
+                {/* 1. Bloc Identité */}
                 <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden mb-12 flex flex-col md:flex-row">
                     <div className="md:w-1/3 bg-slate-50 p-10 flex flex-col items-center border-r">
                         <div className="w-48 h-48 bg-white rounded-[2rem] shadow-inner border-4 border-white overflow-hidden relative group">
@@ -87,7 +107,7 @@ const ArchiveExplorer = () => {
                     </div>
                 </div>
 
-                {/* 2. Liste des Dossiers Annuels (Timeline) */}
+                {/* 2. Liste des Dossiers Annuels */}
                 <h3 className="text-xl font-black text-slate-800 uppercase italic mb-8 flex items-center gap-3">
                     <span className="w-10 h-1 bg-amber-500 rounded-full"></span>
                     Parcours Académique & Documents
@@ -96,7 +116,6 @@ const ArchiveExplorer = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                     {folder.academicHistory.map((year, idx) => (
                         <div key={idx} className="group relative bg-white rounded-[2rem] p-8 shadow-xl border border-slate-100 hover:border-amber-400 transition-all cursor-default">
-                            {/* Onglet de dossier jaune style "Windows/Office" */}
                             <div className="absolute -top-3 left-8 bg-amber-400 text-white px-4 py-1 rounded-t-lg font-black text-[10px] uppercase shadow-sm">
                                 {year.academicYear}
                             </div>
@@ -119,10 +138,8 @@ const ArchiveExplorer = () => {
                                             year.documents.map((doc, dIdx) => (
                                                 <div 
                                                     key={dIdx} 
-                                                    onClick={() => {
-                                                        const url = ArchiveService.getDocumentUrl(doc.fileName);
-                                                        if (url) window.open(url, '_blank');
-                                                    }}
+                                                    // ✅ CORRECTION : Utilisation de viewDocumentSecurely
+                                                    onClick={() => viewDocumentSecurely(doc.fileName)}
                                                     className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-200 group/doc"
                                                 >
                                                     <span className="text-xl">📄</span>

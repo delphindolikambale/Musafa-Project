@@ -1,9 +1,7 @@
 import axios from 'axios';
 
-// Le code vérifie l'adresse dans la barre de recherche du navigateur
 const deployeeSurRender = window.location.hostname.includes('onrender.com');
 
-// EXPORT EXPLICITE pour corriger l'erreur de build sur Rollup/Vite
 export const BACKEND_BASE = deployeeSurRender 
     ? "https://musafa-projectbackend.onrender.com" 
     : "http://localhost:8080";
@@ -16,17 +14,20 @@ const api = axios.create({
     }
 });
 
-// Intercepteur pour injecter automatiquement le Token JWT
 api.interceptors.request.use(
     (config) => {
-        const user = JSON.parse(localStorage.getItem('user'));
-        
-        // CORRECTION : On cherche user.token (comme défini dans auth.service.js) 
-        // ou user.accessToken par sécurité au cas où le backend change.
-        const token = user?.token || user?.accessToken;
-        
-        if (token) {
-            config.headers['Authorization'] = 'Bearer ' + token;
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                const token = user?.token || user?.accessToken || user?.jwt;
+                
+                if (token) {
+                    config.headers['Authorization'] = 'Bearer ' + token;
+                }
+            } catch (e) {
+                console.error("Erreur parsing localStorage user", e);
+            }
         }
         return config;
     },
