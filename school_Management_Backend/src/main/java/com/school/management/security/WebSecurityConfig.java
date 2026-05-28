@@ -103,7 +103,7 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/config/**").permitAll()
                                 .requestMatchers("/api/v1/admin/school-config").permitAll()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").permitAll()
-                                .requestMatchers("/archives/**").permitAll()
+                                .requestMatchers("/api/archives/**").authenticated()
                                 .requestMatchers("/favicon.ico").permitAll()
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")
                                 .anyRequest().authenticated()
