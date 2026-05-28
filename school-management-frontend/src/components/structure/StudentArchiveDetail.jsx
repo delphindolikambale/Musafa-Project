@@ -5,7 +5,7 @@ import {
     BadgeCheck, Info, Eye, Trash2 
 } from 'lucide-react';
 import ArchiveService from '../../services/ArchiveService';
-import api from '../../api'; // ✅ AJOUT : Importation de l'instance API configurée avec le Token JWT
+// We do not need to import 'api' here anymore since ArchiveService handles the secure viewing.
 
 const StudentArchiveDetail = ({ selectedMatricule, onBack }) => {
     const { matricule: urlMatricule } = useParams();
@@ -35,30 +35,15 @@ const StudentArchiveDetail = ({ selectedMatricule, onBack }) => {
     };
 
     /**
-     * ✅ CORRECTION : Remplacement de l'appel non sécurisé par un fetch binaire 
-     * avec injection automatique du Token via l'instance 'api'
+     * Utilisation de la méthode centralisée du service pour visualiser le document
      */
     const handleViewDocument = async (fileName) => {
         if (!fileName) return alert("Nom du fichier non disponible");
-        try {
-            const response = await api.get(`/archives/download/${encodeURIComponent(fileName)}`, {
-                responseType: 'blob'
-            });
-
-            const contentType = response.headers['content-type'] || 'application/pdf';
-            const blob = new Blob([response.data], { type: contentType });
-            const blobUrl = window.URL.createObjectURL(blob);
-
-            window.open(blobUrl, '_blank');
-            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
-        } catch (error) {
-            console.error("Erreur visualisation sécurisée:", error);
-            alert("Erreur: Impossible de charger le document (Vérifiez vos droits d'accès).");
-        }
+        await ArchiveService.viewDocumentSecurely(fileName);
     };
 
     /**
-     * ✅ Correction : Utilisation du documentId pour correspondre au Backend
+     * Correction : Utilisation du documentId pour correspondre au Backend
      */
     const handleDeleteDocument = async (enrollmentId, documentId) => {
         if (window.confirm("Êtes-vous sûr de vouloir supprimer définitivement ce document ?")) {
@@ -145,7 +130,7 @@ const StudentArchiveDetail = ({ selectedMatricule, onBack }) => {
                                         
                                         <div className="flex gap-1">
                                             <button 
-                                                onClick={() => handleViewDocument(doc.fileName || doc.customName)} // ✅ Passation du nom physique du fichier
+                                                onClick={() => handleViewDocument(doc.fileName || doc.customName)} 
                                                 className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                                 title="Visualiser"
                                             >

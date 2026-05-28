@@ -59,6 +59,28 @@ const ArchiveService = {
         }
     },
 
+    /**
+     * ✅ AJOUT : Méthode centralisée pour télécharger et visualiser un document
+     * avec le jeton JWT injecté via l'instance `api`.
+     */
+    viewDocumentSecurely: async (fileName) => {
+        try {
+            const response = await api.get(`${API_URL}/download/${encodeURIComponent(fileName)}`, {
+                responseType: 'blob' 
+            });
+
+            const contentType = response.headers['content-type'] || 'application/pdf';
+            const blob = new Blob([response.data], { type: contentType });
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            window.open(blobUrl, '_blank');
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+        } catch (error) {
+            console.error("Erreur visualisation sécurisée:", error);
+            alert("Erreur: Impossible de charger le document (Vérifiez vos droits d'accès).");
+        }
+    },
+
     getDocumentUrl: (fileName) => {
         if (!fileName) return null;
         return `${BACKEND_BASE}/api${API_URL}/download/${fileName}`;
