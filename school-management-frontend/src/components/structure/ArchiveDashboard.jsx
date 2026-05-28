@@ -46,7 +46,6 @@ const ArchiveDashboard = () => {
 
     return (
         <div className="bg-gray-50 h-screen flex flex-col overflow-hidden">
-            {/* ZONE FIXE : En-tête et Barre de recherche */}
             <div className="w-full bg-gray-50 pt-8 px-8 pb-4">
                 <div className="max-w-6xl mx-auto">
                     <div className="flex justify-between items-center mb-8">
@@ -72,7 +71,6 @@ const ArchiveDashboard = () => {
                 </div>
             </div>
 
-            {/* ZONE SCROLLABLE : Grille des dossiers */}
             <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
                 <div className="max-w-6xl mx-auto">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-4">

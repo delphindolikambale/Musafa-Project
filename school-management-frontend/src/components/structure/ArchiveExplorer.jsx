@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ArchiveService from '../../services/ArchiveService';
-import api from '../../api'; // ✅ AJOUT : Import de l'instance api pour l'appel sécurisé avec le token
+import api from '../../api'; 
 
 const ArchiveExplorer = () => {
     const { matricule } = useParams();
@@ -17,17 +17,16 @@ const ArchiveExplorer = () => {
             } catch (err) {
                 console.error("Erreur archive:", err);
             } finally {
-                setLoading(false); // Correction: setLoading au lieu de loading
+                setLoading(false); 
             }
         };
         if (matricule) fetchFolder();
     }, [matricule]);
 
-    // ✅ AJOUT : Fonction pour télécharger et afficher le document en injectant le token
     const viewDocumentSecurely = async (fileName) => {
         try {
             const response = await api.get(`/archives/download/${encodeURIComponent(fileName)}`, {
-                responseType: 'blob' // Indispensable pour traiter le fichier binaire
+                responseType: 'blob' 
             });
 
             const contentType = response.headers['content-type'] || 'application/pdf';
@@ -53,7 +52,6 @@ const ArchiveExplorer = () => {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] font-sans pb-20">
-            {/* Header Sticky */}
             <div className="bg-[#0F172A] text-white p-6 shadow-xl border-b-4 border-amber-500 sticky top-0 z-50">
                 <div className="max-w-7xl mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-6">
@@ -73,7 +71,6 @@ const ArchiveExplorer = () => {
             </div>
 
             <div className="max-w-7xl mx-auto px-6 mt-10">
-                {/* 1. Bloc Identité */}
                 <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-200 overflow-hidden mb-12 flex flex-col md:flex-row">
                     <div className="md:w-1/3 bg-slate-50 p-10 flex flex-col items-center border-r">
                         <div className="w-48 h-48 bg-white rounded-[2rem] shadow-inner border-4 border-white overflow-hidden relative group">
@@ -107,7 +104,6 @@ const ArchiveExplorer = () => {
                     </div>
                 </div>
 
-                {/* 2. Liste des Dossiers Annuels */}
                 <h3 className="text-xl font-black text-slate-800 uppercase italic mb-8 flex items-center gap-3">
                     <span className="w-10 h-1 bg-amber-500 rounded-full"></span>
                     Parcours Académique & Documents
@@ -138,7 +134,6 @@ const ArchiveExplorer = () => {
                                             year.documents.map((doc, dIdx) => (
                                                 <div 
                                                     key={dIdx} 
-                                                    // ✅ CORRECTION : Utilisation de viewDocumentSecurely
                                                     onClick={() => viewDocumentSecurely(doc.fileName)}
                                                     className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-200 group/doc"
                                                 >

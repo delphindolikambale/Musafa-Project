@@ -5,7 +5,7 @@ import {
     BadgeCheck, Info, Eye, Trash2 
 } from 'lucide-react';
 import ArchiveService from '../../services/ArchiveService';
-import { enrollmentService } from '../../services/enrollmentService';
+import api from '../../api'; // ✅ AJOUT : Importation de l'instance API configurée avec le Token JWT
 
 const StudentArchiveDetail = ({ selectedMatricule, onBack }) => {
     const { matricule: urlMatricule } = useParams();
@@ -34,9 +34,27 @@ const StudentArchiveDetail = ({ selectedMatricule, onBack }) => {
         onBack ? onBack() : navigate('/archives');
     };
 
-    const handleViewDocument = async (fileUrl) => {
-        if (!fileUrl) return alert("Lien non disponible");
-        await enrollmentService.viewDocumentSecurely(fileUrl);
+    /**
+     * ✅ CORRECTION : Remplacement de l'appel non sécurisé par un fetch binaire 
+     * avec injection automatique du Token via l'instance 'api'
+     */
+    const handleViewDocument = async (fileName) => {
+        if (!fileName) return alert("Nom du fichier non disponible");
+        try {
+            const response = await api.get(`/archives/download/${encodeURIComponent(fileName)}`, {
+                responseType: 'blob'
+            });
+
+            const contentType = response.headers['content-type'] || 'application/pdf';
+            const blob = new Blob([response.data], { type: contentType });
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            window.open(blobUrl, '_blank');
+            setTimeout(() => window.URL.revokeObjectURL(blobUrl), 100);
+        } catch (error) {
+            console.error("Erreur visualisation sécurisée:", error);
+            alert("Erreur: Impossible de charger le document (Vérifiez vos droits d'accès).");
+        }
     };
 
     /**
@@ -59,7 +77,7 @@ const StudentArchiveDetail = ({ selectedMatricule, onBack }) => {
     if (!folder) return (
         <div className="p-10 text-center text-red-500 bg-white m-8 rounded-2xl shadow-sm border border-red-50">
             <Info className="mx-auto mb-4" size={48} />
-            <p className="text-xl font-bold italic">DOSSIER INTROUVABLE</p>
+            <p className="text-[20px] font-bold italic">DOSSIER INTROUVABLE</p>
             <button onClick={handleBackAction} className="mt-6 px-8 py-3 bg-blue-600 text-white rounded-xl font-black italic uppercase shadow-lg shadow-blue-200">Retour aux archives</button>
         </div>
     );
@@ -127,14 +145,14 @@ const StudentArchiveDetail = ({ selectedMatricule, onBack }) => {
                                         
                                         <div className="flex gap-1">
                                             <button 
-                                                onClick={() => handleViewDocument(doc.fileUrl)} 
+                                                onClick={() => handleViewDocument(doc.fileName || doc.customName)} // ✅ Passation du nom physique du fichier
                                                 className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                                 title="Visualiser"
                                             >
                                                 <Eye size={18} />
                                             </button>
                                             <button 
-                                                onClick={() => handleDeleteDocument(year.enrollmentId, doc.id)} // ✅ Correction : On passe doc.id
+                                                onClick={() => handleDeleteDocument(year.enrollmentId, doc.id)} 
                                                 className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
                                                 title="Supprimer"
                                             >
