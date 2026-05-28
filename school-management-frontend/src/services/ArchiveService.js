@@ -61,7 +61,7 @@ const ArchiveService = {
 
     getDocumentUrl: (fileName) => {
         if (!fileName) return null;
-        return `${BACKEND_BASE}/api${API_URL}/documents/view/${fileName}`;
+        return `${BACKEND_BASE}/api${API_URL}/download/${fileName}`;
     }
 };
 

@@ -16,7 +16,7 @@ const ArchiveExplorer = () => {
             } catch (err) {
                 console.error("Erreur archive:", err);
             } finally {
-                setLoading(false);
+                loading(false);
             }
         };
         if (matricule) fetchFolder();
@@ -117,7 +117,14 @@ const ArchiveExplorer = () => {
                                     <div className="space-y-2">
                                         {year.documents && year.documents.length > 0 ? (
                                             year.documents.map((doc, dIdx) => (
-                                                <div key={dIdx} className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-200 group/doc">
+                                                <div 
+                                                    key={dIdx} 
+                                                    onClick={() => {
+                                                        const url = ArchiveService.getDocumentUrl(doc.fileName);
+                                                        if (url) window.open(url, '_blank');
+                                                    }}
+                                                    className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl hover:bg-blue-50 transition-colors cursor-pointer border border-transparent hover:border-blue-200 group/doc"
+                                                >
                                                     <span className="text-xl">📄</span>
                                                     <div className="flex-1 overflow-hidden">
                                                         <p className="text-[10px] font-bold text-slate-700 truncate">{doc.fileName}</p>
