@@ -99,7 +99,7 @@ const CashierDashboard = () => {
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
-                {/* Evolution Mensuelle */}
+                {/* Évolution Mensuelle */}
                 <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 lg:col-span-2 flex flex-col min-h-[400px]">
                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                         <div>
@@ -127,8 +127,9 @@ const CashierDashboard = () => {
                     ) : monthlyFlows.length === 0 ? (
                         <EmptyState message="Aucune donnée financière pour le moment." />
                     ) : (
-                        <div className="flex-grow w-full h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="flex-grow w-full h-[300px]" style={{ minWidth: 0, minHeight: 0 }}>
+                            {/* ✅ CORRECTION : Ajout de minWidth={1} et minHeight={1} */}
+                            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                 <BarChart data={monthlyFlows} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                     <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b', fontWeight: 600 }} dy={10} />
@@ -160,8 +161,9 @@ const CashierDashboard = () => {
                     ) : classPerformances.length === 0 ? (
                         <EmptyState message="Aucune classe n'a été évaluée." />
                     ) : (
-                        <div className="flex-grow w-full h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
+                        <div className="flex-grow w-full h-[300px]" style={{ minWidth: 0, minHeight: 0 }}>
+                            {/* ✅ CORRECTION : Ajout de minWidth={1} et minHeight={1} */}
+                            <ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1}>
                                 <BarChart data={classPerformances} layout="vertical" margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                                     <XAxis type="number" domain={[0, 100]} hide />

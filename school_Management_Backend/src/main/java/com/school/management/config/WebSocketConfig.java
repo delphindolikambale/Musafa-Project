@@ -8,7 +8,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 @Configuration
 @EnableWebSocketMessageBroker
-public class WebSocketConfig implements WebSocketMessageBrokerConfigurer{
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
@@ -18,14 +18,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer{
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // ✅ CORRECTION : Ajout de l'URL de Render pour éviter le blocage CORS du WebSocket en production
+        // ✅ CORRECTION : Utilisation de "*" pour garantir que la connexion passe
+        // sur Localhost ET sur n'importe quelle URL générée par Render.
         registry.addEndpoint("/ws")
-                .setAllowedOriginPatterns(
-                        "https://musafa-project.onrender.com",
-                        "http://localhost:3000",
-                        "http://localhost:517*",
-                        "http://localhost:5180"
-                )
+                .setAllowedOriginPatterns("*")
                 .withSockJS();
     }
 }

@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import CashierSidebar from './CashierSidebar';
-import AuthService from '../../services/auth.service'; // Nom corrigé
+import AuthService from '../../services/auth.service';
 import { websocketService } from '../../services/websocketService';
+import api from '../../services/api'; // ✅ CORRECTION : Import de l'instance Axios dynamique
 import { Menu, Bell, User } from 'lucide-react';
 
 const CashierLayout = () => {
@@ -10,9 +11,8 @@ const CashierLayout = () => {
     const [showNotif, setShowNotif] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const navigate = useNavigate();
-    const currentUser = AuthService.getCurrentUser(); // Utilisation cohérente
+    const currentUser = AuthService.getCurrentUser();
 
-    const API_URL = "http://localhost:8080/api/v1/notifications";
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
     const playNotificationSound = () => {
@@ -46,12 +46,15 @@ const CashierLayout = () => {
     useEffect(() => {
         const loadStoredNotifications = async () => {
             try {
-                const response = await fetch(API_URL);
-                if (response.ok) {
-                    const data = await response.json();
-                    setNotifications(data);
+                // ✅ CORRECTION : Utilisation de api.js pour pointer automatiquement
+                // sur localhost en local ou Render en production.
+                const response = await api.get('/v1/notifications');
+                if (response.status === 200) {
+                    setNotifications(response.data);
                 }
-            } catch (error) { console.error("Notif Error:", error); }
+            } catch (error) { 
+                console.error("Notif Error:", error); 
+            }
         };
 
         loadStoredNotifications();
