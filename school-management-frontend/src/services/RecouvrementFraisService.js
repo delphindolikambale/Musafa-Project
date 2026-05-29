@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
 
-const API_BASE_URL = "http://localhost:8080/api"; 
+const API_BASE_URL = `${BACKEND_BASE}/api`; // ✅ Rendu dynamique
 
 export const RecouvrementFraisService = {
     /**

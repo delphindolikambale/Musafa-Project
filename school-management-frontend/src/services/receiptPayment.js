@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
 
-const RECEIPT_BASE_URL = 'http://localhost:8080/api/v1/financial/receipts';
+const RECEIPT_BASE_URL = `${BACKEND_BASE}/api/v1/financial/receipts`; // ✅ Rendu dynamique
 
 export const receiptPaymentService = {
     getReceiptData: async (paymentId) => {

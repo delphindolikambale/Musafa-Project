@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
 
-const API_BASE_URL = "http://localhost:8080/api/v1/schedule-fees";
+const API_BASE_URL = `${BACKEND_BASE}/api/v1/schedule-fees`; // ✅ Rendu dynamique
 
 // Configuration de l'instance pour inclure le token si nécessaire
 const apiClient = axios.create({

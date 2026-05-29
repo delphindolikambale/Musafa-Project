@@ -1,5 +1,6 @@
 import SockJS from 'sockjs-client';
 import Stomp from 'stompjs';
+import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
 
 let stompClient = null;
 let isConnected = false;
@@ -13,7 +14,8 @@ export const websocketService = {
         if (isConnected || isConnecting) return;
 
         isConnecting = true;
-        const socket = new SockJS('http://localhost:8080/ws');
+        // ✅ Utilisation de BACKEND_BASE (HTTP en local, HTTPS sur Render)
+        const socket = new SockJS(`${BACKEND_BASE}/ws`);
         stompClient = Stomp.over(socket);
         stompClient.debug = () => {}; 
 
