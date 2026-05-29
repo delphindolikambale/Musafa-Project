@@ -1,7 +1,6 @@
-import axios from 'axios';
+import api from './api'; // ✅ Utilisation de l'instance centralisée avec détection d'environnement
 
-// URL de base de ton API Spring Boot
-const API_BASE_URL = "http://localhost:8080/api/reports"; 
+const API_PATH = "/reports"; 
 
 const ReportService = {
     /**
@@ -9,7 +8,8 @@ const ReportService = {
      */
     getStructure: async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/structure`);
+            // L'URL de base (Render ou localhost) est gérée par api.js
+            const response = await api.get(`${API_PATH}/structure`);
             // On retourne directement les données (le tableau de ReportStructureDTO)
             return response.data; 
         } catch (error) {
@@ -25,7 +25,7 @@ const ReportService = {
      */
     getClassroomDetail: async (classroomId, yearId) => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/classroom-detail/${classroomId}/${yearId}`);
+            const response = await api.get(`${API_PATH}/classroom-detail/${classroomId}/${yearId}`);
             // On retourne les données de ClassroomReportDetailDTO
             return response.data;
         } catch (error) {

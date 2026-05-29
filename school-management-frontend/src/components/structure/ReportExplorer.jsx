@@ -31,7 +31,8 @@ const ReportExplorer = ({ onBack }) => {
             }
         } catch (err) {
             console.error("Erreur de récupération :", err);
-            setError("Impossible de contacter le serveur Spring Boot (port 8080).");
+            // ✅ CORRECTION : Message d'erreur dynamique adapté à la production
+            setError("Impossible de contacter le serveur (Vérifiez votre connexion ou l'état du serveur).");
         } finally {
             setLoading(false);
         }
