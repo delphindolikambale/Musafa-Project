@@ -11,4 +11,5 @@ public class DocumentDTO {
     private String customName; // Le nom saisi (ex: Certificat)
     private String fileUrl;    // Le lien de téléchargement
     private String fileType;   // Le type (pdf, jpg)
+    private String fileName;
 }

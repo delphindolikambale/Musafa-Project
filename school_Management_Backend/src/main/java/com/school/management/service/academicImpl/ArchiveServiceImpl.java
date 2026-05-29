@@ -76,6 +76,7 @@ public class ArchiveServiceImpl implements ArchiveService {
                 .id(doc.getId())
                 .customName(doc.getCustomName()) // Le libellé saisi par l'utilisateur
                 .fileUrl(doc.getFileUrl())       // L'URL pour le bouton "Ouvrir"
+                .fileName(doc.getFileName())     // ✅ AJOUT : Transmet le nom réel du fichier physique avec son extension (.pdf, .png, etc.)
                 .fileType(determineFileTypeLabel(doc.getFileName())) // Label pour l'icône
                 .build();
     }
