@@ -1,19 +1,4 @@
-import axios from 'axios';
-
-const HISTORY_BASE_URL = 'http://localhost:8080/api/v1/financial/history';
-
-const historyApi = axios.create({
-    baseURL: HISTORY_BASE_URL,
-    headers: { 'Content-Type': 'application/json' }
-});
-
-historyApi.interceptors.request.use((config) => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user && user.accessToken) {
-        config.headers.Authorization = `Bearer ${user.accessToken}`;
-    }
-    return config;
-});
+import api from './api';
 
 export const transactionHistoryService = {
     /**
@@ -21,7 +6,8 @@ export const transactionHistoryService = {
      */
     getHistory: async (type = 'Tout') => {
         try {
-            const response = await historyApi.get('', { 
+            // L'URL de base de api.js pointe déjà sur /api, donc on met juste la suite du chemin
+            const response = await api.get('/v1/financial/history', { 
                 params: { type: type } 
             });
             return response.data;
@@ -33,7 +19,7 @@ export const transactionHistoryService = {
 
     deleteTransaction: async (id) => {
         try {
-            await historyApi.delete(`/${id}`);
+            await api.delete(`/v1/financial/history/${id}`);
         } catch (error) {
             console.error("Erreur suppression API:", error);
             throw error;

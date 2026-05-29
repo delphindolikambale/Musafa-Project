@@ -1,11 +1,4 @@
-import axios from 'axios';
-
-const API_URL = 'http://localhost:8080/api/cash-journal';
-
-const getHeader = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user && user.accessToken ? { Authorization: 'Bearer ' + user.accessToken } : {};
-};
+import api from './api';
 
 export const detailsCashTransactionService = {
     /**
@@ -14,9 +7,7 @@ export const detailsCashTransactionService = {
      */
     getJournalDetails: async (academicYear) => {
         try {
-            const response = await axios.get(`${API_URL}/${encodeURIComponent(academicYear)}`, { 
-                headers: getHeader() 
-            });
+            const response = await api.get(`/cash-journal/${encodeURIComponent(academicYear)}`);
             return response.data;
         } catch (error) {
             console.error("Erreur lors de la récupération des détails de transactions:", error);

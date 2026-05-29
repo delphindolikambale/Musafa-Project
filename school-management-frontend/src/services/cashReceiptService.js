@@ -1,25 +1,10 @@
-import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:8080/api';
-
-const api = axios.create({
-    baseURL: API_BASE_URL,
-    headers: { 'Content-Type': 'application/json' }
-});
-
-api.interceptors.request.use((config) => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user && user.accessToken) {
-        config.headers.Authorization = `Bearer ${user.accessToken}`;
-    }
-    return config;
-});
+import api from './api';
 
 export const cashReceiptService = {
     getCurrentUser: () => {
         try {
-            const user = JSON.parse(localStorage.getItem('user'));
-            return user;
+            const userStr = localStorage.getItem('user');
+            return userStr ? JSON.parse(userStr) : null;
         } catch (e) {
             return null;
         }

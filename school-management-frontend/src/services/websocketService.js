@@ -1,6 +1,6 @@
 import SockJS from 'sockjs-client';
 import Stomp from 'stompjs';
-import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
+import { BACKEND_BASE } from './api';
 
 let stompClient = null;
 let isConnected = false;
@@ -14,10 +14,13 @@ export const websocketService = {
         if (isConnected || isConnecting) return;
 
         isConnecting = true;
-        // ✅ Utilisation de BACKEND_BASE (HTTP en local, HTTPS sur Render)
         const socket = new SockJS(`${BACKEND_BASE}/ws`);
         stompClient = Stomp.over(socket);
         stompClient.debug = () => {}; 
+
+        // ✅ Configuration des Heartbeats pour éviter la déconnexion sur Render
+        stompClient.heartbeat.outgoing = 20000; // Envoie un ping toutes les 20s
+        stompClient.heartbeat.incoming = 0;     // N'attend pas de ping spécifique du serveur
 
         stompClient.connect({}, (frame) => {
             console.log('✅ WebSocket Connecté (Flux Mixtes)');
@@ -44,11 +47,9 @@ export const websocketService = {
 
     _processMessage: (body) => {
         try {
-            // On tente de parser. Si ça marche, on envoie l'objet.
             const data = JSON.parse(body);
             subscribers.forEach(callback => callback(data));
         } catch (e) {
-            // Si c'veut pas parser (texte brut), on envoie le string tel quel.
             subscribers.forEach(callback => callback(body));
         }
     },
