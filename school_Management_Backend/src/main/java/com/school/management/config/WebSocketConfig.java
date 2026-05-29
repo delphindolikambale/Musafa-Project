@@ -1,4 +1,5 @@
 package com.school.management.config;
+
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
 import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
@@ -7,7 +8,6 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 
 @Configuration
 @EnableWebSocketMessageBroker
-
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer{
 
     @Override
@@ -18,10 +18,10 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer{
 
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // CORRECTION : On remplace "*" par les origines autorisées explicitement
-        // pour éviter le conflit avec AllowCredentials(true) de SockJS
+        // ✅ CORRECTION : Ajout de l'URL de Render pour éviter le blocage CORS du WebSocket en production
         registry.addEndpoint("/ws")
                 .setAllowedOriginPatterns(
+                        "https://musafa-project.onrender.com",
                         "http://localhost:3000",
                         "http://localhost:517*",
                         "http://localhost:5180"

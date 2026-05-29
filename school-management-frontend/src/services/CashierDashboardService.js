@@ -1,7 +1,7 @@
 // src/services/CashierDashboardService.js
-import axios from 'axios';
+import api, { BACKEND_BASE } from './api'; // ✅ Importation de l'instance API centralisée
 
-const API_BASE_URL = "http://localhost:8080/api/v1/dashboard"; 
+const API_PATH = "/v1/dashboard"; // ✅ Chemin relatif de l'API (l'URL de base est gérée par api.js)
 
 export const CashierDashboardService = {
     /**
@@ -10,9 +10,8 @@ export const CashierDashboardService = {
      */
     getDashboardStats: async (academicYearId) => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/cashier-stats?academicYearId=${academicYearId}`, {
-                withCredentials: true
-            });
+            // ✅ Utilisation de l'instance 'api' (qui gère automatiquement Render vs localhost et le token JWT)
+            const response = await api.get(`${API_PATH}/cashier-stats?academicYearId=${academicYearId}`);
             return response.data;
         } catch (error) {
             console.error("Erreur lors de la récupération des statistiques du dashboard:", error);

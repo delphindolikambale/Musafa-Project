@@ -105,6 +105,8 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").permitAll()
                                 .requestMatchers("/api/archives/**").authenticated()
                                 .requestMatchers("/favicon.ico").permitAll()
+                                // ✅ CORRECTION : Autorise les requêtes initiales de SockJS pour le WebSocket
+                                .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")
                                 .anyRequest().authenticated()
                 );
