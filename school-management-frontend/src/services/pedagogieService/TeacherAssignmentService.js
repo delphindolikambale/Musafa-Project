@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { BACKEND_BASE } from '../api';
 
-const API_BASE_URL = "http://localhost:8080";
+const API_BASE_URL = BACKEND_BASE;
 const API_URL = `${API_BASE_URL}/api/teacher-assignments`;
 
 const getHeader = () => {

@@ -1,6 +1,7 @@
 import axios from "axios";
+import { BACKEND_BASE } from '../api';
 
-const API_URL = "http://localhost:8080/api";
+const API_URL = `${BACKEND_BASE}/api`;
 
 const getHeader = () => {
     const user = JSON.parse(localStorage.getItem('user'));

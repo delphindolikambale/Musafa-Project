@@ -1,7 +1,8 @@
 import axios from "axios";
 import AuthService from "./auth.service";
+import { BACKEND_BASE } from '../api';
 
-const API_URL = "http://localhost:8080/api/student/pedagogy/";
+const API_URL = `${BACKEND_BASE}/api/student/pedagogy/`;
 
 const authHeader = () => {
   const user = AuthService.getCurrentUser();
