@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+// IMPORT CORRIGÉ : On remplace axios par ton instance api globale (ajuste le chemin relatif si besoin selon ton dossier)
+import api from '../../../services/api'; 
 import { Presentation, BookOpen, AlertCircle, Loader2, Archive } from 'lucide-react';
 import courseAcademicConfigService from '../../../services/pedagogieService/courseAcademicConfigService';
 import TeacherAssignmentService from '../../../services/pedagogieService/TeacherAssignmentService';
@@ -8,7 +9,7 @@ import CourseAssignmentCard from './CourseAssignmentCard';
 
 const TeacherAssignment = () => {
     const [activeYear, setActiveYear] = useState(null);
-    const [allYears, setAllYears] = useState([]); // Nouvel état pour stocker toutes les années
+    const [allYears, setAllYears] = useState([]);
     const [classrooms, setClassrooms] = useState([]);
     const [selectedClassroom, setSelectedClassroom] = useState(null);
     const [courseConfigs, setCourseConfigs] = useState([]);
@@ -17,7 +18,7 @@ const TeacherAssignment = () => {
     const [fetchingInitialData, setFetchingInitialData] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedCourseToAssign, setSelectedCourseToAssign] = useState(null);
-    const [isCloning, setIsCloning] = useState(false); // État pour gérer le chargement pendant le clonage
+    const [isCloning, setIsCloning] = useState(false);
     const [assignmentToEdit, setAssignmentToEdit] = useState(null);
 
     /**
@@ -29,7 +30,7 @@ const TeacherAssignment = () => {
                 const n = (name || "").toLowerCase();
                 if (n.startsWith("7")) return 7;
                 if (n.startsWith("8")) return 8;
-                if (n.startsWith("1")) return 11; // 1ère après 8ème
+                if (n.startsWith("1")) return 11;
                 if (n.startsWith("2")) return 12;
                 if (n.startsWith("3")) return 13;
                 if (n.startsWith("4")) return 14;
@@ -40,7 +41,6 @@ const TeacherAssignment = () => {
             const weightB = getLevelWeight(b.displayName || b.name);
 
             if (weightA !== weightB) return weightA - weightB;
-            // Si même niveau (ex: 7ème A et 7ème B), tri alphabétique normal
             return (a.displayName || a.name).localeCompare(b.displayName || b.name, undefined, { numeric: true });
         });
     };
@@ -53,23 +53,19 @@ const TeacherAssignment = () => {
             const domA = (a.domainName || "").toLowerCase();
             const domB = (b.domainName || "").toLowerCase();
 
-            // 1. Priorité absolue au domaine "Sciences"
             const isSciA = domA.includes("science");
             const isSciB = domB.includes("science");
             if (isSciA && !isSciB) return -1;
             if (!isSciA && isSciB) return 1;
 
-            // 2. Tri par nom de Domaine
             const domComp = domA.localeCompare(domB);
             if (domComp !== 0) return domComp;
 
-            // 3. Tri par Sous-Domaine
             const subA = (a.subDomainName || "").toLowerCase();
             const subB = (b.subDomainName || "").toLowerCase();
             const subComp = subA.localeCompare(subB);
             if (subComp !== 0) return subComp;
 
-            // 4. Tri par nom de la Matière (Subject)
             return (a.subjectName || "").localeCompare(b.subjectName || "");
         });
     };
@@ -79,16 +75,12 @@ const TeacherAssignment = () => {
         const initDashboard = async () => {
             setFetchingInitialData(true);
             try {
-                const user = JSON.parse(localStorage.getItem('user'));
-                const headers = user?.accessToken ? { Authorization: `Bearer ${user.accessToken}` } : {};
-
-                // Récupération de l'année active
-                const yearRes = await axios.get('http://localhost:8080/api/academic-years/active', { headers });
-                // Récupération de toutes les années (pour trouver la précédente)
-                const allYearsRes = await axios.get('http://localhost:8080/api/academic-years', { headers });
+                // CORRECTION : Utilisation de l'instance "api" configurée dans api.js. 
+                // Plus besoin de gérer les headers manuellement ni l'URL hardcodée !
+                const yearRes = await api.get('/academic-years/active');
+                const allYearsRes = await api.get('/academic-years');
                 
                 if (allYearsRes.status === 200 && allYearsRes.data) {
-                     // Tri des années de la plus récente à la plus ancienne par sécurité
                      const sortedYears = [...allYearsRes.data].sort((a, b) => {
                          const yearA = parseInt(a.annee.split('-')[0]);
                          const yearB = parseInt(b.annee.split('-')[0]);
@@ -101,8 +93,8 @@ const TeacherAssignment = () => {
                     const currentYear = yearRes.data;
                     setActiveYear(currentYear);
 
-                    const classRes = await axios.get(`http://localhost:8080/api/classrooms?academicYearId=${currentYear.id}`, { headers });
-                    // Application du tri sur les classes
+                    // Utilisation de l'instance "api" ici aussi
+                    const classRes = await api.get(`/classrooms?academicYearId=${currentYear.id}`);
                     setClassrooms(sortClassrooms(classRes.data || []));
                 } else {
                     setActiveYear(null);
@@ -134,7 +126,6 @@ const TeacherAssignment = () => {
                 classroom.optionId, 
                 activeYear.id
             );
-            // Application du tri hiérarchique sur les cartes de cours
             setCourseConfigs(sortCourseConfigs(configRes.data || []));
 
             const assignRes = await TeacherAssignmentService.getAssignmentsByClass(classroom.id, activeYear.id);
@@ -160,17 +151,12 @@ const TeacherAssignment = () => {
         }
     };
 
-    /**
-     * Logique de déclenchement du clonage de l'année précédente
-     */
     const handleCloneConfiguration = async () => {
         if (!activeYear || allYears.length < 2) {
             alert("Impossible de cloner : Il n'y a pas d'année scolaire précédente dans le système.");
             return;
         }
 
-        // Trouver l'année précédente.
-        // On suppose que l'année active est l'année courante, on cherche celle dont l'année de début est N-1
         const activeStartYear = parseInt(activeYear.annee.split('-')[0]);
         const previousYear = allYears.find(y => parseInt(y.annee.split('-')[0]) === activeStartYear - 1);
 
@@ -182,12 +168,8 @@ const TeacherAssignment = () => {
         if (window.confirm(`Voulez-vous vraiment importer toutes les affectations de l'année scolaire ${previousYear.annee} vers l'année active (${activeYear.annee}) ? Les affectations déjà existantes ne seront pas écrasées.`)) {
             setIsCloning(true);
             try {
-                // Appel au service Backend
                 await TeacherAssignmentService.importPreviousYear(previousYear.id, activeYear.id);
-                
                 alert("Importation terminée avec succès !");
-                
-                // Rafraîchir l'affichage si une classe est déjà sélectionnée
                 if (selectedClassroom) {
                     handleClassroomSelect(selectedClassroom);
                 }
