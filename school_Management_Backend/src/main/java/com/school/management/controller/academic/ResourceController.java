@@ -1,7 +1,9 @@
 package com.school.management.controller.academic;
 
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.CacheControl;
@@ -20,11 +22,19 @@ public class ResourceController {
 
     private static final Logger logger = LoggerFactory.getLogger(ResourceController.class);
 
-    // Dossier de stockage sécurisé. On force la résolution absolue pour éviter les ambiguïtés d'IDE.
-    private final Path rootLocation = Paths.get(System.getProperty("user.dir"))
-            .resolve("storage")
-            .toAbsolutePath()
-            .normalize();
+    // Injection du chemin depuis application.properties ou variable d'environnement.
+    // Par défaut, utilise le dossier courant du projet (pour le local).
+    @Value("${app.storage.location:${user.dir}/storage}")
+    private String storageLocation;
+
+    private Path rootLocation;
+
+    @PostConstruct
+    public void init() {
+        // Initialisation du chemin absolu au démarrage de l'application
+        this.rootLocation = Paths.get(storageLocation).toAbsolutePath().normalize();
+        logger.info("Dossier de lecture des ressources configuré sur : {}", this.rootLocation);
+    }
 
     @GetMapping("/view")
     public ResponseEntity<Resource> getFile(@RequestParam("path") String path) {

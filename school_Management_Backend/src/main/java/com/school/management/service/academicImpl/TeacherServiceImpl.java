@@ -10,7 +10,9 @@ import com.school.management.repository.academic.DomainRepository;
 import com.school.management.repository.academic.DomainSpecialityRepository;
 import com.school.management.repository.academic.TeacherRepository;
 import com.school.management.service.academic.TeacherService;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,12 +30,30 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-public class TeacherServiceImpl implements TeacherService { // 'implements' ajouté ici
+public class TeacherServiceImpl implements TeacherService {
 
     private final TeacherRepository teacherRepository;
     private final AcademicYearRepository academicYearRepository;
     private final DomainSpecialityRepository specialityRepository;
-    private final Path rootLocation = Paths.get(System.getProperty("user.dir")).resolve("storage");
+
+    // Injection du chemin dynamique
+    @Value("${app.storage.location:${user.dir}/storage}")
+    private String storageLocation;
+
+    private Path rootLocation;
+
+    @PostConstruct
+    public void init() {
+        // Initialisation et création du dossier de stockage au démarrage
+        this.rootLocation = Paths.get(storageLocation).toAbsolutePath().normalize();
+        try {
+            if (!Files.exists(this.rootLocation)) {
+                Files.createDirectories(this.rootLocation);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Impossible d'initialiser le dossier de stockage", e);
+        }
+    }
 
     @Override
     @Transactional
