@@ -19,23 +19,30 @@ const getHeader = () => {
 export const getFileUrl = (path) => {
     if (!path) return null; 
     
-    // ✅ CORRECTION CRITIQUE (Mixed Content) : 
-    // Nettoyage des anciennes URLs "localhost" qui seraient restées bloquées en base de données
-    if (typeof path === 'string' && path.includes('http://localhost:8080')) {
-        path = path.replace('http://localhost:8080', BACKEND_BASE);
+    // 1. Nettoyage des antislashs (Windows) en slashs universels
+    let cleanPath = path;
+    if (typeof cleanPath === 'string') {
+        cleanPath = cleanPath.replace(/\\/g, '/');
+        
+        // 2. CORRECTION CRITIQUE (Mixed Content)
+        // Remplace l'URL localhost enregistrée en DB par le BACKEND_BASE dynamique.
+        // En local, BACKEND_BASE = localhost, donc pas de problème.
+        // Sur Render, BACKEND_BASE = ton URL https, réglant l'erreur Mixed Content.
+        if (cleanPath.includes('http://localhost:8080')) {
+            cleanPath = cleanPath.replace('http://localhost:8080', BACKEND_BASE);
+        }
     }
 
-    // Si le chemin est déjà une URL absolue valide ou du base64 (après nettoyage)
-    if (path.startsWith('http') || path.startsWith('data:')) {
-        // Ajout d'un timestamp pour éviter la mise en cache agressive du navigateur
-        const separator = path.includes('?') ? '&' : '?';
-        return `${path}${separator}t=${new Date().getTime()}`;
+    // 3. Si le chemin est déjà une URL absolue valide ou du base64
+    if (typeof cleanPath === 'string' && (cleanPath.startsWith('http') || cleanPath.startsWith('data:'))) {
+        const separator = cleanPath.includes('?') ? '&' : '?';
+        return `${cleanPath}${separator}t=${new Date().getTime()}`;
     }
     
-    // Construction dynamique pour les chemins relatifs
+    // 4. Construction dynamique pour les chemins relatifs
     const resourceEndpoint = `${BACKEND_BASE}/api/resources/view`;
     const timestamp = new Date().getTime();
-    return `${resourceEndpoint}?path=${encodeURIComponent(path)}&t=${timestamp}`;
+    return `${resourceEndpoint}?path=${encodeURIComponent(cleanPath)}&t=${timestamp}`;
 };
 
 const TeacherService = {

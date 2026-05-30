@@ -4,17 +4,11 @@ import {
     Mail, Phone, MapPin, Eye, Pencil, Trash2, User, BookOpen, CheckCircle2, XCircle
 } from 'lucide-react';
 
-import TeacherService from '../../../services/pedagogieService/TeacherService';
+// IMPORT MODIFIÉ : On importe aussi getFileUrl
+import TeacherService, { getFileUrl } from '../../../services/pedagogieService/TeacherService';
 import AddTeacherModal from './AddTeacherModal';
 import ViewTeacherModal from './ViewTeacherModal';
 import EditTeacherModal from './EditTeacherModal';
-
-const getResourceUrl = (filePath) => {
-    if (!filePath) return '';
-    const cleanPath = filePath.replace(/\\/g, '/');
-    const timestamp = new Date().getTime();
-    return `http://localhost:8080/api/resources/view?path=${encodeURIComponent(cleanPath)}&t=${timestamp}`;
-};
 
 const TeacherManagement = () => {
     const [teachers, setTeachers] = useState([]);
@@ -181,7 +175,8 @@ const TeacherManagement = () => {
                                             <div className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center font-black text-slate-600 shadow-inner group-hover:from-blue-100 group-hover:to-blue-200 transition-all border border-slate-200 group-hover:border-blue-300 overflow-hidden">
                                                 {teacher.profilePicturePath ? (
                                                     <img 
-                                                        src={getResourceUrl(teacher.profilePicturePath)} 
+                                                        // UTILISATION DE getFileUrl ICI
+                                                        src={getFileUrl(teacher.profilePicturePath)} 
                                                         alt={`${teacher.lastName}`} 
                                                         className="w-full h-full object-cover"
                                                         onError={(e) => { 
