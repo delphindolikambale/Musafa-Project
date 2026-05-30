@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Shield, User, Search, Save, CheckCircle, AlertCircle, Loader2, KeyRound, Link as LinkIcon } from "lucide-react";
 import UserService from "../../../services/user.service";
-import axios from "axios";
+// ✅ CORRECTION : On importe ton instance api au lieu d'axios classique
+import api from "../../../services/api";
 
 const RoleAccessManager = () => {
   const [users, setUsers] = useState([]);
@@ -35,9 +36,8 @@ const RoleAccessManager = () => {
   // Récupération des enseignants actifs depuis l'API
   const fetchActiveTeachers = async () => {
     try {
-      const currentUser = JSON.parse(localStorage.getItem('user'));
-      const headers = currentUser && currentUser.token ? { Authorization: 'Bearer ' + currentUser.token } : {};
-      const response = await axios.get("http://localhost:8080/api/teachers/active", { headers });
+      // ✅ CORRECTION : Utilisation de l'instance 'api' qui gère déjà l'URL de base et le token
+      const response = await api.get("/teachers/active");
       setTeachers(response.data);
     } catch (error) {
       console.error("Erreur lors de la récupération des enseignants", error);
