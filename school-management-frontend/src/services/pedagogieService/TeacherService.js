@@ -5,14 +5,35 @@ export const API_BASE_URL = BACKEND_BASE;
 const API_URL = `${API_BASE_URL}/api/teachers`;
 
 const getHeader = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user && user.accessToken ? { Authorization: 'Bearer ' + user.accessToken } : {};
+    const userStr = localStorage.getItem('user');
+    if (!userStr) return {};
+    try {
+        const user = JSON.parse(userStr);
+        const token = user?.accessToken || user?.token;
+        return token ? { Authorization: 'Bearer ' + token } : {};
+    } catch (e) {
+        return {};
+    }
 };
 
 export const getFileUrl = (path) => {
     if (!path) return null; 
-    if (path.startsWith('http') || path.startsWith('data:')) return path;
-    const resourceEndpoint = `${API_BASE_URL}/api/resources/view`;
+    
+    // ✅ CORRECTION CRITIQUE (Mixed Content) : 
+    // Nettoyage des anciennes URLs "localhost" qui seraient restées bloquées en base de données
+    if (typeof path === 'string' && path.includes('http://localhost:8080')) {
+        path = path.replace('http://localhost:8080', BACKEND_BASE);
+    }
+
+    // Si le chemin est déjà une URL absolue valide ou du base64 (après nettoyage)
+    if (path.startsWith('http') || path.startsWith('data:')) {
+        // Ajout d'un timestamp pour éviter la mise en cache agressive du navigateur
+        const separator = path.includes('?') ? '&' : '?';
+        return `${path}${separator}t=${new Date().getTime()}`;
+    }
+    
+    // Construction dynamique pour les chemins relatifs
+    const resourceEndpoint = `${BACKEND_BASE}/api/resources/view`;
     const timestamp = new Date().getTime();
     return `${resourceEndpoint}?path=${encodeURIComponent(path)}&t=${timestamp}`;
 };
@@ -23,7 +44,6 @@ const TeacherService = {
         return response.data;
     },
 
-    // Nouveau : Récupérer uniquement les enseignants actifs
     getActiveTeachers: async () => {
         const response = await axios.get(`${API_URL}/active`, { headers: getHeader() });
         return response.data;
@@ -62,7 +82,6 @@ const TeacherService = {
         return response.data;
     },
 
-    // Nouveau : Changer l'état actif/inactif
     toggleActiveStatus: async (id) => {
         const response = await axios.patch(`${API_URL}/${id}/toggle-status`, {}, { headers: getHeader() });
         return response.data;
