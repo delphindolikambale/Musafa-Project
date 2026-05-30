@@ -6,9 +6,9 @@ import com.school.management.security.services.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod; // ✅ Nouvel import ajouté
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,7 +23,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
-import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
@@ -96,7 +95,12 @@ public class WebSecurityConfig {
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/api/auth/**").permitAll()
+                        auth
+                                // ✅ CORRECTION CRITIQUE : Laisser passer les requêtes Preflight de navigateur
+                                // Cela empêche le filtre JWT de renvoyer une 401 avant la vraie requête.
+                                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                                .requestMatchers("/api/auth/**").permitAll()
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
                                 .requestMatchers("/api/academic/**").permitAll()
@@ -105,7 +109,7 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").permitAll()
                                 .requestMatchers("/api/archives/**").authenticated()
                                 .requestMatchers("/favicon.ico").permitAll()
-                                // ✅ CORRECTION : Autorise les requêtes initiales de SockJS pour le WebSocket
+                                // Autorise les requêtes initiales de SockJS pour le WebSocket
                                 .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")
                                 .anyRequest().authenticated()
