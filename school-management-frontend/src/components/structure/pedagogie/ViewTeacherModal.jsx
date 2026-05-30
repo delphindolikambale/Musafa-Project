@@ -4,22 +4,22 @@ import {
     Shield, Briefcase, GraduationCap, FileText, ExternalLink, BookOpen,
     CheckCircle2, XCircle
 } from 'lucide-react';
+// IMPORT CRITIQUE : On importe la fonction dynamique du service
+import { getFileUrl } from '../../../services/pedagogieService/TeacherService';
 
 const ViewTeacherModal = ({ isOpen, onClose, teacher }) => {
     if (!isOpen || !teacher) return null;
 
-    const getResourceUrl = (path) => {
-        if (!path) return '';
-        return `http://localhost:8080/api/resources/view?path=${encodeURIComponent(path)}`;
-    };
-
+    // Suppression de l'ancienne fonction getResourceUrl avec localhost en dur
+    // Utilisation directe de getFileUrl du TeacherService
     const profileImageUrl = useMemo(() => {
-        return getResourceUrl(teacher.profilePicturePath);
+        return getFileUrl(teacher.profilePicturePath) || '';
     }, [teacher.id, teacher.profilePicturePath]);
 
     const handleViewDocument = (path) => {
         if (!path) return;
-        const docUrl = `${getResourceUrl(path)}&t=${new Date().getTime()}`;
+        // getFileUrl gère déjà le timestamp pour éviter le cache
+        const docUrl = getFileUrl(path); 
         window.open(docUrl, '_blank');
     };
 
