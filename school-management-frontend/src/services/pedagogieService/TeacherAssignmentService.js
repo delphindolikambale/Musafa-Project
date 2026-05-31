@@ -26,15 +26,25 @@ const TeacherAssignmentService = {
         const response = await axios.get(`${API_URL}/teacher/${teacherId}/${yearId}`, { headers: getHeader() });
         return response.data;
     },
+    getAssignmentById: async (id) => {
+        const response = await axios.get(`${API_URL}/${id}`, { headers: getHeader() });
+        return response.data;
+    },
     deleteAssignment: async (id) => {
         await axios.delete(`${API_URL}/${id}`, { headers: getHeader() });
     },
-    // Nouvelle fonction pour l'importation
     importPreviousYear: async (sourceYearId, targetYearId) => {
         const response = await axios.post(`${API_URL}/import-previous-year`, {
             sourceYearId,
             targetYearId
         }, { headers: getHeader() });
+        return response.data;
+    },
+    
+    // --- NOUVEAUX ENDPOINTS POUR LE TABLEAU DE BORD ---
+    
+    getCourseSuccessRate: async (assignmentId) => {
+        const response = await axios.get(`${API_URL}/success-rate/${assignmentId}`, { headers: getHeader() });
         return response.data;
     }
 };

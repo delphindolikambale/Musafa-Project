@@ -5,7 +5,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { enrollmentService } from '../../../services/enrollmentService';
 import TeacherAssignmentService from '../../../services/pedagogieService/TeacherAssignmentService';
 
-// Données statiques pour donner vie aux graphiques (à remplacer par des données API réelles plus tard)
+// Données statiques pour les moyennes globales
 const performanceData = [
     { period: 'Période 1', moyenne: 68, tauxReussite: 75 },
     { period: 'Période 2', moyenne: 72, tauxReussite: 82 },
@@ -13,22 +13,27 @@ const performanceData = [
     { period: 'Période 4', moyenne: 78, tauxReussite: 88 },
 ];
 
-const distributionData = [
+const fallbackDistributionData = [
     { name: 'Excellente (80-100%)', value: 25 },
     { name: 'Bonne (60-79%)', value: 45 },
     { name: 'Moyenne (50-59%)', value: 20 },
     { name: 'Échec (<50%)', value: 10 },
 ];
 
-const PIE_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444']; // Vert, Bleu, Orange, Rouge
+const PIE_COLORS = ['#10B981', '#3B82F6', '#F59E0B', '#EF4444'];
 
 const TeacherEvaluationDashboard = () => {
     const [activeYear, setActiveYear] = useState(null);
     const [stats, setStats] = useState({ classes: 0, courses: 0, hours: 0, totalStudents: 0 });
+    const [assignments, setAssignments] = useState([]);
+    const [selectedAssignmentId, setSelectedAssignmentId] = useState("");
+    const [distributionData, setDistributionData] = useState(fallbackDistributionData);
+    
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const user = JSON.parse(localStorage.getItem('user'));
 
+    // Chargement initial des données de base
     useEffect(() => {
         const fetchDashboardData = async () => {
             setLoading(true);
@@ -44,18 +49,36 @@ const TeacherEvaluationDashboard = () => {
                     return;
                 }
 
+                // 1. Récupération des affectations
                 const assignmentsRes = await TeacherAssignmentService.getAssignmentsByTeacher(teacherId, year.id);
-                const assignments = Array.isArray(assignmentsRes) ? assignmentsRes : (assignmentsRes?.data || []);
+                const fetchedAssignments = Array.isArray(assignmentsRes) ? assignmentsRes : (assignmentsRes?.data || []);
+                setAssignments(fetchedAssignments);
+
+                if (fetchedAssignments.length > 0) {
+                    setSelectedAssignmentId(fetchedAssignments[0].id);
+                }
                 
-                // Calcul des statistiques basées sur les affectations
-                const uniqueClasses = new Set(assignments.map(a => a.classroomId));
-                const totalHours = assignments.reduce((acc, curr) => acc + (curr.hoursPerWeek || 0), 0);
+                // 2. Calcul des statistiques basées sur les entités réelles (weeklyHours, classroom.id)
+                const uniqueClassIds = new Set(fetchedAssignments.map(a => a.classroom?.id));
+                const totalHours = fetchedAssignments.reduce((acc, curr) => acc + (curr.weeklyHours || 0), 0);
+                
+                // 3. Calcul du vrai nombre d'élèves
+                let realStudentCount = 0;
+                try {
+                    const allEnrollmentsRes = await enrollmentService.getAllEnrollments(year.id);
+                    const allEnrollments = Array.isArray(allEnrollmentsRes) ? allEnrollmentsRes : (allEnrollmentsRes?.data || []);
+                    const myStudents = allEnrollments.filter(e => uniqueClassIds.has(e.classroom?.id));
+                    realStudentCount = myStudents.length;
+                } catch (err) {
+                    console.warn("Impossible de récupérer les inscriptions, utilisation d'une estimation.", err);
+                    realStudentCount = uniqueClassIds.size * 35;
+                }
                 
                 setStats({
-                    classes: uniqueClasses.size,
-                    courses: assignments.length,
+                    classes: uniqueClassIds.size,
+                    courses: fetchedAssignments.length,
                     hours: totalHours,
-                    totalStudents: uniqueClasses.size * 35 // Estimation/Mock pour l'UI, à lier au vrai compte
+                    totalStudents: realStudentCount
                 });
 
             } catch (err) {
@@ -68,6 +91,31 @@ const TeacherEvaluationDashboard = () => {
 
         fetchDashboardData();
     }, [user?.teacherId]);
+
+    // Chargement du graphique circulaire au changement de cours (corrigé pour recevoir le Double du backend)
+    useEffect(() => {
+        if (selectedAssignmentId) {
+            TeacherAssignmentService.getCourseSuccessRate(selectedAssignmentId)
+                .then(res => {
+                    if (res !== undefined && res !== null) {
+                        const successValue = Number(res);
+                        const failureValue = Math.max(0, 100 - successValue);
+                        
+                        // Transformation du double brut en tableau exploitable par Recharts
+                        setDistributionData([
+                            { name: 'Réussite (>=50%)', value: successValue, color: '#10B981' },
+                            { name: 'Échec (<50%)', value: Number(failureValue.toFixed(1)), color: '#EF4444' }
+                        ]);
+                    } else {
+                        setDistributionData(fallbackDistributionData);
+                    }
+                })
+                .catch(err => {
+                    console.warn("Erreur ou API de seuil non prête, utilisation des données simulées.");
+                    setDistributionData(fallbackDistributionData);
+                });
+        }
+    }, [selectedAssignmentId]);
 
     if (loading) {
         return (
@@ -174,29 +222,45 @@ const TeacherEvaluationDashboard = () => {
                     </div>
                 </div>
 
-                {/* Conteneur Graphique Camembert */}
+                {/* Conteneur Graphique Camembert avec Sélecteur de Cours */}
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[320px]">
                     <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
-                        <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
-                            <PieChartIcon size={16} className="text-indigo-500" /> Seuils de Réussite
-                        </h4>
-                        <p className="text-[11px] font-medium text-slate-400 mt-0.5">Répartition globale des niveaux de maîtrise</p>
+                        <div className="flex justify-between items-start mb-2">
+                            <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                                <PieChartIcon size={16} className="text-indigo-500" /> Seuils de Réussite
+                            </h4>
+                        </div>
+                        
+                        {/* Sélecteur dynamique de cours */}
+                        <select 
+                            value={selectedAssignmentId}
+                            onChange={(e) => setSelectedAssignmentId(e.target.value)}
+                            className="w-full mt-2 text-xs font-medium text-slate-700 bg-slate-50 dark:bg-slate-800 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                        >
+                            {assignments.length === 0 && <option value="">Aucun cours disponible</option>}
+                            {assignments.map(a => (
+                                <option key={a.id} value={a.id}>
+                                    {a.courseAssignment?.subject?.name || `Cours #${a.courseAssignment?.id || a.id}`} - {a.classroom?.division ? `${a.classroom.level?.name} ${a.classroom.division}` : `Classe #${a.classroom?.id}`}
+                                </option>
+                            ))}
+                        </select>
                     </div>
-                    <div className="flex-1 w-full h-[250px] flex flex-col items-center justify-center">
+
+                    <div className="flex-1 w-full h-[200px] flex flex-col items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie
                                     data={distributionData}
                                     cx="50%"
                                     cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
+                                    innerRadius={50}
+                                    outerRadius={70}
                                     paddingAngle={5}
                                     dataKey="value"
                                     stroke="none"
                                 >
                                     {distributionData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                        <Cell key={`cell-${index}`} fill={entry.color || PIE_COLORS[index % PIE_COLORS.length]} />
                                     ))}
                                 </Pie>
                                 <Tooltip 
@@ -208,7 +272,7 @@ const TeacherEvaluationDashboard = () => {
                         <div className="grid grid-cols-2 gap-2 mt-4 w-full px-2">
                             {distributionData.map((entry, index) => (
                                 <div key={index} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: PIE_COLORS[index] }}></div>
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: entry.color || PIE_COLORS[index % PIE_COLORS.length] }}></div>
                                     <span className="truncate">{entry.name}</span>
                                 </div>
                             ))}

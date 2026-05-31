@@ -12,16 +12,21 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
-
-public class TeacherAssignmentServiceImpl implements TeacherAssignmentService{
+public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
 
     private final TeacherAssignmentRepository repository;
     private final TeacherRepository teacherRepository;
     private final CourseAssignmentRepository courseRepository;
     private final ClassroomRepository classroomRepository;
     private final AcademicYearRepository yearRepository;
+
+    // Nouveaux dépôts requis pour le calcul du taux de réussite
+    private final EnrollmentRepository enrollmentRepository;
+    private final EvaluationTaskRepository evaluationTaskRepository;
+    private final StudentMarkRepository markRepository;
 
     @Override
     @Transactional
@@ -64,13 +69,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService{
         for (TeacherAssignment source : sourceAssignments) {
             CourseAssignment srcConfig = source.getCourseAssignment();
 
-            // On extrait les informations textuelles car les IDs des entités (Subject) ont changé au clonage
             String subjectName = srcConfig.getSubject().getName();
             String levelName = srcConfig.getLevel().getName();
             String sectionName = srcConfig.getSection() != null ? srcConfig.getSection().getSectionName() : null;
             String optionName = srcConfig.getOption() != null ? srcConfig.getOption().getOptionName() : null;
 
-            // 1. Trouver le CourseAssignment équivalent dans l'année cible par son nom/niveau/section/option
             Optional<CourseAssignment> targetConfigOpt = courseRepository.findByLogicalKeyInYear(
                     subjectName, levelName, sectionName, optionName, targetYearId
             );
@@ -78,7 +81,6 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService{
             if (targetConfigOpt.isPresent()) {
                 CourseAssignment targetConfig = targetConfigOpt.get();
 
-                // 2. Vérifier si l'affectation n'existe pas déjà
                 boolean alreadyExists = repository.findByCourseAssignmentIdAndClassroomId(
                         targetConfig.getId(), source.getClassroom().getId()).isPresent();
 
@@ -86,7 +88,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService{
                     TeacherAssignment newAssignment = TeacherAssignment.builder()
                             .teacher(source.getTeacher())
                             .courseAssignment(targetConfig)
-                            .classroom(source.getClassroom()) // On réutilise la même classe (les classes ne semblent pas clonées par année)
+                            .classroom(source.getClassroom())
                             .academicYear(targetYear)
                             .weeklyHours(source.getWeeklyHours())
                             .isClassMaster(source.isClassMaster())
@@ -149,6 +151,52 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService{
         TeacherAssignment assignment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Affectation introuvable avec l'ID : " + id));
         return mapToDTO(assignment);
+    }
+
+    @Override
+    public double getCourseSuccessRate(Long teacherAssignmentId) {
+        TeacherAssignment ta = repository.findById(teacherAssignmentId)
+                .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
+
+        // 1. Récupérer tous les élèves actifs inscrits dans cette classe
+        List<Enrollment> enrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndActiveTrue(
+                ta.getClassroom().getId(), ta.getAcademicYear().getId());
+
+        if (enrollments.isEmpty()) {
+            return 0.0;
+        }
+
+        // 2. Récupérer toutes les évaluations créées pour cette affectation
+        List<EvaluationTask> tasks = evaluationTaskRepository.findByTeacherAssignmentId(teacherAssignmentId);
+        if (tasks.isEmpty()) {
+            return 0.0;
+        }
+
+        // 3. Calculer la somme globale des maxima de toutes les épreuves déjà planifiées
+        double totalMaxPoints = tasks.stream().mapToDouble(EvaluationTask::getMaxPoints).sum();
+        if (totalMaxPoints == 0) {
+            return 0.0;
+        }
+
+        long passingStudentsCount = 0;
+
+        // 4. Parcourir les élèves pour calculer leur cumul personnel et vérifier la moyenne
+        for (Enrollment enrollment : enrollments) {
+            Long studentId = enrollment.getStudent().getId();
+
+            double totalObtained = markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentId(studentId, teacherAssignmentId)
+                    .stream()
+                    .mapToDouble(StudentMark::getObtainedValue)
+                    .sum();
+
+            // Un élève valide le cours s'il obtient la moitié ou plus des points mis en jeu
+            if (totalObtained >= (totalMaxPoints / 2.0)) {
+                passingStudentsCount++;
+            }
+        }
+
+        // 5. Calculer le pourcentage final de réussite
+        return (double) passingStudentsCount * 100.0 / enrollments.size();
     }
 
     private TeacherAssignmentResponseDTO mapToDTO(TeacherAssignment entity) {

@@ -8,7 +8,10 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface EvaluationTaskRepository  extends JpaRepository<EvaluationTask, Long> {
+public interface EvaluationTaskRepository extends JpaRepository<EvaluationTask, Long> {
+
+    // Nouvelle méthode ajoutée pour résoudre l'erreur "cannot find symbol"
+    List<EvaluationTask> findByTeacherAssignmentId(Long teacherAssignmentId);
 
     List<EvaluationTask> findByTeacherAssignmentIdAndPeriod(Long teacherAssignmentId, int period);
 

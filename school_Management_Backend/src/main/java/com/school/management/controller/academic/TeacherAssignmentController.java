@@ -13,7 +13,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/teacher-assignments")
 @RequiredArgsConstructor
-
 public class TeacherAssignmentController {
 
     private final TeacherAssignmentService service;
@@ -50,7 +49,6 @@ public class TeacherAssignmentController {
         return ResponseEntity.ok(service.getAssignmentsByTeacher(teacherId, yearId));
     }
 
-    // NOUVEAU ENDPOINT : Récupérer une affectation spécifique par ID
     @GetMapping("/{id}")
     public ResponseEntity<TeacherAssignmentResponseDTO> getById(@PathVariable Long id) {
         return ResponseEntity.ok(service.getAssignmentById(id));
@@ -60,5 +58,12 @@ public class TeacherAssignmentController {
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         service.deleteAssignment(id);
         return ResponseEntity.noContent().build();
+    }
+
+    // NOUVEAU ENDPOINT : Récupération du taux de réussite d'un cours spécifique
+    @GetMapping("/success-rate/{assignmentId}")
+    public ResponseEntity<Double> getCourseSuccessRate(@PathVariable Long assignmentId) {
+        // Le type de retour est maintenant aligné avec le Service (Double)
+        return ResponseEntity.ok(service.getCourseSuccessRate(assignmentId));
     }
 }

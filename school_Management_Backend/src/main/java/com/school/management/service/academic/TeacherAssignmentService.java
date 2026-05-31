@@ -15,6 +15,14 @@ public interface TeacherAssignmentService {
 
     // Nouvelle méthode pour le report d'une année à l'autre
     void importAssignmentsFromPreviousYear(Long sourceYearId, Long targetYearId);
+
     // NOUVELLE METHODE
     TeacherAssignmentResponseDTO getAssignmentById(Long id);
+
+    /**
+     * Calcule le taux de réussite des élèves pour un cours spécifique (affectation).
+     * @param teacherAssignmentId ID de l'affectation de l'enseignant
+     * @return Le pourcentage de réussite (ex: 75.0)
+     */
+    double getCourseSuccessRate(Long teacherAssignmentId);
 }
