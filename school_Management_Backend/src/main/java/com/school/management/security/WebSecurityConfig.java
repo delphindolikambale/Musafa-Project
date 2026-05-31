@@ -6,7 +6,7 @@ import com.school.management.security.services.UserDetailsServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod; // ✅ Nouvel import ajouté
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -77,7 +77,6 @@ public class WebSecurityConfig {
         configuration.setAllowedHeaders(Arrays.asList(
                 "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"
         ));
-        // ✅ Ajout de Content-Disposition pour les téléchargements de fichiers
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -96,10 +95,7 @@ public class WebSecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
                         auth
-                                // ✅ CORRECTION CRITIQUE : Laisser passer les requêtes Preflight de navigateur
-                                // Cela empêche le filtre JWT de renvoyer une 401 avant la vraie requête.
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
                                 .requestMatchers("/api/auth/**").permitAll()
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
@@ -107,14 +103,22 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/config/**").permitAll()
                                 .requestMatchers("/api/v1/admin/school-config").permitAll()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").permitAll()
-                                .requestMatchers("/api/archives/**").authenticated()
-                                .requestMatchers("/favicon.ico").permitAll()
-                                // Autorise les requêtes initiales de SockJS pour le WebSocket
+                                .requestMatchers("/api/resources/**").permitAll()
+                                .requestMatchers("/api/specialities/**").permitAll()
                                 .requestMatchers("/ws/**").permitAll()
+                                .requestMatchers("/favicon.ico").permitAll()
+
+                                // ✅ CORRECTION : Ajout de la route manquante pour le tableau de bord
+                                .requestMatchers("/api/teacher-assignments/**").authenticated()
+
+                                .requestMatchers("/api/archives/**").authenticated()
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")
+
+                                // ✅ CORRECTION : Sécurisation par défaut de toute autre requête non listée
                                 .anyRequest().authenticated()
                 );
 
+        // ✅ CORRECTION : Ajout du provider et du filtre JWT pour finaliser la chaîne de sécurité
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 

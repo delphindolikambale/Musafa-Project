@@ -5,7 +5,6 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { enrollmentService } from '../../../services/enrollmentService';
 import TeacherAssignmentService from '../../../services/pedagogieService/TeacherAssignmentService';
 
-// Données statiques pour les moyennes globales
 const performanceData = [
     { period: 'Période 1', moyenne: 68, tauxReussite: 75 },
     { period: 'Période 2', moyenne: 72, tauxReussite: 82 },
@@ -33,7 +32,6 @@ const TeacherEvaluationDashboard = () => {
     const [error, setError] = useState(null);
     const user = JSON.parse(localStorage.getItem('user'));
 
-    // Chargement initial des données de base
     useEffect(() => {
         const fetchDashboardData = async () => {
             setLoading(true);
@@ -49,7 +47,6 @@ const TeacherEvaluationDashboard = () => {
                     return;
                 }
 
-                // 1. Récupération des affectations
                 const assignmentsRes = await TeacherAssignmentService.getAssignmentsByTeacher(teacherId, year.id);
                 const fetchedAssignments = Array.isArray(assignmentsRes) ? assignmentsRes : (assignmentsRes?.data || []);
                 setAssignments(fetchedAssignments);
@@ -58,16 +55,16 @@ const TeacherEvaluationDashboard = () => {
                     setSelectedAssignmentId(fetchedAssignments[0].id);
                 }
                 
-                // 2. Calcul des statistiques basées sur les entités réelles (weeklyHours, classroom.id)
-                const uniqueClassIds = new Set(fetchedAssignments.map(a => a.classroom?.id));
+                // ✅ CORRECTION : Utilisation de classroomId car c'est un DTO
+                const uniqueClassIds = new Set(fetchedAssignments.map(a => a.classroomId));
                 const totalHours = fetchedAssignments.reduce((acc, curr) => acc + (curr.weeklyHours || 0), 0);
                 
-                // 3. Calcul du vrai nombre d'élèves
                 let realStudentCount = 0;
                 try {
                     const allEnrollmentsRes = await enrollmentService.getAllEnrollments(year.id);
                     const allEnrollments = Array.isArray(allEnrollmentsRes) ? allEnrollmentsRes : (allEnrollmentsRes?.data || []);
-                    const myStudents = allEnrollments.filter(e => uniqueClassIds.has(e.classroom?.id));
+                    // Ici on garde classroom?.id si l'enrollment n'est pas un DTO plat
+                    const myStudents = allEnrollments.filter(e => uniqueClassIds.has(e.classroom?.id || e.classroomId));
                     realStudentCount = myStudents.length;
                 } catch (err) {
                     console.warn("Impossible de récupérer les inscriptions, utilisation d'une estimation.", err);
@@ -92,18 +89,19 @@ const TeacherEvaluationDashboard = () => {
         fetchDashboardData();
     }, [user?.teacherId]);
 
-    // Chargement du graphique circulaire au changement de cours (corrigé pour recevoir le Double du backend)
     useEffect(() => {
         if (selectedAssignmentId) {
             TeacherAssignmentService.getCourseSuccessRate(selectedAssignmentId)
                 .then(res => {
-                    if (res !== undefined && res !== null) {
-                        const successValue = Number(res);
+                    // L'API est censée renvoyer directement le nombre (ex: 85.5) grâce à ton endpoint
+                    const rateData = res?.data !== undefined ? res.data : res;
+                    
+                    if (rateData !== undefined && rateData !== null) {
+                        const successValue = Number(rateData);
                         const failureValue = Math.max(0, 100 - successValue);
                         
-                        // Transformation du double brut en tableau exploitable par Recharts
                         setDistributionData([
-                            { name: 'Réussite (>=50%)', value: successValue, color: '#10B981' },
+                            { name: 'Réussite (>=50%)', value: Number(successValue.toFixed(1)), color: '#10B981' },
                             { name: 'Échec (<50%)', value: Number(failureValue.toFixed(1)), color: '#EF4444' }
                         ]);
                     } else {
@@ -139,7 +137,6 @@ const TeacherEvaluationDashboard = () => {
 
     return (
         <div className="animate-in fade-in duration-500 pb-10">
-            {/* Header Section */}
             <div className="mb-8">
                 <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 transition-colors">
                     Tableau de Bord Enseignant
@@ -149,7 +146,6 @@ const TeacherEvaluationDashboard = () => {
                 </p>
             </div>
 
-            {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-4 hover:shadow-md transition-shadow">
                     <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center shrink-0">
@@ -192,9 +188,7 @@ const TeacherEvaluationDashboard = () => {
                 </div>
             </div>
 
-            {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-                {/* Conteneur Graphique en Bâton */}
                 <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[320px]">
                     <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-4 flex justify-between items-end">
                         <div>
@@ -205,7 +199,8 @@ const TeacherEvaluationDashboard = () => {
                         </div>
                     </div>
                     <div className="flex-1 w-full h-[250px]">
-                        <ResponsiveContainer width="100%" height="100%">
+                        {/* ✅ CORRECTION : width="99%" au lieu de 100% pour éviter le bug Recharts */}
+                        <ResponsiveContainer width="99%" height={250}>
                             <BarChart data={performanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                                 <XAxis dataKey="period" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
@@ -222,7 +217,6 @@ const TeacherEvaluationDashboard = () => {
                     </div>
                 </div>
 
-                {/* Conteneur Graphique Camembert avec Sélecteur de Cours */}
                 <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col justify-between min-h-[320px]">
                     <div className="border-b border-slate-100 dark:border-slate-800 pb-3 mb-4">
                         <div className="flex justify-between items-start mb-2">
@@ -231,7 +225,6 @@ const TeacherEvaluationDashboard = () => {
                             </h4>
                         </div>
                         
-                        {/* Sélecteur dynamique de cours */}
                         <select 
                             value={selectedAssignmentId}
                             onChange={(e) => setSelectedAssignmentId(e.target.value)}
@@ -239,15 +232,17 @@ const TeacherEvaluationDashboard = () => {
                         >
                             {assignments.length === 0 && <option value="">Aucun cours disponible</option>}
                             {assignments.map(a => (
+                                /* ✅ CORRECTION : Utilisation directe de subjectName et classroomName du DTO */
                                 <option key={a.id} value={a.id}>
-                                    {a.courseAssignment?.subject?.name || `Cours #${a.courseAssignment?.id || a.id}`} - {a.classroom?.division ? `${a.classroom.level?.name} ${a.classroom.division}` : `Classe #${a.classroom?.id}`}
+                                    {a.subjectName || `Cours #${a.id}`} - {a.classroomName || `Classe inconnue`}
                                 </option>
                             ))}
                         </select>
                     </div>
 
                     <div className="flex-1 w-full h-[200px] flex flex-col items-center justify-center">
-                        <ResponsiveContainer width="100%" height="100%">
+                        {/* ✅ CORRECTION : width="99%" au lieu de 100% */}
+                        <ResponsiveContainer width="99%" height={200}>
                             <PieChart>
                                 <Pie
                                     data={distributionData}
@@ -281,7 +276,6 @@ const TeacherEvaluationDashboard = () => {
                 </div>
             </div>
 
-            {/* Quick Links / Actions */}
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-6 shadow-lg text-white flex flex-col sm:flex-row items-center justify-between gap-6">
                 <div>
                     <h3 className="text-xl font-black mb-1">Prêt à gérer vos classes ?</h3>
