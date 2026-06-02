@@ -1,54 +1,55 @@
 import { toast } from 'react-hot-toast';
+// L'import remonte de pedagogieService vers le dossier parent services
+import { websocketService } from '../websocketService'; 
 
 class ProviseurNotificationService {
     constructor() {
-        this.pollingInterval = null;
-        // Utilisation d'un son d'alerte clair et fort. Vous pouvez remplacer l'URL par un fichier local '/sounds/alert.mp3'
+        // Utilisation d'un son d'alerte clair et fort
         this.alertSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-        this.alertSound.volume = 1.0; // Volume maximum
+        this.alertSound.volume = 1.0; 
+        
+        // Liaison du contexte pour éviter la perte du 'this' dans le callback STOMP
+        this.handleMessageReceived = this.handleMessageReceived.bind(this);
     }
 
     startListening() {
-        // Simulation d'une écoute en temps réel (Polling ou WebSocket)
-        // À remplacer par votre vraie logique WebSocket ou Polling API vers le backend
         console.log("Service de notification du Proviseur activé.");
-        
-        /* // Exemple de Polling (décommentez et adaptez selon votre endpoint Backend)
-        this.pollingInterval = setInterval(async () => {
-            try {
-                // const response = await axios.get('/api/v1/grade-sheets/pending/count');
-                // if (response.data.hasNew) {
-                //     this.triggerAlert("Une nouvelle Fiche de Notes vient d'être soumise pour validation !");
-                // }
-            } catch (error) {
-                console.error("Erreur de synchronisation des notifications", error);
-            }
-        }, 30000); // Vérifie toutes les 30 secondes
-        */
+        websocketService.connect(this.handleMessageReceived);
     }
 
     stopListening() {
-        if (this.pollingInterval) {
-            clearInterval(this.pollingInterval);
-        }
         console.log("Service de notification du Proviseur désactivé.");
+        websocketService.disconnect(this.handleMessageReceived);
     }
 
-    // Méthode pour déclencher l'alerte sonore et visuelle
+    handleMessageReceived(message) {
+        // Validation stricte du type de payload reçu du backend
+        if (message && message.type === 'NEW_GRADE_SHEET') {
+            console.log("Notification de fiche de notes reçue :", message);
+            const formattedAlert = `Fiche de notes reçue : ${message.subjectName} (${message.classroomName}) - Période ${message.period}. Soumise par M./Mme ${message.teacherName}.`;
+            this.triggerAlert(formattedAlert);
+        }
+    }
+
     triggerAlert(message) {
-        // Joue le son très fort
-        this.alertSound.play().catch(e => console.log("La lecture audio a été bloquée par le navigateur:", e));
+        // Tentative de lecture audio (peut être bloquée si le proviseur n'a pas cliqué sur la page)
+        const playPromise = this.alertSound.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.log("L'Audio en Auto-play a été bloqué par le navigateur. Un clic utilisateur est requis sur la page.", error);
+            });
+        }
         
-        // Affiche la notification visuelle persistante
+        // Affichage Toast (visuel)
         toast(message, {
-            duration: 10000, // Reste affiché 10 secondes
+            duration: 15000, // 15 secondes
             icon: '🔔',
             style: {
-                background: '#1e293b', // ardoise sombre
+                background: '#1e293b', 
                 color: '#fff',
                 fontWeight: '900',
                 fontSize: '15px',
-                border: '2px solid #3b82f6', // bordure bleue
+                border: '2px solid #3b82f6', 
                 padding: '16px'
             },
         });

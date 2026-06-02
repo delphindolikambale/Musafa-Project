@@ -12,12 +12,15 @@ import com.school.management.model.enums.VisaStatus;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.GradeSheetService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +31,8 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     private final TeacherAssignmentRepository teacherAssignmentRepository;
     private final StudentMarkRepository markRepository;
     private final PeriodValidationRepository validationRepository;
+    // INJECTION DU TEMPLATE WEBSOCKET
+    private final SimpMessagingTemplate messagingTemplate;
 
     @Override
     public GradeSheetResponseDTO generateStudentGradeSheet(Long studentId, Long yearId, int semester) {
@@ -148,6 +153,7 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     @Override
     @Transactional
     public void submitPeriodGradeSheetForVisa(Long taId, int period) {
+        // 1. Récupération ou création de la validation
         PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
                 .orElseGet(() -> {
                     TeacherAssignment ta = teacherAssignmentRepository.findById(taId)
@@ -158,9 +164,28 @@ public class GradeSheetServiceImpl implements GradeSheetService {
                             .build();
                 });
 
+        // 2. Mise à jour de l'état
         validation.setStatus(VisaStatus.SUBMITTED_TO_PROVISEUR);
         validation.setSubmissionDate(LocalDateTime.now());
         validationRepository.save(validation);
+
+        // 3. DIFFUSION DE LA NOTIFICATION TEMPS RÉEL VIA WEBSOCKET
+        try {
+            Map<String, Object> notificationPayload = new HashMap<>();
+            notificationPayload.put("type", "NEW_GRADE_SHEET");
+            notificationPayload.put("message", "Nouvelle fiche de notes soumise");
+            notificationPayload.put("subjectName", validation.getTeacherAssignment().getCourseAssignment().getSubject().getName());
+            notificationPayload.put("classroomName", validation.getTeacherAssignment().getClassroom().getDisplayName());
+            notificationPayload.put("teacherName", validation.getTeacherAssignment().getTeacher().getFullName());
+            notificationPayload.put("period", period);
+            notificationPayload.put("academicYearId", validation.getTeacherAssignment().getAcademicYear().getId());
+
+            // Envoi sur le canal dédié aux Proviseurs
+            messagingTemplate.convertAndSend("/topic/proviseur-notifications", notificationPayload);
+        } catch (Exception e) {
+            // On ne bloque pas la transaction de soumission si la notification échoue
+            System.err.println("Erreur lors de l'envoi de la notification WebSocket : " + e.getMessage());
+        }
     }
 
     @Override
@@ -195,7 +220,6 @@ public class GradeSheetServiceImpl implements GradeSheetService {
                 .collect(Collectors.toList());
     }
 
-    // --- ADAPTÉ : Validation par le Proviseur ---
     @Override
     @Transactional
     public void validatePeriodGradeSheet(Long taId, int period) {
@@ -204,11 +228,10 @@ public class GradeSheetServiceImpl implements GradeSheetService {
 
         validation.setStatus(VisaStatus.VALIDATED_BY_PROVISEUR);
         validation.setValidationDate(LocalDateTime.now());
-        validation.setRejectComment(null); // Nettoyage de l'ancien motif si la validation passe
+        validation.setRejectComment(null);
         validationRepository.save(validation);
     }
 
-    // --- ADAPTÉ : Rejet par le Proviseur avec persistance du motif textuel ---
     @Override
     @Transactional
     public void rejectPeriodGradeSheet(Long taId, int period, String comment) {

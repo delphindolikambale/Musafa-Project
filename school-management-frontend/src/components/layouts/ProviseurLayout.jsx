@@ -5,10 +5,13 @@ import AuthService from '../../services/auth.service';
 import { ThemeContext } from '../../App'; 
 import { 
   LayoutDashboard, Users, BookOpen, UserCheck, Calendar, 
-  Fingerprint, LogOut, Menu, X, Bell, 
-  ChevronLeft, ChevronRight, Sun, Moon, Inbox // Ajout de Inbox ici
+  Fingerprint, LogOut, Menu, X, 
+  ChevronLeft, ChevronRight, Sun, Moon, Inbox 
 } from 'lucide-react';
-import ProviseurNotificationService from '../../services/pedagogieService/ProviseurNotificationService'; // Import du service
+// Import du service de notification WebSocket
+import ProviseurNotificationService from '../../services/pedagogieService/ProviseurNotificationService'; 
+// IMPORT DU NOUVEAU DROPDOWN DE NOTIFICATION EN TEMPS RÉEL
+import NotificationDropdown from './NotificationDropdown';
 
 const ProviseurLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -40,10 +43,16 @@ const ProviseurLayout = () => {
     localStorage.setItem('theme', currentTheme);
   }, [currentTheme]);
 
-  // INITIALISATION DU SERVICE DE NOTIFICATIONS SONORES
+  // INITIALISATION DU SERVICE DE NOTIFICATIONS SONORES (SÉCURISÉ)
   useEffect(() => {
-    ProviseurNotificationService.startListening();
+    // Un léger délai permet de s'assurer que le rendu DOM est terminé
+    // et que le navigateur est prêt à autoriser d'éventuels Auto-Play audio après interaction
+    const initTimer = setTimeout(() => {
+        ProviseurNotificationService.startListening();
+    }, 1000);
+
     return () => {
+        clearTimeout(initTimer);
         ProviseurNotificationService.stopListening();
     };
   }, []);
@@ -85,7 +94,6 @@ const ProviseurLayout = () => {
     { path: '/proviseur/affectations', icon: <UserCheck size={20} />, label: 'Affectations' },
     { path: '/proviseur/horaires', icon: <Calendar size={20} />, label: 'Horaires' },
     { path: '/proviseur/presences', icon: <Fingerprint size={20} />, label: 'Présences/Pointage' },
-    // NOUVELLE ROUTE AJOUTÉE ICI
     { path: '/proviseur/reception-fiches', icon: <Inbox size={20} />, label: 'Réception Fiches' },
   ];
 
@@ -99,7 +107,7 @@ const ProviseurLayout = () => {
       
       {isSidebarOpen && (
         <div 
-          className="lg:hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] transition-opacity duration-300" 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] transition-opacity duration-300 lg:hidden" 
           onClick={() => setIsSidebarOpen(false)} 
         />
       )}
@@ -125,7 +133,7 @@ const ProviseurLayout = () => {
         </button>
 
         <div className="p-6 flex items-center justify-between border-b border-white/5 h-20 shrink-0">
-          <div className="flex items-center gap-3 overflow-hidden">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0 w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shadow-lg border border-white/10 overflow-hidden">
               {schoolConfig?.logoBase64 ? (
                 <img 
@@ -148,7 +156,7 @@ const ProviseurLayout = () => {
             </div>
           </div>
 
-          <button className="lg:hidden p-1 text-slate-400 hover:text-white" onClick={() => setIsSidebarOpen(false)}>
+          <button className="p-1 text-slate-400 hover:text-white lg:hidden" onClick={() => setIsSidebarOpen(false)}>
             <X size={24} />
           </button>
         </div>
@@ -202,7 +210,7 @@ const ProviseurLayout = () => {
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setIsSidebarOpen(true)} 
-              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg lg:hidden text-slate-600 dark:text-slate-300 transition-colors"
+              className="p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 rounded-lg lg:hidden transition-colors"
             >
               <Menu size={24} />
             </button>
@@ -242,11 +250,8 @@ const ProviseurLayout = () => {
             </div>
 
             <div className="flex items-center gap-3 lg:gap-6">
-              {/* Le bouton notification peut aussi être branché à l'état du service si vous le souhaitez un jour */}
-              <div className="relative p-2 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl cursor-pointer transition-colors group">
-                <Bell size={22} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-                <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />
-              </div>
+              {/* INTÉGRATION DU DROPDOWN DE NOTIFICATION INTERACTIF */}
+              <NotificationDropdown />
               
               <div className="flex items-center gap-3 pl-4 border-l border-slate-100 dark:border-slate-700 transition-colors">
                 <div className="text-right hidden md:block leading-none">

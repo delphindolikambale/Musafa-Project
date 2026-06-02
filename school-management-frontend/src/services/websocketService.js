@@ -57,6 +57,11 @@ export const websocketService = {
                 if (message.body) websocketService._processMessage(message.body);
             });
 
+            // --- NOUVEAU : Canal 3: Notifications Pédagogiques pour le Proviseur ---
+            stompClient.subscribe('/topic/proviseur-notifications', (message) => {
+                if (message.body) websocketService._processMessage(message.body);
+            });
+
         }, (error) => {
             console.warn('⚠️ Connexion WebSocket interrompue ou serveur inaccessible.');
             
