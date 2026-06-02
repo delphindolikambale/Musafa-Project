@@ -13,8 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,10 +33,12 @@ public class EvaluationServiceImpl implements EvaluationService {
         TeacherAssignment ta = assignmentRepository.findById(dto.getTeacherAssignmentId())
                 .orElseThrow(() -> new RuntimeException("Affectation enseignant non trouvée"));
 
-        // VERIFICATION DU VISA
-        VisaStatus status = getPeriodVisaStatus(ta.getId(), dto.getPeriod());
+        // VERIFICATION DU VISA : On utilise le repository directement ici pour vérifier le verrouillage
+        Optional<PeriodValidation> validation = validationRepository.findByTeacherAssignmentIdAndPeriod(ta.getId(), dto.getPeriod());
+        VisaStatus status = validation.map(PeriodValidation::getStatus).orElse(VisaStatus.DRAFT);
+
         if (status != VisaStatus.DRAFT) {
-            throw new RuntimeException("Opération impossible : Les cotes de cette période ont déjà été soumises à la Direction.");
+            throw new RuntimeException("Opération impossible : La fiche de notes de cette période a déjà été soumise à la Direction.");
         }
 
         CourseAssignment config = ta.getCourseAssignment();
@@ -156,31 +158,6 @@ public class EvaluationServiceImpl implements EvaluationService {
                 .filter(t -> t.getType() != EvaluationType.EXAMEN)
                 .mapToDouble(EvaluationTask::getMaxPoints)
                 .sum();
-    }
-
-    @Override
-    @Transactional
-    public void submitPeriodForVisa(Long taId, int period) {
-        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
-                .orElseGet(() -> {
-                    TeacherAssignment ta = assignmentRepository.findById(taId)
-                            .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
-                    return PeriodValidation.builder()
-                            .teacherAssignment(ta)
-                            .period(period)
-                            .build();
-                });
-
-        validation.setStatus(VisaStatus.SUBMITTED_TO_PROVISEUR);
-        validation.setSubmissionDate(LocalDateTime.now());
-        validationRepository.save(validation);
-    }
-
-    @Override
-    public VisaStatus getPeriodVisaStatus(Long taId, int period) {
-        return validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
-                .map(PeriodValidation::getStatus)
-                .orElse(VisaStatus.DRAFT);
     }
 
     @Override

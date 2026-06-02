@@ -11,10 +11,9 @@ import java.util.List;
 
 @Entity
 @Table(name = "teachers")
-@Data // Génère automatiquement les Getters, Setters, toString, etc.
+@Data // Génère automatiquement les Getters, Setters, etc.
 @NoArgsConstructor
 @AllArgsConstructor
-
 public class Teacher {
 
     @Id
@@ -41,7 +40,6 @@ public class Teacher {
     @Column(nullable = false)
     private boolean active = true;
 
-    // NOVEAU : Relation physique de liaison de compte (Option B)
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true)
     private User user;
@@ -61,4 +59,13 @@ public class Teacher {
     private String profilePicturePath;
     private String cvPath;
     private String directoryPath;
+
+    // --- SOLUTION : Méthode personnalisée pour le nom complet ---
+    public String getFullName() {
+        StringBuilder sb = new StringBuilder();
+        if (firstName != null && !firstName.isEmpty()) sb.append(firstName).append(" ");
+        if (middleName != null && !middleName.isEmpty()) sb.append(middleName).append(" ");
+        if (lastName != null && !lastName.isEmpty()) sb.append(lastName);
+        return sb.toString().trim();
+    }
 }

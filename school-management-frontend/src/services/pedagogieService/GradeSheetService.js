@@ -10,15 +10,44 @@ const getHeader = () => {
 };
 
 const GradeSheetService = {
-    // Récupérer le bulletin d'un élève (Toutes les matières)
     getStudentSheet: async (studentId, yearId, semester = 1) => {
         const response = await axios.get(`${API_URL}/student/${studentId}/year/${yearId}?semester=${semester}`, { headers: getHeader() });
         return response.data;
     },
 
-    // Fiche de Cotes de toute la classe (Matrice d'affichage globale)
     getClassMatrixSheet: async (taId) => {
         const response = await axios.get(`${API_URL}/assignment/${taId}/matrix`, { headers: getHeader() });
+        return response.data;
+    },
+
+    submitGradeSheetForVisa: async (taId, period) => {
+        const response = await axios.post(`${API_URL}/assignment/${taId}/period/${period}/submit`, {}, { headers: getHeader() });
+        return response.data;
+    },
+
+    getGradeSheetVisaStatus: async (taId, period) => {
+        const response = await axios.get(`${API_URL}/assignment/${taId}/period/${period}/visa-status`, { headers: getHeader() });
+        return response.data;
+    },
+
+    getPendingGradeSheetsForProviseur: async (academicYearId) => {
+        const response = await axios.get(`${API_URL}/pending-visa/year/${academicYearId}`, { headers: getHeader() });
+        return response.data;
+    },
+
+    // --- ADAPTÉ : Validation ---
+    validateGradeSheet: async (taId, period) => {
+        const response = await axios.post(`${API_URL}/assignment/${taId}/period/${period}/validate`, {}, { headers: getHeader() });
+        return response.data;
+    },
+
+    // --- ADAPTÉ : Envoi du motif de rejet dans le corps JSON (RequestBody) ---
+    rejectGradeSheet: async (taId, period, comment) => {
+        const response = await axios.post(
+            `${API_URL}/assignment/${taId}/period/${period}/reject`, 
+            { comment: comment }, 
+            { headers: getHeader() }
+        );
         return response.data;
     }
 };

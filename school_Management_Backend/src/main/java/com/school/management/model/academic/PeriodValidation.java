@@ -10,7 +10,6 @@ import java.time.LocalDateTime;
         @UniqueConstraint(columnNames = {"teacher_assignment_id", "period"})
 })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
 public class PeriodValidation {
 
     @Id
@@ -30,4 +29,7 @@ public class PeriodValidation {
 
     private LocalDateTime submissionDate;
     private LocalDateTime validationDate;
+
+    @Column(name = "reject_comment", length = 500)
+    private String rejectComment;
 }

@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { SchoolProvider } from "./context/SchoolContext";
 
 // --- VIEWS & AUTH ---
-import Welcome from "./views/Welcome"; // REMPLACEMENT DE LANDING PAR WELCOME ICI
+import Welcome from "./views/Welcome"; 
 import Login from "./views/Login";
 import Register from "./views/Register";
 import ProtectedRoute from "./components/ProtectedRoute"; 
@@ -49,13 +49,15 @@ import CourseManagement from "./components/structure/pedagogie/CourseManagement"
 import ScheduleManagement from "./components/structure/pedagogie/ScheduleManagement";
 import AttendanceManagement from "./components/structure/pedagogie/AttendanceManagement";
 import TeacherAssignment from "./components/structure/pedagogie/TeacherAssignment"; 
+import GradeSheetReception from "./components/structure/pedagogie/GradeSheetReception";
+// NOUVEAU COMPOSANT IMPORTÉ ICI
+import GradeSheetValidation from "./components/structure/pedagogie/GradeSheetValidation";
 
 // --- COMPONENTS ÉLÈVE ---
 import StudentPedagogyDashboard from "./components/dashboard/pedagogieDashboard/StudentPedagogyDashboard";
 
 // --- COMPONENTS ENSEIGNANT ---
 import TeacherEvaluationDashboard from "./components/dashboard/pedagogieDashboard/TeacherEvaluationDashboard";
-// CORRECTION ICI : Pointage vers le bon dossier structure/pedagogie
 import TeacherClassesManager from "./components/structure/pedagogie/TeacherClassesManager";
 
 export const ThemeContext = createContext();
@@ -145,6 +147,11 @@ function App() {
                 <Route path="affectations" element={<TeacherAssignment />} />
                 <Route path="horaires" element={<ScheduleManagement />} />
                 <Route path="presences" element={<AttendanceManagement />} />
+                
+                {/* ROUTES DES FICHES DE NOTES */}
+                <Route path="reception-fiches" element={<GradeSheetReception />} />
+                <Route path="validation-fiche/:assignmentId/:period" element={<GradeSheetValidation />} />
+                
                 <Route index element={<Navigate to="dashboard" />} />
               </Route>
 

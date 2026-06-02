@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, FileText, Loader2, RefreshCw, Search } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, RefreshCw, Search, Send, Clock, CheckCircle, XCircle } from 'lucide-react';
 import GradeSheetService from '../../../services/pedagogieService/GradeSheetService';
 import { toast } from 'react-hot-toast';
 
@@ -8,11 +8,28 @@ const GradeSheetPage = ({ assignment, activeYear, onBack }) => {
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // --- NOUVEAUX ETATS POUR LE CIRCUIT DE VALIDATION ---
+    const [selectedPeriod, setSelectedPeriod] = useState(1);
+    const [visaStatus, setVisaStatus] = useState('DRAFT');
+    const [rejectComment, setRejectComment] = useState(null); // Stockage du motif en cas de rejet
+    const [isSubmittingVisa, setIsSubmittingVisa] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+
     useEffect(() => {
         if (assignment?.id) {
             loadMatrixData();
+        } else {
+            // SECURITÉ : Évite le chargement infini si les props ne sont pas passées
+            setLoading(false);
         }
     }, [assignment]);
+
+    // --- NOUVEAU USE-EFFECT : Recharger le statut à chaque changement de période ---
+    useEffect(() => {
+        if (assignment?.id && selectedPeriod) {
+            fetchVisaStatus();
+        }
+    }, [assignment, selectedPeriod]);
 
     const loadMatrixData = async () => {
         setLoading(true);
@@ -24,6 +41,36 @@ const GradeSheetPage = ({ assignment, activeYear, onBack }) => {
             toast.error("Impossible de générer la Fiche globale de notes.");
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchVisaStatus = async () => {
+        try {
+            const data = await GradeSheetService.getGradeSheetVisaStatus(assignment.id, selectedPeriod);
+            // Extraction des propriétés du VisaStatusResponseDTO
+            setVisaStatus(data?.status || 'DRAFT');
+            setRejectComment(data?.rejectComment || null);
+        } catch (error) {
+            console.error("Erreur lors de la récupération du statut :", error);
+            setVisaStatus('DRAFT');
+            setRejectComment(null);
+        }
+    };
+
+    const handleSubmitVisa = async () => {
+        setIsSubmittingVisa(true);
+        try {
+            await GradeSheetService.submitGradeSheetForVisa(assignment.id, selectedPeriod);
+            toast.success(`Les notes de la période ${selectedPeriod} ont été transmises au Proviseur avec succès.`);
+            setVisaStatus('SUBMITTED_TO_PROVISEUR');
+            setRejectComment(null); // Nettoyage de l'ancien motif si soumis à nouveau
+            setShowConfirmModal(false);
+            loadMatrixData(); // Optionnel : rafraichir les données globales
+        } catch (error) {
+            console.error("Erreur lors de la soumission :", error);
+            toast.error(error.response?.data || "Erreur lors de la transmission des notes.");
+        } finally {
+            setIsSubmittingVisa(false);
         }
     };
 
@@ -49,8 +96,9 @@ const GradeSheetPage = ({ assignment, activeYear, onBack }) => {
     return (
         <div className="flex flex-col h-auto min-h-full space-y-6 animate-fade-in pb-12">
             
-            {/* Header d'identification */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+            {/* Header d'identification et Contrôles de Validation */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
+                
                 <div className="flex items-center gap-4">
                     <button onClick={onBack} className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl transition-colors">
                         <ArrowLeft size={18} />
@@ -68,14 +116,80 @@ const GradeSheetPage = ({ assignment, activeYear, onBack }) => {
                     </div>
                 </div>
 
-                <button 
-                    onClick={loadMatrixData} 
-                    className="p-3 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 rounded-xl transition-all self-start sm:self-center"
-                    title="Actualiser les calculs matriciels"
-                >
-                    <RefreshCw size={16} />
-                </button>
+                {/* --- CONTRÔLES D'ENVOI AU PROVISEUR --- */}
+                <div className="flex flex-wrap items-center gap-3 lg:ml-auto border-t lg:border-t-0 pt-3 lg:pt-0 border-slate-100 dark:border-slate-800">
+                    
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <span className="text-xs font-black text-slate-500 pl-2 uppercase tracking-widest">Période:</span>
+                        <select
+                            value={selectedPeriod}
+                            onChange={(e) => setSelectedPeriod(Number(e.target.value))}
+                            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg py-1.5 px-3 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                            <option value={1}>Période 1</option>
+                            <option value={2}>Période 2 (Incl. Exam 1)</option>
+                            <option value={3}>Période 3</option>
+                            <option value={4}>Période 4 (Incl. Exam 2)</option>
+                        </select>
+                    </div>
+
+                    {/* Affichage dynamique du statut et du bouton d'envoi */}
+                    {(visaStatus === 'DRAFT' || visaStatus === 'REJECTED_BY_PROVISEUR') && (
+                        <button
+                            onClick={() => setShowConfirmModal(true)}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all shadow-sm"
+                        >
+                            <Send size={14} /> Envoyer au Proviseur
+                        </button>
+                    )}
+
+                    {visaStatus === 'REJECTED_BY_PROVISEUR' && (
+                        <span className="bg-red-100 text-red-700 border border-red-200 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
+                            <XCircle size={14} /> Rejeté par le Proviseur
+                        </span>
+                    )}
+                    
+                    {visaStatus === 'SUBMITTED_TO_PROVISEUR' && (
+                        <span className="bg-amber-100 text-amber-700 border border-amber-200 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
+                            <Clock size={14} /> En attente du Proviseur
+                        </span>
+                    )}
+
+                    {visaStatus === 'VALIDATED_BY_PROVISEUR' && (
+                        <span className="bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2">
+                            <CheckCircle size={14} /> Transmis au Titulaire
+                        </span>
+                    )}
+
+                    {visaStatus === 'VALIDATED_BY_TITULAIRE' && (
+                        <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-inner">
+                            <CheckCircle size={14} className="text-emerald-600" /> Clôturé & Au Bulletin
+                        </span>
+                    )}
+
+                    <button 
+                        onClick={loadMatrixData} 
+                        className="p-2.5 bg-slate-100 text-slate-600 hover:text-indigo-600 dark:bg-slate-800 dark:text-slate-400 rounded-xl transition-all"
+                        title="Actualiser les calculs matriciels"
+                    >
+                        <RefreshCw size={16} />
+                    </button>
+                </div>
             </div>
+
+            {/* --- BANNIÈRE VISUELLE EN CAS DE REJET PAR LA DIRECTION --- */}
+            {visaStatus === 'REJECTED_BY_PROVISEUR' && rejectComment && (
+                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-400 p-5 rounded-3xl text-xs font-bold flex flex-col gap-2 w-full animate-fade-in shadow-sm">
+                    <div className="flex items-center gap-2 text-red-800 dark:text-red-300">
+                        <XCircle size={18} className="text-red-600 dark:text-red-400" />
+                        <span className="uppercase tracking-wider text-[11px] font-black">Fiche de notes renvoyée pour correction</span>
+                    </div>
+                    <div className="font-medium text-red-600 dark:text-red-300/90 pl-6 mt-0.5 bg-white/60 dark:bg-slate-900/40 p-3 rounded-xl border border-red-100 dark:border-red-950/60 leading-relaxed">
+                        <span className="font-black text-red-700 dark:text-red-400 uppercase tracking-wide text-[10px] block mb-1">Motif du rejet indiqué par le Proviseur :</span> 
+                        "{rejectComment}"
+                    </div>
+                </div>
+            )}
 
             {/* Matrice de Cotes Responsive - Look Excel Aéré */}
             <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm flex flex-col flex-grow">
@@ -86,7 +200,7 @@ const GradeSheetPage = ({ assignment, activeYear, onBack }) => {
                         </div>
                         <div>
                             <h3 className="text-sm font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">
-                                Fiche de Notes
+                                FICHE DE NOTES
                             </h3>
                         </div>
                     </div>
@@ -195,6 +309,38 @@ const GradeSheetPage = ({ assignment, activeYear, onBack }) => {
                     </div>
                 )}
             </div>
+
+            {/* MODAL DE CONFIRMATION DE SOUMISSION */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm px-4">
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                        <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mb-4">
+                            <Send size={24} />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-800 dark:text-white mb-2">Transmettre les notes</h3>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mb-6 leading-relaxed">
+                            Êtes-vous sûr de vouloir transmettre définitivement la Fiche de notes de la <strong className="text-slate-800 dark:text-slate-200">Période {selectedPeriod}</strong> au Proviseur ? <br/><br/>
+                            Une fois cette action effectuée, les notes de votre Carnet seront verrouillées et vous ne pourrez plus les modifier tant que la direction n'aura pas traité la fiche.
+                        </p>
+                        <div className="flex justify-end gap-3">
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="px-5 py-2.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-sm font-bold hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                Annuler
+                            </button>
+                            <button
+                                onClick={handleSubmitVisa}
+                                disabled={isSubmittingVisa}
+                                className="px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 flex items-center gap-2 disabled:opacity-50 transition-colors shadow-sm"
+                            >
+                                {isSubmittingVisa ? <Loader2 size={16} className="animate-spin" /> : null}
+                                Confirmer et Envoyer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

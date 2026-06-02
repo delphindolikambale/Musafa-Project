@@ -2,26 +2,32 @@ package com.school.management.service.academicImpl;
 
 import com.school.management.dto.academic.ClassGradeSheetResponseDTO;
 import com.school.management.dto.academic.GradeSheetResponseDTO;
+import com.school.management.dto.academic.PendingGradeSheetDTO;
 import com.school.management.dto.academic.StudentRowDTO;
 import com.school.management.dto.academic.SubjectGradeDTO;
+import com.school.management.dto.academic.VisaStatusResponseDTO;
 import com.school.management.model.academic.*;
 import com.school.management.model.enums.EvaluationType;
+import com.school.management.model.enums.VisaStatus;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.GradeSheetService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class GradeSheetServiceImpl implements GradeSheetService {
 
     private final EnrollmentRepository enrollmentRepository;
     private final TeacherAssignmentRepository teacherAssignmentRepository;
     private final StudentMarkRepository markRepository;
+    private final PeriodValidationRepository validationRepository;
 
     @Override
     public GradeSheetResponseDTO generateStudentGradeSheet(Long studentId, Long yearId, int semester) {
@@ -40,7 +46,7 @@ public class GradeSheetServiceImpl implements GradeSheetService {
 
             double p1Score = sumMarks(studentId, ta.getId(), 1);
             double p2Score = sumMarks(studentId, ta.getId(), 2);
-            double exam1Score = sumMarksByType(studentId, ta.getId(), EvaluationType.EXAMEN, 1); // Semestre 1
+            double exam1Score = sumMarksByType(studentId, ta.getId(), EvaluationType.EXAMEN, 1);
 
             SubjectGradeDTO row = SubjectGradeDTO.builder()
                     .subjectName(config.getSubject().getName())
@@ -67,7 +73,6 @@ public class GradeSheetServiceImpl implements GradeSheetService {
                 .build();
     }
 
-    // --- NOUVELLE METHODE POUR LA MATRICE DE LA CLASSE (Image 2) ---
     @Override
     public ClassGradeSheetResponseDTO generateClassGradeSheet(Long taId) {
         TeacherAssignment ta = teacherAssignmentRepository.findById(taId)
@@ -75,7 +80,6 @@ public class GradeSheetServiceImpl implements GradeSheetService {
 
         CourseAssignment config = ta.getCourseAssignment();
 
-        // Récupérer tous les élèves inscrits dans cette classe pour cette année
         List<Enrollment> enrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndActiveTrue(
                 ta.getClassroom().getId(), ta.getAcademicYear().getId());
 
@@ -84,13 +88,11 @@ public class GradeSheetServiceImpl implements GradeSheetService {
         for (Enrollment e : enrollments) {
             Long studentId = e.getStudent().getId();
 
-            // Calcul Semestre 1
             double p1 = sumMarks(studentId, taId, 1);
             double p2 = sumMarks(studentId, taId, 2);
             double exam1 = sumMarksByType(studentId, taId, EvaluationType.EXAMEN, 1);
             double ts1 = p1 + p2 + exam1;
 
-            // Calcul Semestre 2
             double p3 = sumMarks(studentId, taId, 3);
             double p4 = sumMarks(studentId, taId, 4);
             double exam2 = sumMarksByType(studentId, taId, EvaluationType.EXAMEN, 2);
@@ -124,7 +126,6 @@ public class GradeSheetServiceImpl implements GradeSheetService {
         return markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentId(studentId, taId)
                 .stream()
                 .filter(m -> m.getEvaluationTask().getPeriod() == period)
-                // Exclure les examens s'ils ont été enregistrés avec la même période, car ils ont leur propre type
                 .filter(m -> m.getEvaluationTask().getType() != EvaluationType.EXAMEN)
                 .mapToDouble(StudentMark::getObtainedValue)
                 .sum();
@@ -135,13 +136,87 @@ public class GradeSheetServiceImpl implements GradeSheetService {
                 .stream()
                 .filter(m -> m.getEvaluationTask().getType() == type)
                 .filter(m -> {
-                    // Si un examen est enregistré, on vérifie à quel semestre il appartient
                     int p = m.getEvaluationTask().getPeriod();
-                    if (semester == 1) return p == 1 || p == 2 || p == 0; // Convention 0 souvent utilisée pour Ex1
+                    if (semester == 1) return p == 1 || p == 2 || p == 0;
                     if (semester == 2) return p == 3 || p == 4;
                     return false;
                 })
                 .mapToDouble(StudentMark::getObtainedValue)
                 .sum();
+    }
+
+    @Override
+    @Transactional
+    public void submitPeriodGradeSheetForVisa(Long taId, int period) {
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
+                .orElseGet(() -> {
+                    TeacherAssignment ta = teacherAssignmentRepository.findById(taId)
+                            .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
+                    return PeriodValidation.builder()
+                            .teacherAssignment(ta)
+                            .period(period)
+                            .build();
+                });
+
+        validation.setStatus(VisaStatus.SUBMITTED_TO_PROVISEUR);
+        validation.setSubmissionDate(LocalDateTime.now());
+        validationRepository.save(validation);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public VisaStatusResponseDTO getPeriodGradeSheetVisaStatus(Long taId, int period) {
+        return validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
+                .map(v -> VisaStatusResponseDTO.builder()
+                        .status(v.getStatus())
+                        .rejectComment(v.getRejectComment())
+                        .build())
+                .orElse(VisaStatusResponseDTO.builder()
+                        .status(VisaStatus.DRAFT)
+                        .rejectComment(null)
+                        .build());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PendingGradeSheetDTO> getPendingGradeSheetsForProviseur(Long academicYearId) {
+        List<PeriodValidation> pendingValidations = validationRepository.findByStatus(VisaStatus.SUBMITTED_TO_PROVISEUR);
+
+        return pendingValidations.stream()
+                .filter(v -> v.getTeacherAssignment().getAcademicYear().getId().equals(academicYearId))
+                .map(v -> PendingGradeSheetDTO.builder()
+                        .teacherAssignmentId(v.getTeacherAssignment().getId())
+                        .period(v.getPeriod())
+                        .subjectName(v.getTeacherAssignment().getCourseAssignment().getSubject().getName())
+                        .classroomName(v.getTeacherAssignment().getClassroom().getDisplayName())
+                        .teacherName(v.getTeacherAssignment().getTeacher().getFullName())
+                        .submissionDate(v.getSubmissionDate())
+                        .build())
+                .collect(Collectors.toList());
+    }
+
+    // --- ADAPTÉ : Validation par le Proviseur ---
+    @Override
+    @Transactional
+    public void validatePeriodGradeSheet(Long taId, int period) {
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
+                .orElseThrow(() -> new RuntimeException("Fiche de notes introuvable pour cette période."));
+
+        validation.setStatus(VisaStatus.VALIDATED_BY_PROVISEUR);
+        validation.setValidationDate(LocalDateTime.now());
+        validation.setRejectComment(null); // Nettoyage de l'ancien motif si la validation passe
+        validationRepository.save(validation);
+    }
+
+    // --- ADAPTÉ : Rejet par le Proviseur avec persistance du motif textuel ---
+    @Override
+    @Transactional
+    public void rejectPeriodGradeSheet(Long taId, int period, String comment) {
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
+                .orElseThrow(() -> new RuntimeException("Fiche de notes introuvable pour cette période."));
+
+        validation.setStatus(VisaStatus.REJECTED_BY_PROVISEUR);
+        validation.setRejectComment(comment);
+        validationRepository.save(validation);
     }
 }

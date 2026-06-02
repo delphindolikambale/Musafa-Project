@@ -2,12 +2,13 @@ import React, { useState, useEffect, useContext } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
 import { useSchool } from '../../context/SchoolContext';
 import AuthService from '../../services/auth.service';
-import { ThemeContext } from '../../App'; // Import du contexte global
+import { ThemeContext } from '../../App'; 
 import { 
   LayoutDashboard, Users, BookOpen, UserCheck, Calendar, 
   Fingerprint, LogOut, Menu, X, Bell, 
-  ChevronLeft, ChevronRight, Sun, Moon
+  ChevronLeft, ChevronRight, Sun, Moon, Inbox // Ajout de Inbox ici
 } from 'lucide-react';
+import ProviseurNotificationService from '../../services/pedagogieService/ProviseurNotificationService'; // Import du service
 
 const ProviseurLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -39,11 +40,18 @@ const ProviseurLayout = () => {
     localStorage.setItem('theme', currentTheme);
   }, [currentTheme]);
 
+  // INITIALISATION DU SERVICE DE NOTIFICATIONS SONORES
+  useEffect(() => {
+    ProviseurNotificationService.startListening();
+    return () => {
+        ProviseurNotificationService.stopListening();
+    };
+  }, []);
+
   const handleToggleTheme = () => {
     if (toggleContextTheme) {
       toggleContextTheme();
     } else {
-      // Fallback si le contexte global échoue
       setLocalTheme(prev => prev === 'dark' ? 'light' : 'dark');
     }
   };
@@ -77,6 +85,8 @@ const ProviseurLayout = () => {
     { path: '/proviseur/affectations', icon: <UserCheck size={20} />, label: 'Affectations' },
     { path: '/proviseur/horaires', icon: <Calendar size={20} />, label: 'Horaires' },
     { path: '/proviseur/presences', icon: <Fingerprint size={20} />, label: 'Présences/Pointage' },
+    // NOUVELLE ROUTE AJOUTÉE ICI
+    { path: '/proviseur/reception-fiches', icon: <Inbox size={20} />, label: 'Réception Fiches' },
   ];
 
   const getInitials = (name) => {
@@ -134,7 +144,7 @@ const ProviseurLayout = () => {
               <h1 className="font-bold text-sm tracking-tight leading-tight uppercase truncate">
                 {loading ? "Chargement..." : (schoolConfig?.schoolName || "C.S. MUSAFA")}
               </h1>
-              <p className="text-[10px] text-blue-400 font-bold tracking-widest mt-1 uppercase whitespace-nowrap">Direction Études</p>
+              <p className="text-[10px] text-blue-400 font-bold tracking-widest mt-1 uppercase whitespace-nowrap">Espace Proviseur</p>
             </div>
           </div>
 
@@ -206,7 +216,7 @@ const ProviseurLayout = () => {
             
             <div className="hidden sm:flex items-center gap-3">
               <button
-                onClick={handleToggleTheme} // Appel de la fonction corrigée
+                onClick={handleToggleTheme}
                 className="p-2.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl transition-colors border border-slate-200 dark:border-slate-600"
                 title="Basculer le thème"
               >
@@ -232,6 +242,7 @@ const ProviseurLayout = () => {
             </div>
 
             <div className="flex items-center gap-3 lg:gap-6">
+              {/* Le bouton notification peut aussi être branché à l'état du service si vous le souhaitez un jour */}
               <div className="relative p-2 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl cursor-pointer transition-colors group">
                 <Bell size={22} className="text-slate-400 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
                 <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-orange-500 rounded-full border-2 border-white dark:border-slate-800 shadow-sm" />

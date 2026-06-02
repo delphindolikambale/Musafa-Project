@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Plus, Loader2, ArrowLeft, CheckCircle2, FileText } from 'lucide-react';
 import EvaluationService from '../../../services/pedagogieService/EvaluationService';
+import GradeSheetService from '../../../services/pedagogieService/GradeSheetService';
 import { enrollmentService } from '../../../services/enrollmentService';
 import { toast } from 'react-hot-toast';
 import EvaluationCarnetAdd from './EvaluationCarnetAdd';
@@ -87,7 +88,8 @@ const EvaluationCarnetPage = ({ assignment, activeYear, onBack }) => {
             setEvaluations(evalsWithMarks);
             setMarksForm(initialMarks);
 
-            const visa = await EvaluationService.getVisaStatus(assignment.id, period);
+            // ADAPTATION : Utilisation de GradeSheetService pour le Visa
+            const visa = await GradeSheetService.getGradeSheetVisaStatus(assignment.id, period);
             setVisaStatus(visa?.status || visa || 'DRAFT');
 
             const sum = await EvaluationService.getCurrentSum(assignment.id, period);

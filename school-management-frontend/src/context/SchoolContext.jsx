@@ -1,11 +1,11 @@
 import React, { createContext, useState, useEffect, useContext } from "react";
 import schoolConfigService from "../services/admin/schoolConfigService";
+import academicYearService from "../services/academicYearService";
 
 const SchoolContext = createContext();
 
 export const SchoolProvider = ({ children }) => {
   const [schoolConfig, setSchoolConfig] = useState({
-    
         schoolName: "",
         slogan: "",
         logoBase64: null,
@@ -22,13 +22,13 @@ export const SchoolProvider = ({ children }) => {
         defaultCashierName: "",
   });
 
+  const [activeYear, setActiveYear] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchSchoolConfig = async () => {
     try {
       const data = await schoolConfigService.getSchoolConfig();
       if (data) {
-        // On s'assure que schoolName n'est jamais undefined pour l'affichage
         setSchoolConfig({
           ...data,
           schoolName: data.schoolName || "Institution",
@@ -36,17 +36,32 @@ export const SchoolProvider = ({ children }) => {
       }
     } catch (error) {
       console.error("Erreur lors du chargement de la configuration scolaire:", error);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  const fetchActiveYear = async () => {
+    try {
+      // Utilisation correcte du service importé : academicYearService
+      const response = await academicYearService.getActiveYear();
+      if (response && response.data) {
+        setActiveYear(response.data);
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement de l'année active:", error);
     }
   };
 
   useEffect(() => {
-    fetchSchoolConfig();
+    const initData = async () => {
+        setLoading(true);
+        await Promise.all([fetchSchoolConfig(), fetchActiveYear()]);
+        setLoading(false);
+    };
+    initData();
   }, []);
 
   return (
-    <SchoolContext.Provider value={{ schoolConfig, updateSchoolConfig: fetchSchoolConfig, loading }}>
+    <SchoolContext.Provider value={{ schoolConfig, activeYear, updateSchoolConfig: fetchSchoolConfig, loading }}>
       {children}
     </SchoolContext.Provider>
   );

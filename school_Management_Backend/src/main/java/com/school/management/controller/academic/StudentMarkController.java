@@ -11,7 +11,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/marks")
 @RequiredArgsConstructor
-
 public class StudentMarkController {
 
     private final StudentMarkService markService;
@@ -26,7 +25,6 @@ public class StudentMarkController {
         }
     }
 
-    // AJOUT ADAPTÉ : Permet au Frontend (EvaluationService.js -> getMarksByEvaluationTask) de charger les notes
     @GetMapping("/evaluation/{evaluationTaskId}")
     public ResponseEntity<List<StudentMarkDTO>> getMarksByEvaluation(@PathVariable Long evaluationTaskId) {
         return ResponseEntity.ok(markService.getMarksByEvaluation(evaluationTaskId));
