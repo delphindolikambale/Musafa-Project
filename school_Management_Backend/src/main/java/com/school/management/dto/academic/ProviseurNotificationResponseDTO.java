@@ -1,61 +1,21 @@
-package com.school.management.model.academic;
+package com.school.management.dto.academic;
 
-import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
-@Entity
-@Table(name = "notifications")
+public class ProviseurNotificationResponseDTO {
 
-public class Notification {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(nullable = false)
-    private String type; // Exemple: "NEW_GRADE_SHEET"
-
-    @Column(nullable = false)
+    private String type;
     private String title;
-
-    @Column(nullable = false, length = 500)
     private String message;
-
-    @Column(nullable = false)
-    private String targetRole; // Exemple: "PROVISEUR" ou "ROLE_PROVISEUR"
-
-    @Column(nullable = false)
-    private boolean readStatus = false;
-
-    @Column(nullable = false)
+    private String targetRole;
+    private boolean readStatus;
     private LocalDateTime createdAt;
-
-    // Métadonnées spécifiques pour faciliter la redirection au clic côté Frontend
     private String subjectName;
     private String classroomName;
     private String period;
     private String teacherName;
     private Long assignmentId;
-
-    public Notification() {
-        this.createdAt = LocalDateTime.now();
-    }
-
-    public Notification(String type, String title, String message, String targetRole,
-                        String subjectName, String classroomName, String period,
-                        String teacherName, Long assignmentId) {
-        this.type = type;
-        this.title = title;
-        this.message = message;
-        this.targetRole = targetRole;
-        this.subjectName = subjectName;
-        this.classroomName = classroomName;
-        this.period = period;
-        this.teacherName = teacherName;
-        this.assignmentId = assignmentId;
-        this.readStatus = false;
-        this.createdAt = LocalDateTime.now();
-    }
 
     // Getters et Setters
     public Long getId() { return id; }
@@ -93,6 +53,4 @@ public class Notification {
 
     public Long getAssignmentId() { return assignmentId; }
     public void setAssignmentId(Long assignmentId) { this.assignmentId = assignmentId; }
-
-
 }

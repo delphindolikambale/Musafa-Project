@@ -1,6 +1,6 @@
 package com.school.management.dto.academic;
 
-public class NotificationCreateDTO {
+public class ProviseurNotificationCreateDTO {
     private String type;
     private String title;
     private String message;

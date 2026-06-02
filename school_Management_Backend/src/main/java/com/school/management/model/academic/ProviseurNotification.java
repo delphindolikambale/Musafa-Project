@@ -1,19 +1,60 @@
-package com.school.management.dto.academic;
-import java.time.LocalDateTime;
-public class NotificationResponseDTO {
+package com.school.management.model.academic;
 
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "proviseur_notifications")
+public class ProviseurNotification {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    private String type;
+
+    @Column(nullable = false)
+    private String type; // Exemple: "NEW_GRADE_SHEET"
+
+    @Column(nullable = false)
     private String title;
+
+    @Column(nullable = false, length = 500)
     private String message;
-    private String targetRole;
-    private boolean readStatus;
+
+    @Column(nullable = false)
+    private String targetRole; // Exemple: "PROVISEUR" ou "ROLE_PROVISEUR"
+
+    @Column(nullable = false)
+    private boolean readStatus = false;
+
+    @Column(nullable = false)
     private LocalDateTime createdAt;
+
+    // Métadonnées spécifiques pour faciliter la redirection au clic côté Frontend
     private String subjectName;
     private String classroomName;
     private String period;
     private String teacherName;
     private Long assignmentId;
+
+    public ProviseurNotification() {
+        this.createdAt = LocalDateTime.now();
+    }
+
+    public ProviseurNotification(String type, String title, String message, String targetRole,
+                                 String subjectName, String classroomName, String period,
+                                 String teacherName, Long assignmentId) {
+        this.type = type;
+        this.title = title;
+        this.message = message;
+        this.targetRole = targetRole;
+        this.subjectName = subjectName;
+        this.classroomName = classroomName;
+        this.period = period;
+        this.teacherName = teacherName;
+        this.assignmentId = assignmentId;
+        this.readStatus = false;
+        this.createdAt = LocalDateTime.now();
+    }
 
     // Getters et Setters
     public Long getId() { return id; }

@@ -1,8 +1,8 @@
 package com.school.management.controller.academic;
 
-import com.school.management.dto.academic.NotificationCreateDTO;
-import com.school.management.dto.academic.NotificationResponseDTO;
-import com.school.management.service.academic.NotificationService;
+import com.school.management.dto.academic.ProviseurNotificationCreateDTO;
+import com.school.management.dto.academic.ProviseurNotificationResponseDTO;
+import com.school.management.service.academic.ProviseurNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,19 +11,18 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/notifications")
-
-public class NotificationController {
+public class ProviseurNotificationController {
 
     @Autowired
-    private NotificationService notificationService;
+    private ProviseurNotificationService notificationService;
 
     @PostMapping
-    public ResponseEntity<NotificationResponseDTO> createNotification(@RequestBody NotificationCreateDTO createDTO) {
+    public ResponseEntity<ProviseurNotificationResponseDTO> createNotification(@RequestBody ProviseurNotificationCreateDTO createDTO) {
         return ResponseEntity.ok(notificationService.createAndBroadcastNotification(createDTO));
     }
 
     @GetMapping("/role/{role}")
-    public ResponseEntity<List<NotificationResponseDTO>> getNotificationsByRole(
+    public ResponseEntity<List<ProviseurNotificationResponseDTO>> getNotificationsByRole(
             @PathVariable String role,
             @RequestParam(required = false, defaultValue = "false") boolean onlyUnread) {
         return ResponseEntity.ok(notificationService.getNotificationsByRole(role, onlyUnread));

@@ -1,10 +1,10 @@
 package com.school.management.service.academicImpl;
 
-import com.school.management.dto.academic.NotificationCreateDTO;
-import com.school.management.dto.academic.NotificationResponseDTO;
-import com.school.management.model.academic.Notification;
-import com.school.management.repository.academic.NotificationRepository;
-import com.school.management.service.academic.NotificationService;
+import com.school.management.dto.academic.ProviseurNotificationCreateDTO;
+import com.school.management.dto.academic.ProviseurNotificationResponseDTO;
+import com.school.management.model.academic.ProviseurNotification;
+import com.school.management.repository.academic.ProviseurNotificationRepository;
+import com.school.management.service.academic.ProviseurNotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -15,18 +15,17 @@ import java.util.stream.Collectors;
 
 @Service
 @Transactional
-
-public class NotificationServiceImpl implements NotificationService {
+public class ProviseurNotificationServiceImpl implements ProviseurNotificationService {
 
     @Autowired
-    private NotificationRepository notificationRepository;
+    private ProviseurNotificationRepository notificationRepository;
 
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
     @Override
-    public NotificationResponseDTO createAndBroadcastNotification(NotificationCreateDTO dto) {
-        Notification notification = new Notification();
+    public ProviseurNotificationResponseDTO createAndBroadcastNotification(ProviseurNotificationCreateDTO dto) {
+        ProviseurNotification notification = new ProviseurNotification();
         notification.setType(dto.getType());
         notification.setTitle(dto.getTitle());
         notification.setMessage(dto.getMessage());
@@ -37,8 +36,8 @@ public class NotificationServiceImpl implements NotificationService {
         notification.setTeacherName(dto.getTeacherName());
         notification.setAssignmentId(dto.getAssignmentId());
 
-        Notification savedNotification = notificationRepository.save(notification);
-        NotificationResponseDTO responseDTO = mapToResponseDTO(savedNotification);
+        ProviseurNotification savedNotification = notificationRepository.save(notification);
+        ProviseurNotificationResponseDTO responseDTO = mapToResponseDTO(savedNotification);
 
         // Routage en temps réel vers le canal WebSocket approprié
         if ("PROVISEUR".equalsIgnoreCase(dto.getTargetRole()) || "ROLE_PROVISEUR".equalsIgnoreCase(dto.getTargetRole())) {
@@ -50,8 +49,8 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<NotificationResponseDTO> getNotificationsByRole(String targetRole, boolean onlyUnread) {
-        List<Notification> list;
+    public List<ProviseurNotificationResponseDTO> getNotificationsByRole(String targetRole, boolean onlyUnread) {
+        List<ProviseurNotification> list;
         if (onlyUnread) {
             list = notificationRepository.findByTargetRoleAndReadStatusFalseOrderByCreatedAtDesc(targetRole);
         } else {
@@ -70,8 +69,8 @@ public class NotificationServiceImpl implements NotificationService {
 
     @Override
     public void markAllAllAsRead(String targetRole) {
-        List<Notification> unread = notificationRepository.findByTargetRoleAndReadStatusFalseOrderByCreatedAtDesc(targetRole);
-        for (Notification notification : unread) {
+        List<ProviseurNotification> unread = notificationRepository.findByTargetRoleAndReadStatusFalseOrderByCreatedAtDesc(targetRole);
+        for (ProviseurNotification notification : unread) {
             notification.setReadStatus(true);
         }
         notificationRepository.saveAll(unread);
@@ -83,8 +82,8 @@ public class NotificationServiceImpl implements NotificationService {
         return notificationRepository.countByTargetRoleAndReadStatusFalse(targetRole);
     }
 
-    private NotificationResponseDTO mapToResponseDTO(Notification entity) {
-        NotificationResponseDTO responseDTO = new NotificationResponseDTO();
+    private ProviseurNotificationResponseDTO mapToResponseDTO(ProviseurNotification entity) {
+        ProviseurNotificationResponseDTO responseDTO = new ProviseurNotificationResponseDTO();
         responseDTO.setId(entity.getId());
         responseDTO.setType(entity.getType());
         responseDTO.setTitle(entity.getTitle());
