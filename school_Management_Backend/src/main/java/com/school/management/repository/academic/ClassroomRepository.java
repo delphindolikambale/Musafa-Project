@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-
 public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
 
     // Récupérer les classes par niveau
@@ -26,4 +25,6 @@ public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
     // Vérifier l'occupation d'une salle physique
     Optional<Classroom> findByRoomId(Long roomId);
 
+    // Trouver si un enseignant est déjà titulaire d'une classe
+    Optional<Classroom> findByTitulaireId(Long titulaireId);
 }

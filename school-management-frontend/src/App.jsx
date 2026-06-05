@@ -50,24 +50,71 @@ import ScheduleManagement from "./components/structure/pedagogie/ScheduleManagem
 import AttendanceManagement from "./components/structure/pedagogie/AttendanceManagement";
 import TeacherAssignment from "./components/structure/pedagogie/TeacherAssignment"; 
 import GradeSheetReception from "./components/structure/pedagogie/GradeSheetReception";
-// NOUVEAU COMPOSANT IMPORTÉ ICI
 import GradeSheetValidation from "./components/structure/pedagogie/GradeSheetValidation";
 
 // --- COMPONENTS ÉLÈVE ---
+// CORRECTION : Le chemin pointe maintenant vers le dossier structure où se trouvent les autres composants élèves
+import StudentLinkAccount from "./components/structure/student/StudentLinkAccount";
 import StudentPedagogyDashboard from "./components/dashboard/pedagogieDashboard/StudentPedagogyDashboard";
+import StudentCourses from "./components/structure/student/StudentCourses";
+import StudentLibrary from "./components/structure/student/StudentLibrary";
+import StudentSchedule from "./components/structure/student/StudentSchedule";
+import StudentAttendance from "./components/structure/student/StudentAttendance";
+import StudentFinance from "./components/structure/student/StudentFinance";
+import StudentSettings from "./components/structure/student/StudentSettings";
 
 // --- COMPONENTS ENSEIGNANT ---
 import TeacherEvaluationDashboard from "./components/dashboard/pedagogieDashboard/TeacherEvaluationDashboard";
 import TeacherClassesManager from "./components/structure/pedagogie/TeacherClassesManager";
+import TitulaireDashboard from "./components/structure/pedagogie/TitulaireDashboard";
+import TitulaireGradeSheetValidation from "./components/structure/pedagogie/TitulaireGradeSheetValidation"; // NOUVEL IMPORT
+
+// --- IMPORT DU SERVICE POUR LA VÉRIFICATION DE SÉCURITÉ DU TITULAIRE ---
+import titulaireService from "./services/pedagogieService/titulaireService";
 
 export const ThemeContext = createContext();
-// --- NOUVEAU CONTEXTE POUR LA LANGUE ---
 export const LanguageContext = createContext();
+
+// --- COMPOSANT DE GARDE INTERNE POUR LA ROUTE DE TITULARISATION ---
+const TitulaireRoute = ({ children }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasAccess, setHasAccess] = useState(false);
+  const user = JSON.parse(localStorage.getItem('user')) || {};
+
+  useEffect(() => {
+    const verifyTitulaireAccess = async () => {
+      const teacherId = user.teacherId || user.id;
+      const academicYearId = user.academicYearId || user.currentAcademicYearId || localStorage.getItem('academicYearId') || localStorage.getItem('currentAcademicYearId') || null;
+
+      if (teacherId) {
+        try {
+          const classrooms = await titulaireService.getMyClassrooms(teacherId, academicYearId);
+          if (classrooms && classrooms.length > 0) {
+            setHasAccess(true);
+          }
+        } catch (error) {
+          console.error("Erreur lors de la validation d'accès de la route titulaire:", error);
+        }
+      }
+      setIsLoading(false);
+    };
+
+    verifyTitulaireAccess();
+  }, [user.id, user.teacherId]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50 dark:bg-slate-950">
+        <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  return hasAccess ? children : <Navigate to="/enseignant/dashboard" replace />;
+};
 
 function App() {
   const [theme, setTheme] = useState(localStorage.getItem('app-theme') || 'light');
-  
-  // --- ÉTAT GLOBAL DE LA LANGUE ---
   const [language, setLanguage] = useState(localStorage.getItem('app-lang') || 'FR');
 
   const toggleTheme = () => {
@@ -76,7 +123,6 @@ function App() {
     localStorage.setItem('app-theme', newTheme);
   };
 
-  // --- FONCTION BASCULE DE LANGUE ---
   const toggleLanguage = () => {
     const newLang = language === 'FR' ? 'EN' : 'FR';
     setLanguage(newLang);
@@ -98,7 +144,6 @@ function App() {
         <SchoolProvider>
           <Router>
             <Routes>
-              {/* LA ROUTE RACINE POINTE DÉSORMAIS VERS WELCOME */}
               <Route path="/" element={<Welcome />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
@@ -147,11 +192,8 @@ function App() {
                 <Route path="affectations" element={<TeacherAssignment />} />
                 <Route path="horaires" element={<ScheduleManagement />} />
                 <Route path="presences" element={<AttendanceManagement />} />
-                
-                {/* ROUTES DES FICHES DE NOTES */}
                 <Route path="reception-fiches" element={<GradeSheetReception />} />
                 <Route path="validation-fiche/:assignmentId/:period" element={<GradeSheetValidation />} />
-                
                 <Route index element={<Navigate to="dashboard" />} />
               </Route>
 
@@ -159,14 +201,22 @@ function App() {
               <Route path="/enseignant" element={<ProtectedRoute allowedRoles={["ENSEIGNANT", "ROLE_ENSEIGNANT", "ADMIN", "ROLE_ADMIN"]}><TeacherLayout /></ProtectedRoute>}>
                 <Route path="dashboard" element={<TeacherEvaluationDashboard />} />
                 <Route path="classes" element={<TeacherClassesManager />} />
+                <Route path="titulaire" element={<TitulaireRoute><TitulaireDashboard /></TitulaireRoute>} />
+                {/* NOUVELLE ROUTE POUR LA VALIDATION DES FICHES PAR LE TITULAIRE */}
+                <Route path="titulaire/validation-fiche/:assignmentId/:period" element={<TitulaireRoute><TitulaireGradeSheetValidation /></TitulaireRoute>} />
                 <Route index element={<Navigate to="dashboard" />} />
               </Route>
 
               {/* --- GROUPE ÉLÈVE PROTÉGÉ --- */}
               <Route path="/student" element={<ProtectedRoute allowedRoles={["ELEVE", "ROLE_ELEVE", "ADMIN", "ROLE_ADMIN"]}><StudentPedagogyLayout /></ProtectedRoute>}>
+                <Route path="link-account" element={<StudentLinkAccount />} />
                 <Route path="dashboard" element={<StudentPedagogyDashboard />} />
-                <Route path="results" element={<StudentPedagogyDashboard />} />
-                <Route path="schedule" element={<StudentPedagogyDashboard />} />
+                <Route path="courses" element={<StudentCourses />} />
+                <Route path="library" element={<StudentLibrary />} />
+                <Route path="schedule" element={<StudentSchedule />} />
+                <Route path="attendance" element={<StudentAttendance />} />
+                <Route path="finance" element={<StudentFinance />} />
+                <Route path="settings" element={<StudentSettings />} />
                 <Route index element={<Navigate to="dashboard" />} />
               </Route>
 

@@ -16,8 +16,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
-
-public class ClassroomServiceImpl implements ClassroomService{
+public class ClassroomServiceImpl implements ClassroomService {
 
     private final ClassroomRepository classroomRepository;
     private final LevelRepository levelRepository;
@@ -26,6 +25,7 @@ public class ClassroomServiceImpl implements ClassroomService{
     private final RoomRepository roomRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final AcademicYearRepository academicYearRepository;
+    private final TeacherRepository teacherRepository; // Injection du repository Enseignant
 
     @Override
     public ClassroomResponseDTO create(ClassroomRequestDTO request) {
@@ -61,6 +61,41 @@ public class ClassroomServiceImpl implements ClassroomService{
         return convertToDTO(classroomRepository.save(classroom), null);
     }
 
+    // --- NOUVELLES MÉTHODES TITULAIRE ---
+
+    @Override
+    public void assignTitulaire(Long classroomId, Long teacherId) {
+        Classroom classroom = classroomRepository.findById(classroomId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable"));
+
+        Teacher teacher = teacherRepository.findById(teacherId)
+                .orElseThrow(() -> new RuntimeException("Enseignant introuvable"));
+
+        if (!teacher.isActive()) {
+            throw new RuntimeException("Impossible d'affecter un enseignant inactif comme titulaire.");
+        }
+
+        // Vérification stricte : L'enseignant est-il déjà titulaire d'une autre classe ?
+        classroomRepository.findByTitulaireId(teacherId).ifPresent(existingClass -> {
+            if (!existingClass.getId().equals(classroomId)) {
+                throw new RuntimeException("L'enseignant " + teacher.getFullName() +
+                        " est déjà titulaire de la classe : " + existingClass.getDisplayName());
+            }
+        });
+
+        classroom.setTitulaire(teacher);
+        classroomRepository.save(classroom);
+    }
+
+    @Override
+    public void removeTitulaire(Long classroomId) {
+        Classroom classroom = classroomRepository.findById(classroomId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable"));
+
+        classroom.setTitulaire(null);
+        classroomRepository.save(classroom);
+    }
+
     // --- MÉTHODES DE RÉCUPÉRATION AVEC FILTRAGE ---
 
     @Override
@@ -91,7 +126,7 @@ public class ClassroomServiceImpl implements ClassroomService{
                 .collect(Collectors.toList());
     }
 
-    // --- COMPATIBILITÉ (Surcharge pour appeler les versions avec année) ---
+    // --- COMPATIBILITÉ ---
 
     @Override public List<ClassroomResponseDTO> getAll() { return getAll(null); }
     @Override public List<ClassroomResponseDTO> getAllActive() { return getAllActive(null); }
@@ -118,7 +153,6 @@ public class ClassroomServiceImpl implements ClassroomService{
 
     private ClassroomResponseDTO convertToDTO(Classroom entity, Long academicYearId) {
         ClassroomResponseDTO dto = new ClassroomResponseDTO();
-        // ... (Mapping des champs de base identique)
         dto.setId(entity.getId());
         dto.setLevelName(entity.getLevel().getName());
         dto.setSectionName(entity.getSection() != null ? entity.getSection().getSectionName() : "Tronc Commun");
@@ -133,7 +167,16 @@ public class ClassroomServiceImpl implements ClassroomService{
         dto.setSectionId(entity.getSection() != null ? entity.getSection().getId() : null);
         dto.setOptionId(entity.getOption() != null ? entity.getOption().getId() : null);
 
-        // ✅ FILTRAGE : Si aucune année n'est passée, on prend l'active
+        // ✅ INTÉGRATION DU TITULAIRE DANS LE DTO
+        if (entity.getTitulaire() != null) {
+            dto.setTitulaireId(entity.getTitulaire().getId());
+            dto.setTitulaireName(entity.getTitulaire().getFullName());
+        } else {
+            dto.setTitulaireId(null);
+            dto.setTitulaireName("Aucun titulaire assigné");
+        }
+
+        // ✅ FILTRAGE ANNEE
         Long yearToFilter = academicYearId;
         if (yearToFilter == null) {
             yearToFilter = academicYearRepository.findByActiveTrue()
@@ -141,7 +184,7 @@ public class ClassroomServiceImpl implements ClassroomService{
                     .orElse(null);
         }
 
-        // ✅ COMPTAGE RÉEL : On ne compte que les inscriptions liées à cette année spécifique
+        // ✅ COMPTAGE RÉEL
         if (yearToFilter != null) {
             long count = enrollmentRepository.countByClassroomIdAndAcademicYearId(entity.getId(), yearToFilter);
             dto.setCurrentStudents((int) count);

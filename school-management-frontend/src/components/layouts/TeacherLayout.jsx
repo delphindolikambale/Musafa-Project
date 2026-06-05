@@ -16,9 +16,11 @@ import {
     Moon, 
     ChevronDown,
     ChevronLeft,
-    ChevronRight
+    ChevronRight,
+    ShieldCheck
 } from 'lucide-react';
 import schoolConfigService from '../../services/admin/schoolConfigService';
+import titulaireService from '../../services/pedagogieService/titulaireService'; // IMPORT DU SERVICE TITULAIRE
 
 const TeacherLayout = () => {
     const navigate = useNavigate();
@@ -30,6 +32,9 @@ const TeacherLayout = () => {
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
     const [lang, setLang] = useState(() => localStorage.getItem('lang') || 'FR');
     const [isLangDropdownOpen, setIsLangDropdownOpen] = useState(false);
+    
+    // État pour savoir si l'enseignant est titulaire
+    const [isTitulaire, setIsTitulaire] = useState(false);
     
     // État pour la configuration de l'établissement
     const [schoolConfig, setSchoolConfig] = useState({
@@ -43,9 +48,10 @@ const TeacherLayout = () => {
     // Dictionnaire de traduction basique
     const translations = {
         FR: {
-            menuTitle: "Menu Pédagogique",
+            menuTitle: "Espace Enseignant",
             dashboard: "Tableau de Bord",
             classes: "Mes classes",
+            titulaire: "Espace Titulaire",
             schedule: "Mon horaire",
             library: "Bibliothèque",
             logout: "Déconnexion",
@@ -53,13 +59,15 @@ const TeacherLayout = () => {
             academicYear: "Année académique en cours",
             titleDashboard: "Tableau de bord",
             titleClasses: "Espace Classes & Évaluations",
+            titleTitulaire: "Tableau de Bord Titulaire",
             titleSchedule: "Mon Horaire",
             titleDefault: "Espace Pédagogique"
         },
         EN: {
-            menuTitle: "Pedagogical Menu",
+            menuTitle: "Teacher Space",
             dashboard: "Dashboard",
             classes: "My Classes",
+            titulaire: "Titulaire Space",
             schedule: "My Schedule",
             library: "Library",
             logout: "Logout",
@@ -67,6 +75,7 @@ const TeacherLayout = () => {
             academicYear: "Current Academic Year",
             titleDashboard: "Dashboard",
             titleClasses: "Classes & Evaluations Space",
+            titleTitulaire: "Titulaire Dashboard",
             titleSchedule: "My Schedule",
             titleDefault: "Pedagogical Space"
         }
@@ -74,7 +83,7 @@ const TeacherLayout = () => {
 
     const currentTexts = translations[lang] || translations.FR;
 
-    // Charger la configuration de l'établissement au montage
+    // Charger la configuration de l'établissement et le statut de titulaire au montage
     useEffect(() => {
         const fetchSchoolConfig = async () => {
             try {
@@ -86,7 +95,32 @@ const TeacherLayout = () => {
                 console.error("Erreur lors du chargement de la configuration de l'école:", error);
             }
         };
+
+        const checkTitulaireStatus = async () => {
+            // CORRECTION : Priorité absolue à l'ID de l'enseignant (teacherId) par rapport à l'ID utilisateur générique
+            const teacherId = user.teacherId || user.id; 
+            
+            // Extraction sécurisée de l'ID de l'année académique active si stockée dans le système
+            const academicYearId = user.academicYearId || user.currentAcademicYearId || localStorage.getItem('academicYearId') || localStorage.getItem('currentAcademicYearId') || null;
+
+            if (teacherId) {
+                try {
+                    // Transmission de l'ID enseignant et de l'année académique pour coller à la logique backend
+                    const classrooms = await titulaireService.getMyClassrooms(teacherId, academicYearId);
+                    if (classrooms && classrooms.length > 0) {
+                        setIsTitulaire(true);
+                    } else {
+                        setIsTitulaire(false);
+                    }
+                } catch (error) {
+                    console.error("Erreur lors de la vérification du statut de titulaire:", error);
+                    setIsTitulaire(false);
+                }
+            }
+        };
+
         fetchSchoolConfig();
+        checkTitulaireStatus();
     }, []);
 
     // Gestion synchrone et persistante du thème
@@ -119,6 +153,7 @@ const TeacherLayout = () => {
     const getPageTitle = () => {
         if (location.pathname.includes('/dashboard')) return currentTexts.titleDashboard;
         if (location.pathname.includes('/classes')) return currentTexts.titleClasses;
+        if (location.pathname.includes('/titulaire')) return currentTexts.titleTitulaire;
         if (location.pathname.includes('/horaire')) return currentTexts.titleSchedule;
         return currentTexts.titleDefault;
     };
@@ -218,7 +253,7 @@ const TeacherLayout = () => {
                     )}
                 </div>
                 
-                {/* Menu de Navigation avec la classe .hover-scrollbar définie dans index.css */}
+                {/* Menu de Navigation */}
                 <nav className="flex-1 overflow-y-auto p-4 space-y-2 relative z-10 hover-scrollbar transition-all duration-300">
                     {(isSidebarOpen || isMobileOpen) && (
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4 ml-3">{currentTexts.menuTitle}</p>
@@ -233,6 +268,14 @@ const TeacherLayout = () => {
                         <Library size={20} className="shrink-0" />
                         {(isSidebarOpen || isMobileOpen) && <span>{currentTexts.classes}</span>}
                     </NavLink>
+
+                    {/* AFFICHAGE CONDITIONNEL DE L'ONGLET ESPACE TITULAIRE */}
+                    {isTitulaire && (
+                        <NavLink to="/enseignant/titulaire" className={({ isActive }) => `flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold capitalize tracking-wide transition-all duration-300 ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                            <ShieldCheck size={20} className="shrink-0" />
+                            {(isSidebarOpen || isMobileOpen) && <span>{currentTexts.titulaire}</span>}
+                        </NavLink>
+                    )}
 
                     <NavLink to="/enseignant/horaire" className={({ isActive }) => `flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold capitalize tracking-wide transition-all duration-300 ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
                         <CalendarDays size={20} className="shrink-0" />
@@ -271,10 +314,9 @@ const TeacherLayout = () => {
             {/* MAIN CONTENT CONTAINER */}
             <div className="flex-1 flex flex-col overflow-hidden relative">
                 
-                {/* ZONE DE CAPTURE POUR LE BOUTON TOGGLE DESKTOP (Invisible, se révèle au survol de la bordure gauche) */}
+                {/* ZONE DE CAPTURE POUR LE BOUTON TOGGLE DESKTOP */}
                 <div className="hidden lg:block absolute left-0 top-6 w-8 h-32 z-40 group">
                     <div className="w-full h-full flex items-center justify-start opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        {/* Le bouton dépasse volontairement vers la gauche (-ml-3) pour mordre sur le bord du Sidebar */}
                         <button 
                             onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
                             className="p-1.5 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 shadow-md border border-slate-200 dark:border-slate-700 rounded-full transition-all transform hover:scale-110 flex items-center justify-center -ml-3 z-50"
@@ -290,7 +332,6 @@ const TeacherLayout = () => {
                     
                     {/* Contrôles d'ouverture/fermeture & Titre */}
                     <div className="flex items-center gap-4">
-                        {/* Bouton Mobile Hamburger */}
                         <button 
                             onClick={() => setIsMobileOpen(!isMobileOpen)} 
                             className="p-2 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl lg:hidden transition-colors"

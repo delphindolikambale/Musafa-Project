@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-// IMPORT CORRIGÉ : On remplace axios par ton instance api globale (ajuste le chemin relatif si besoin selon ton dossier)
 import api from '../../../services/api'; 
-import { Presentation, BookOpen, AlertCircle, Loader2, Archive } from 'lucide-react';
+import { Presentation, BookOpen, AlertCircle, Loader2, Archive, UserCheck, X } from 'lucide-react';
 import courseAcademicConfigService from '../../../services/pedagogieService/courseAcademicConfigService';
 import TeacherAssignmentService from '../../../services/pedagogieService/TeacherAssignmentService';
+import { ClassroomService } from '../../../services/classroomService'; // Import du service mis à jour
 import AssignTeacherModal from './AssignTeacherModal';
 import CourseAssignmentCard from './CourseAssignmentCard';
 
@@ -14,6 +14,11 @@ const TeacherAssignment = () => {
     const [selectedClassroom, setSelectedClassroom] = useState(null);
     const [courseConfigs, setCourseConfigs] = useState([]);
     const [assignments, setAssignments] = useState([]);
+    
+    // Nouveaux états pour les enseignants titulaires
+    const [activeTeachers, setActiveTeachers] = useState([]);
+    const [titulaireSaving, setTitulaireSaving] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [fetchingInitialData, setFetchingInitialData] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -70,15 +75,21 @@ const TeacherAssignment = () => {
         });
     };
 
-    // 1. Charger l'année active, toutes les années et TOUTES les classes au montage
+    // 1. Charger l'année active, toutes les années, TOUTES les classes et les enseignants au montage
     useEffect(() => {
         const initDashboard = async () => {
             setFetchingInitialData(true);
             try {
-                // CORRECTION : Utilisation de l'instance "api" configurée dans api.js. 
-                // Plus besoin de gérer les headers manuellement ni l'URL hardcodée !
                 const yearRes = await api.get('/academic-years/active');
                 const allYearsRes = await api.get('/academic-years');
+                
+                // Récupération des enseignants pour le menu déroulant du Titulaire
+                try {
+                    const teachersRes = await api.get('/teachers/active');
+                    setActiveTeachers(teachersRes.data || []);
+                } catch (tErr) {
+                    console.error("Impossible de charger les enseignants :", tErr);
+                }
                 
                 if (allYearsRes.status === 200 && allYearsRes.data) {
                      const sortedYears = [...allYearsRes.data].sort((a, b) => {
@@ -93,7 +104,6 @@ const TeacherAssignment = () => {
                     const currentYear = yearRes.data;
                     setActiveYear(currentYear);
 
-                    // Utilisation de l'instance "api" ici aussi
                     const classRes = await api.get(`/classrooms?academicYearId=${currentYear.id}`);
                     setClassrooms(sortClassrooms(classRes.data || []));
                 } else {
@@ -138,6 +148,52 @@ const TeacherAssignment = () => {
             setLoading(false);
         }
     };
+
+    // --- NOUVELLES FONCTIONS : GESTION DU TITULAIRE ---
+    const handleAssignTitulaire = async (teacherId) => {
+        if (!teacherId) return;
+        setTitulaireSaving(true);
+        try {
+            await ClassroomService.assignTitulaire(selectedClassroom.id, teacherId);
+            
+            const selectedTeacher = activeTeachers.find(t => t.id === parseInt(teacherId, 10));
+            const updatedClassroom = { 
+                ...selectedClassroom, 
+                titulaireId: parseInt(teacherId, 10),
+                titulaireName: selectedTeacher ? (selectedTeacher.fullName || `${selectedTeacher.lastName} ${selectedTeacher.firstName}`) : "Assigné"
+            };
+            
+            setSelectedClassroom(updatedClassroom);
+            setClassrooms(prev => prev.map(c => c.id === updatedClassroom.id ? updatedClassroom : c));
+        } catch (error) {
+            console.error(error);
+            const errMsg = error.response?.data?.message || "Erreur lors de l'affectation. Vérifiez si cet enseignant n'est pas déjà titulaire d'une autre classe.";
+            alert(errMsg);
+            // On force un re-render pour réinitialiser le selecteur visuel sur l'ancienne valeur
+            setSelectedClassroom({ ...selectedClassroom }); 
+        } finally {
+            setTitulaireSaving(false);
+        }
+    };
+
+    const handleRemoveTitulaire = async () => {
+        if (!window.confirm(`Voulez-vous vraiment retirer M./Mme ${selectedClassroom.titulaireName} de son rôle de titulaire pour cette classe ?`)) {
+            return;
+        }
+        setTitulaireSaving(true);
+        try {
+            await ClassroomService.removeTitulaire(selectedClassroom.id);
+            const updatedClassroom = { ...selectedClassroom, titulaireId: null, titulaireName: "Aucun titulaire assigné" };
+            setSelectedClassroom(updatedClassroom);
+            setClassrooms(prev => prev.map(c => c.id === updatedClassroom.id ? updatedClassroom : c));
+        } catch (error) {
+            console.error(error);
+            alert("Erreur lors du retrait du titulaire.");
+        } finally {
+            setTitulaireSaving(false);
+        }
+    };
+    // --------------------------------------------------
 
     const handleUnassign = async (assignmentId) => {
         if (window.confirm("Voulez-vous vraiment retirer cet enseignant de ce cours ?")) {
@@ -260,11 +316,50 @@ const TeacherAssignment = () => {
             {selectedClassroom ? (
                 <div className="animate-in slide-in-from-bottom-4 duration-500">
                     <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100">
-                        <div className="flex items-center gap-3 mb-8">
-                            <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
-                            <h3 className="text-xl font-black text-slate-800">
-                                Répartition des cours : <span className="text-blue-600">{selectedClassroom.displayName || selectedClassroom.name}</span>
-                            </h3>
+                        
+                        {/* Header de la classe avec le Titulaire */}
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 border-b border-slate-100 pb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
+                                <h3 className="text-xl font-black text-slate-800">
+                                    Répartition des cours : <span className="text-blue-600">{selectedClassroom.displayName || selectedClassroom.name}</span>
+                                </h3>
+                            </div>
+
+                            {/* BLOC TITULAIRE DE CLASSE */}
+                            <div className="flex items-center gap-3 bg-slate-50 p-2 pr-4 rounded-2xl border border-slate-200 shadow-sm transition-all hover:border-blue-300">
+                                <div className="p-2 bg-indigo-100 text-indigo-600 rounded-xl">
+                                    <UserCheck size={20} />
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Titulaire de la classe</span>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <select
+                                            className="bg-transparent border-none text-sm font-bold text-slate-700 cursor-pointer focus:ring-0 p-0 pr-6"
+                                            value={selectedClassroom.titulaireId || ''}
+                                            onChange={(e) => handleAssignTitulaire(e.target.value)}
+                                            disabled={titulaireSaving}
+                                        >
+                                            <option value="">-- Assigner un titulaire --</option>
+                                            {activeTeachers.map(t => (
+                                                <option key={t.id} value={t.id}>{t.fullName || t.lastName + ' ' + t.firstName}</option>
+                                            ))}
+                                        </select>
+                                        
+                                        {selectedClassroom.titulaireId && (
+                                            <button
+                                                onClick={handleRemoveTitulaire}
+                                                disabled={titulaireSaving}
+                                                className="text-red-400 hover:text-red-600 transition-colors ml-1 p-1 rounded-md hover:bg-red-50"
+                                                title="Retirer le titulaire"
+                                            >
+                                                <X size={16} className="stroke-[3]" />
+                                            </button>
+                                        )}
+                                        {titulaireSaving && <Loader2 size={14} className="animate-spin text-blue-600 ml-2" />}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {loading ? (

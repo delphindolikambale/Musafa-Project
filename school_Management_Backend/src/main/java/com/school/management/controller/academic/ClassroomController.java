@@ -1,4 +1,5 @@
 package com.school.management.controller.academic;
+
 import com.school.management.dto.academic.ClassroomRequestDTO;
 import com.school.management.dto.academic.ClassroomResponseDTO;
 import com.school.management.service.academic.ClassroomService;
@@ -13,11 +14,10 @@ import java.util.List;
 @RequestMapping("/api/classrooms")
 @RequiredArgsConstructor
 @CrossOrigin(origins = "http://localhost:5173", allowCredentials = "true")
-
 public class ClassroomController {
+
     private final ClassroomService classroomService;
 
-    // Modification : On accepte un academicYearId optionnel pour le filtrage des effectifs
     @GetMapping
     public ResponseEntity<List<ClassroomResponseDTO>> getAll(@RequestParam(required = false) Long academicYearId) {
         return ResponseEntity.ok(classroomService.getAll(academicYearId));
@@ -48,5 +48,21 @@ public class ClassroomController {
     @GetMapping("/level/{levelId}")
     public ResponseEntity<List<ClassroomResponseDTO>> getByLevel(@PathVariable Long levelId, @RequestParam(required = false) Long academicYearId) {
         return ResponseEntity.ok(classroomService.getByLevel(levelId, academicYearId));
+    }
+
+    // NOUVEL ENDPOINT : Assigner un titulaire
+    @PutMapping("/{classroomId}/assign-titulaire/{teacherId}")
+    public ResponseEntity<Void> assignTitulaire(
+            @PathVariable Long classroomId,
+            @PathVariable Long teacherId) {
+        classroomService.assignTitulaire(classroomId, teacherId);
+        return ResponseEntity.ok().build();
+    }
+
+    // NOUVEL ENDPOINT : Retirer un titulaire
+    @DeleteMapping("/{classroomId}/remove-titulaire")
+    public ResponseEntity<Void> removeTitulaire(@PathVariable Long classroomId) {
+        classroomService.removeTitulaire(classroomId);
+        return ResponseEntity.ok().build();
     }
 }

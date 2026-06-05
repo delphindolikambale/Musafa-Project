@@ -29,4 +29,6 @@ public interface StudentRepository extends JpaRepository<Student,Long>{
             "LOWER(s.permanentNumber) LIKE LOWER(CONCAT('%', :q, '%'))" +
             ") AND s.status = :status")
     List<Student> searchStudentsWithAccount(@Param("q") String q, @Param("status") StudentStatus status);
+
+    java.util.Optional<Student> findByUserId(Long userId);
 }

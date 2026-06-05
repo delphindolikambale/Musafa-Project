@@ -20,4 +20,6 @@ public interface StudentService {
     Student updateStudent(Student student);
 
     List<Student> searchStudentsWithAccount(String query);
+    Student linkAccount(Long userId, String matricule, String password);
+    java.util.Optional<Student> getStudentByUserId(Long userId);
 }

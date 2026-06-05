@@ -28,5 +28,10 @@ export const ClassroomService = {
     toggleStatus: (id) => api.patch(`/classrooms/${id}/toggle`),
     
     // Suppression définitive
-    delete: (id) => api.delete(`/classrooms/${id}`)
+    delete: (id) => api.delete(`/classrooms/${id}`),
+
+    // --- NOUVEAUX ENDPOINTS : GESTION DU TITULAIRE ---
+    assignTitulaire: (classroomId, teacherId) => api.put(`/classrooms/${classroomId}/assign-titulaire/${teacherId}`),
+    
+    removeTitulaire: (classroomId) => api.delete(`/classrooms/${classroomId}/remove-titulaire`)
 };

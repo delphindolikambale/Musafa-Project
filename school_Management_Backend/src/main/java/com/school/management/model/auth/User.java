@@ -1,6 +1,8 @@
 package com.school.management.model.auth;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.school.management.model.academic.Teacher;
+import com.school.management.model.academic.Student; // NOUVEAU
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -20,7 +22,6 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class User {
 
     @Id
@@ -52,9 +53,15 @@ public class User {
     @Column(nullable = false)
     private boolean isEnabled = true;
 
-    // NOUVEAU : Relation bidirectionnelle pour permettre au User de connaître son Enseignant lié
+    // Relation bidirectionnelle pour permettre au User de connaître son Enseignant lié
+    @JsonIgnore
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private Teacher teacher;
+
+    // ✅ NOUVEAU : Relation bidirectionnelle pour connaître l'Élève lié
+    @JsonIgnore
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private Student student;
 
     public User(String username, String email, String password) {
         this.username = username;

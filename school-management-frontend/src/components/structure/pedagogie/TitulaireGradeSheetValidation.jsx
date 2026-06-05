@@ -9,12 +9,14 @@ import {
     FileText, 
     MessageSquare,
     UserCheck,
-    Calendar
+    Calendar,
+    BookOpen
 } from 'lucide-react';
 import GradeSheetService from '../../../services/pedagogieService/GradeSheetService';
+import titulaireService from '../../../services/pedagogieService/titulaireService';
 import { toast } from 'react-hot-toast';
 
-const GradeSheetValidation = () => {
+const TitulaireGradeSheetValidation = () => {
     const { assignmentId, period } = useParams();
     const navigate = useNavigate();
     const currentPeriod = parseInt(period, 10) || 1;
@@ -34,7 +36,7 @@ const GradeSheetValidation = () => {
     const loadValidationData = async () => {
         setLoading(true);
         try {
-            // Récupération simultanée du statut du visa et de la matrice globale des cotes
+            // Récupération simultanée du statut et de la matrice
             const [status, matrix] = await Promise.all([
                 GradeSheetService.getGradeSheetVisaStatus(assignmentId, currentPeriod),
                 GradeSheetService.getClassMatrixSheet(assignmentId)
@@ -43,8 +45,8 @@ const GradeSheetValidation = () => {
             setVisaStatus(status?.status || status || 'DRAFT');
             setMatrixData(matrix);
         } catch (error) {
-            console.error("Erreur lors du chargement des données de validation :", error);
-            toast.error("Impossible de charger les données pour validation.");
+            console.error("Erreur lors du chargement des données de la fiche :", error);
+            toast.error("Impossible de charger la fiche de cotes.");
         } finally {
             setLoading(false);
         }
@@ -56,41 +58,42 @@ const GradeSheetValidation = () => {
         }
     }, [assignmentId, period]);
 
-    // Action d'approbation (Accorder le Visa et Transmettre)
-    const handleApproveVisa = async () => {
+    // Action d'approbation (Validation finale au bulletin par le Titulaire)
+    const handleApproveFiche = async () => {
         setIsActionLoading(true);
         try {
-            await GradeSheetService.validateGradeSheet(assignmentId, currentPeriod);
-            toast.success(`Visa accordé ! La fiche a été transmise au Titulaire de la classe pour la Période ${currentPeriod}.`);
+            // Assurez-vous d'avoir cette méthode dans votre titulaireService
+            await titulaireService.validateGradeSheet(assignmentId, currentPeriod);
+            toast.success(`Fiche validée ! Les cotes sont intégrées au bulletin pour la Période ${currentPeriod}.`);
             setShowApproveModal(false);
-            // Retour à la liste de réception après validation réussie
-            navigate('/proviseur/reception-fiches');
+            // Retour au tableau de bord du titulaire
+            navigate('/enseignant/titulaire');
         } catch (error) {
-            console.error("Erreur de validation du visa :", error);
-            toast.error(error.response?.data || "Une erreur est survenue lors de la validation.");
+            console.error("Erreur de validation par le titulaire :", error);
+            toast.error(error.response?.data || "Une erreur est survenue lors de la validation finale.");
         } finally {
             setIsActionLoading(false);
         }
     };
 
-    // Action de rejet (Refuser le Visa avec motif)
-    const handleRejectVisa = async (e) => {
+    // Action de rejet (Renvoyer la fiche s'il y a un problème de calcul ou de centralisation)
+    const handleRejectFiche = async (e) => {
         e.preventDefault();
         if (!rejectComment.trim()) {
-            toast.error("Veuillez saisir un motif ou commentaire de rejet obligatoire.");
+            toast.error("Veuillez saisir un motif de rejet.");
             return;
         }
 
         setIsActionLoading(true);
         try {
-            await GradeSheetService.rejectGradeSheet(assignmentId, currentPeriod, rejectComment.trim());
-            toast.success(`La fiche de notes a été renvoyée à l'enseignant pour correction.`);
+            // Assurez-vous d'avoir cette méthode dans votre titulaireService
+            await titulaireService.rejectGradeSheet(assignmentId, currentPeriod, rejectComment.trim());
+            toast.success(`La fiche a été signalée et renvoyée pour correction.`);
             setShowRejectModal(false);
-            // Retour à la liste de réception après rejet réussi
-            navigate('/proviseur/reception-fiches');
+            navigate('/enseignant/titulaire');
         } catch (error) {
             console.error("Erreur lors du rejet de la fiche :", error);
-            toast.error(error.response?.data || "Une erreur est survenue lors du rejet.");
+            toast.error(error.response?.data || "Une erreur est survenue lors de l'annulation.");
         } finally {
             setIsActionLoading(false);
         }
@@ -111,32 +114,32 @@ const GradeSheetValidation = () => {
             : `${baseClass} text-slate-800 dark:text-slate-200 ${highlightBg}`;
     };
 
-    // Rendu dynamique du badge de statut
+    // Rendu dynamique du badge de statut (Point de vue Titulaire)
     const renderStatusBadge = () => {
         switch (visaStatus) {
-            case 'SUBMITTED_TO_PROVISEUR':
-                return (
-                    <span className="bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider animate-pulse flex items-center gap-1.5">
-                        <AlertTriangle size={14} /> En attente de votre Visa
-                    </span>
-                );
             case 'VALIDATED_BY_PROVISEUR':
                 return (
-                    <span className="bg-blue-100 text-blue-800 border border-blue-300 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                        <CheckCircle size={14} className="text-blue-600" /> Transmis au Titulaire (Visa Accordé)
+                    <span className="bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider animate-pulse flex items-center gap-1.5">
+                        <AlertTriangle size={14} /> Reçu du Proviseur (À Valider)
                     </span>
                 );
             case 'VALIDATED_BY_TITULAIRE':
                 return (
                     <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                        <CheckCircle size={14} className="text-emerald-600" /> Clôturé & validé au Bulletin
+                        <CheckCircle size={14} className="text-emerald-600" /> Clôturé & Intégré au Bulletin
+                    </span>
+                );
+            case 'SUBMITTED_TO_PROVISEUR':
+                return (
+                    <span className="bg-blue-100 text-blue-800 border border-blue-300 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
+                        <Loader2 size={14} className="animate-spin text-blue-600" /> Chez le Proviseur
                     </span>
                 );
             case 'DRAFT':
             default:
                 return (
                     <span className="bg-slate-100 text-slate-700 border border-slate-300 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                        <XCircle size={14} className="text-slate-500" /> Brouillon / Non Transmis
+                        <XCircle size={14} className="text-slate-500" /> Non soumis par l'enseignant
                     </span>
                 );
         }
@@ -145,9 +148,9 @@ const GradeSheetValidation = () => {
     if (loading) {
         return (
             <div className="flex flex-col items-center justify-center py-32 space-y-3">
-                <Loader2 className="w-10 h-10 animate-spin text-slate-800 dark:text-white" />
+                <Loader2 className="w-10 h-10 animate-spin text-emerald-600 dark:text-emerald-400" />
                 <p className="text-slate-500 dark:text-slate-400 font-black uppercase tracking-widest text-xs">
-                    Chargement de la fiche pour examen...
+                    Chargement de la fiche de cotes...
                 </p>
             </div>
         );
@@ -160,17 +163,17 @@ const GradeSheetValidation = () => {
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <div className="flex items-center gap-4">
                     <button 
-                        onClick={() => navigate('/proviseur/reception-fiches')} 
+                        onClick={() => navigate('/enseignant/titulaire')} 
                         className="p-3 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl border border-slate-200 dark:border-slate-700 transition-colors"
                     >
                         <ArrowLeft size={18} />
                     </button>
                     <div>
                         <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-[10px] font-black px-2.5 py-1 bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-950 rounded-md uppercase tracking-wider">
-                                {matrixData?.classroomName}
+                            <span className="text-[10px] font-black px-2.5 py-1 bg-emerald-800 text-white dark:bg-emerald-900 dark:text-emerald-100 rounded-md uppercase tracking-wider flex items-center gap-1">
+                                <BookOpen size={12} /> {matrixData?.classroomName}
                             </span>
-                            <span className="text-[10px] font-black px-2.5 py-1 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 rounded-md uppercase tracking-wider flex items-center gap-1">
+                            <span className="text-[10px] font-black px-2.5 py-1 bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 rounded-md uppercase tracking-wider flex items-center gap-1">
                                 <Calendar size={12} /> PÉRIODE {currentPeriod}
                             </span>
                         </div>
@@ -178,40 +181,41 @@ const GradeSheetValidation = () => {
                             {matrixData?.subjectName}
                         </h2>
                         <p className="text-xs text-slate-400 dark:text-slate-500 font-bold tracking-wide">
-                            Examen et validation des cotes saisies par l'enseignant
+                            Examen et intégration des cotes pour les bulletins
                         </p>
                     </div>
                 </div>
 
-                {/* Statut & Actions Principales du Proviseur */}
+                {/* Statut & Actions Principales du Titulaire */}
                 <div className="flex flex-wrap items-center gap-3 border-t xl:border-t-0 pt-3 xl:pt-0 border-slate-100 dark:border-slate-800">
                     {renderStatusBadge()}
 
-                    {visaStatus === 'SUBMITTED_TO_PROVISEUR' && (
+                    {/* Le Titulaire ne peut agir que si le Proviseur a validé */}
+                    {visaStatus === 'VALIDATED_BY_PROVISEUR' && (
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => setShowRejectModal(true)}
                                 className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 text-xs font-black py-2.5 px-4 rounded-xl flex items-center gap-1.5 transition-all uppercase tracking-wider"
                             >
-                                <XCircle size={15} /> Rejeter
+                                <XCircle size={15} /> Signaler Erreur
                             </button>
                             <button
                                 onClick={() => setShowApproveModal(true)}
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black py-2.5 px-5 rounded-xl flex items-center gap-1.5 transition-all shadow-md uppercase tracking-wider"
                             >
-                                <CheckCircle size={15} /> Visa & Transmission
+                                <CheckCircle size={15} /> Valider au Bulletin
                             </button>
                         </div>
                     )}
                 </div>
             </div>
 
-            {/* Corps de la Fiche de notes officielle */}
+            {/* Corps de la Fiche de notes officielle (Matrice) */}
             <div className="bg-white dark:bg-slate-900 border-2 border-slate-900 dark:border-slate-700 rounded-2xl shadow-sm overflow-hidden flex flex-col">
                 <div className="bg-slate-50 dark:bg-slate-800 p-4 border-b border-slate-300 dark:border-slate-700 flex items-center gap-2">
                     <FileText size={18} className="text-slate-700 dark:text-slate-300" />
                     <h3 className="font-black text-slate-900 dark:text-white uppercase tracking-wider text-xs sm:text-sm">
-                        Contenu de la Fiche Matricielle Soumise
+                        Contenu de la Fiche Matricielle Visée par le Proviseur
                     </h3>
                 </div>
 
@@ -221,10 +225,10 @@ const GradeSheetValidation = () => {
                             {/* Entêtes Groupés */}
                             <tr className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-black uppercase text-[10px] border-b border-slate-300 dark:border-slate-700">
                                 <th colSpan="3" className="py-3 px-3 border-r border-slate-300 dark:border-slate-700 text-left">Élèves</th>
-                                <th colSpan="4" className={`py-3 px-2 border-r border-slate-300 dark:border-slate-700 bg-blue-50/40 dark:bg-blue-900/10 ${(currentPeriod === 1 || currentPeriod === 2) ? 'ring-2 ring-amber-500 ring-inset' : ''}`}>
+                                <th colSpan="4" className={`py-3 px-2 border-r border-slate-300 dark:border-slate-700 bg-blue-50/40 dark:bg-blue-900/10 ${(currentPeriod === 1 || currentPeriod === 2) ? 'ring-2 ring-emerald-500 ring-inset' : ''}`}>
                                     Premier Semestre (S1)
                                 </th>
-                                <th colSpan="4" className={`py-3 px-2 border-r border-slate-300 dark:border-slate-700 bg-indigo-50/40 dark:bg-indigo-900/10 ${(currentPeriod === 3 || currentPeriod === 4) ? 'ring-2 ring-amber-500 ring-inset' : ''}`}>
+                                <th colSpan="4" className={`py-3 px-2 border-r border-slate-300 dark:border-slate-700 bg-indigo-50/40 dark:bg-indigo-900/10 ${(currentPeriod === 3 || currentPeriod === 4) ? 'ring-2 ring-emerald-500 ring-inset' : ''}`}>
                                     Second Semestre (S2)
                                 </th>
                                 <th className="py-3 px-3 bg-slate-50 dark:bg-slate-950">Synthèse</th>
@@ -237,15 +241,15 @@ const GradeSheetValidation = () => {
                                 <th className="py-2.5 px-4 border-r border-slate-300 dark:border-slate-700 text-left min-w-[240px]">Nom Complet & Postnom</th>
                                 
                                 {/* S1 columns */}
-                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 1 ? 'bg-amber-100/60 dark:bg-amber-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P1</th>
-                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 2 ? 'bg-amber-100/60 dark:bg-amber-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P2</th>
-                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 2 ? 'bg-amber-100/60 dark:bg-amber-950/30 font-black text-slate-900 dark:text-white' : ''}`}>Ex1</th>
+                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 1 ? 'bg-emerald-50 dark:bg-emerald-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P1</th>
+                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 2 ? 'bg-emerald-50 dark:bg-emerald-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P2</th>
+                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 2 ? 'bg-emerald-50 dark:bg-emerald-950/30 font-black text-slate-900 dark:text-white' : ''}`}>Ex1</th>
                                 <th className="py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 bg-blue-100/50 dark:bg-blue-900/20 text-blue-950 dark:text-blue-200">Tot.S1</th>
                                 
                                 {/* S2 columns */}
-                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 3 ? 'bg-amber-100/60 dark:bg-amber-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P3</th>
-                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 4 ? 'bg-amber-100/60 dark:bg-amber-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P4</th>
-                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 4 ? 'bg-amber-100/60 dark:bg-amber-950/30 font-black text-slate-900 dark:text-white' : ''}`}>Ex2</th>
+                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 3 ? 'bg-emerald-50 dark:bg-emerald-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P3</th>
+                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 4 ? 'bg-emerald-50 dark:bg-emerald-950/30 font-black text-slate-900 dark:text-white' : ''}`}>P4</th>
+                                <th className={`py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 ${currentPeriod === 4 ? 'bg-emerald-50 dark:bg-emerald-950/30 font-black text-slate-900 dark:text-white' : ''}`}>Ex2</th>
                                 <th className="py-2.5 px-2 border-r border-slate-300 dark:border-slate-700 bg-indigo-100/50 dark:bg-indigo-900/20 text-indigo-950 dark:text-indigo-200">Tot.S2</th>
                                 
                                 <th className="py-2.5 px-3 bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white">Tot.Gen</th>
@@ -254,13 +258,13 @@ const GradeSheetValidation = () => {
                             {/* Maxima de l'unité de cours */}
                             <tr className="bg-slate-900 text-white font-black uppercase text-[10px] border-b border-slate-900">
                                 <th colSpan="3" className="py-2 px-3 text-right text-slate-300 italic">Barème (Maxima) :</th>
-                                <th className={currentPeriod === 1 ? 'bg-amber-600 text-white' : ''}>{matrixData?.maxP1 ?? '-'}</th>
-                                <th className={currentPeriod === 2 ? 'bg-amber-600 text-white' : ''}>{matrixData?.maxP2 ?? '-'}</th>
-                                <th className={currentPeriod === 2 ? 'bg-amber-600 text-white' : ''}>{matrixData?.maxExam1 ?? '-'}</th>
+                                <th className={currentPeriod === 1 ? 'bg-emerald-600 text-white' : ''}>{matrixData?.maxP1 ?? '-'}</th>
+                                <th className={currentPeriod === 2 ? 'bg-emerald-600 text-white' : ''}>{matrixData?.maxP2 ?? '-'}</th>
+                                <th className={currentPeriod === 2 ? 'bg-emerald-600 text-white' : ''}>{matrixData?.maxExam1 ?? '-'}</th>
                                 <th className="bg-blue-900">{matrixData?.maxS1 ?? '-'}</th>
-                                <th className={currentPeriod === 3 ? 'bg-amber-600 text-white' : ''}>{matrixData?.maxP3 ?? '-'}</th>
-                                <th className={currentPeriod === 4 ? 'bg-amber-600 text-white' : ''}>{matrixData?.maxP4 ?? '-'}</th>
-                                <th className={currentPeriod === 4 ? 'bg-amber-600 text-white' : ''}>{matrixData?.maxExam2 ?? '-'}</th>
+                                <th className={currentPeriod === 3 ? 'bg-emerald-600 text-white' : ''}>{matrixData?.maxP3 ?? '-'}</th>
+                                <th className={currentPeriod === 4 ? 'bg-emerald-600 text-white' : ''}>{matrixData?.maxP4 ?? '-'}</th>
+                                <th className={currentPeriod === 4 ? 'bg-emerald-600 text-white' : ''}>{matrixData?.maxExam2 ?? '-'}</th>
                                 <th className="bg-indigo-900">{matrixData?.maxS2 ?? '-'}</th>
                                 <th className="bg-slate-800">{matrixData?.maxTotalGeneral ?? '-'}</th>
                             </tr>
@@ -310,18 +314,18 @@ const GradeSheetValidation = () => {
                 </div>
             </div>
 
-            {/* --- MODAL 1 : CONFIRMATION D'APPROBATION / ACCORD DU VISA ET TRANSMISSION --- */}
+            {/* --- MODAL 1 : CONFIRMATION DE VALIDATION FINALE AU BULLETIN --- */}
             {showApproveModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs px-4">
                     <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-in">
                         <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mb-4 border border-emerald-200 dark:border-emerald-800">
-                            <UserCheck size={24} />
+                            <CheckCircle size={24} />
                         </div>
                         <h3 className="text-lg font-black text-slate-900 dark:text-white mb-1 uppercase tracking-tight">
-                            Accorder le Visa & Transmettre
+                            Intégration au Bulletin
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-                            En approuvant cette fiche, vous certifiez l'exactitude des points pour la <strong className="text-slate-800 dark:text-slate-200 uppercase">Période {currentPeriod}</strong>. La fiche sera automatiquement transmise au Titulaire de la classe pour la centralisation et la génération des bulletins.
+                            En confirmant cette action, les notes de la <strong className="text-slate-800 dark:text-slate-200 uppercase">Période {currentPeriod}</strong> seront officiellement scellées et intégrées pour le calcul automatique des bulletins.
                         </p>
                         <div className="flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800 pt-4">
                             <button
@@ -335,40 +339,40 @@ const GradeSheetValidation = () => {
                             <button
                                 type="button"
                                 disabled={isActionLoading}
-                                onClick={handleApproveVisa}
+                                onClick={handleApproveFiche}
                                 className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-black uppercase tracking-wide flex items-center gap-1.5 shadow-md disabled:opacity-50"
                             >
                                 {isActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                                Confirmer & Transmettre
+                                Confirmer & Intégrer
                             </button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* --- MODAL 2 : FORMULAIRE DE REJET AVEC MOTIF DE RETOUR --- */}
+            {/* --- MODAL 2 : FORMULAIRE DE REJET AVEC MOTIF --- */}
             {showRejectModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs px-4">
-                    <form onSubmit={handleRejectVisa} className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-in">
+                    <form onSubmit={handleRejectFiche} className="bg-white dark:bg-slate-900 p-6 rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-in">
                         <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center mb-4 border border-red-200 dark:border-red-800">
                             <XCircle size={24} />
                         </div>
                         <h3 className="text-lg font-black text-slate-900 dark:text-white mb-1 uppercase tracking-tight">
-                            Renvoyer la Fiche pour Correction
+                            Signaler une anomalie
                         </h3>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
-                            Indiquez ci-dessous le motif précis ou les erreurs constatées sur les cotes de la <strong className="text-slate-800 dark:text-slate-200">Période {currentPeriod}</strong>. Ce commentaire sera transmis instantanément à l'enseignant.
+                            Si les cotes reçues ne correspondent pas aux évaluations de la <strong className="text-slate-800 dark:text-slate-200">Période {currentPeriod}</strong>, indiquez le motif ci-dessous. La fiche sera renvoyée.
                         </p>
                         
                         <div className="space-y-1.5 mb-6">
                             <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                                <MessageSquare size={12} /> Motif détaillé du rejet :
+                                <MessageSquare size={12} /> Motif de l'anomalie :
                             </label>
                             <textarea
                                 required
                                 value={rejectComment}
                                 onChange={(e) => setRejectComment(e.target.value)}
-                                placeholder="Ex: Saisie incorrecte de la note maximale de l'examen / Oubli des points de l'élève Mulamba..."
+                                placeholder="Ex: Cotes manquantes pour certains élèves / Erreur flagrante par rapport au carnet physique..."
                                 rows={4}
                                 className="w-full bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white text-xs font-bold border-2 border-slate-300 dark:border-slate-700 focus:border-red-500 focus:outline-none rounded-xl p-3 placeholder-slate-400 resize-none transition-colors"
                             />
@@ -387,12 +391,12 @@ const GradeSheetValidation = () => {
                                 Annuler
                             </button>
                             <button
-                                type="submit"
+                                type="button"
                                 disabled={isActionLoading || !rejectComment.trim()}
                                 className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black uppercase tracking-wide flex items-center gap-1.5 shadow-md disabled:opacity-50"
                             >
                                 {isActionLoading ? <Loader2 size={14} className="animate-spin" /> : null}
-                                Renvoyer le carnet
+                                Renvoyer
                             </button>
                         </div>
                     </form>
@@ -402,4 +406,4 @@ const GradeSheetValidation = () => {
     );
 };
 
-export default GradeSheetValidation;
+export default TitulaireGradeSheetValidation;

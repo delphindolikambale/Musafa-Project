@@ -8,7 +8,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 @Data
 public class ClassroomRequestDTO {
     @NotNull(message = "Le niveau est obligatoire")
@@ -23,4 +22,7 @@ public class ClassroomRequestDTO {
     private Long roomId;
 
     private boolean active = true;
+
+    // AJOUT : Permet d'affecter un titulaire dès la création ou la modification de la classe (Optionnel)
+    private Long titulaireId;
 }

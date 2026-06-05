@@ -19,11 +19,17 @@ public class ClassroomResponseDTO {
     private Integer capacity;
     private String displayName;
     private boolean active;
+
     // Ces champs permettent de stocker les IDs récupérés dans le ServiceImpl
-    private Long levelId;   //
-    private Long sectionId; //
-    private Long optionId;  //
-    private Long roomId;    //
-    // AJOUT : Nombre actuel d'élèves inscrits dans cette classe
+    private Long levelId;
+    private Long sectionId;
+    private Long optionId;
+    private Long roomId;
+
+    // Nombre actuel d'élèves inscrits dans cette classe
     private Integer currentStudents;
+
+    // AJOUT : Informations sur le titulaire de la classe pour affichage Frontend
+    private Long titulaireId;
+    private String titulaireName;
 }

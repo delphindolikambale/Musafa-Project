@@ -1,15 +1,16 @@
 package com.school.management.model.academic;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.school.management.model.enums.Gender;
 import com.school.management.model.enums.StudentStatus;
+import com.school.management.model.auth.User; // NOUVEAU
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
-import jakarta.persistence.Column;
-import jakarta.persistence.Lob; // Optionnel selon ta version de Hibernate
 
 /**
- * Cette classe représente l'IDENTITÉ PERMANENTE d'un élève au Complexe Scolaire MUSAFA[cite: 16].
- * Elle assure le suivi continu du parcours scolaire d'une année à l'autre[cite: 45, 51].
+ * Cette classe représente l'IDENTITÉ PERMANENTE d'un élève au Complexe Scolaire MUSAFA.
+ * Elle assure le suivi continu du parcours scolaire d'une année à l'autre.
  */
 @Entity
 @Table(
@@ -24,14 +25,13 @@ import jakarta.persistence.Lob; // Optionnel selon ta version de Hibernate
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Student {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     /**
-     * Matricule interne unique généré lors de la première inscription[cite: 70].
+     * Matricule interne unique généré lors de la première inscription.
      * Format : [ID_INSCRIPTION][YY] (ex: 126).
      * Reste immuable durant tout le parcours à MUSAFA.
      */
@@ -64,14 +64,14 @@ public class Student {
     private LocalDate birthDate;
 
     /**
-     * Statut administratif de l'élève (ACTIF, SUSPENDU, SORTI)[cite: 93].
+     * Statut administratif de l'élève (ACTIF, SUSPENDU, SORTI).
      */
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private StudentStatus status = StudentStatus.ACTIF;
 
     /**
-     * Localisation pour la gestion administrative[cite: 34].
+     * Localisation pour la gestion administrative.
      */
     @Column(nullable = false)
     private String commune;
@@ -80,7 +80,7 @@ public class Student {
     private String quartier;
 
     /**
-     * Informations parentales pour le dossier académique[cite: 94].
+     * Informations parentales pour le dossier académique.
      */
     @Column(name = "father_name")
     private String fatherName;
@@ -95,17 +95,25 @@ public class Student {
     private String motherProfession;
 
     /**
-     * Lien vers la photo pour la génération des bulletins et documents officiels[cite: 43, 120].
+     * Lien vers la photo pour la génération des bulletins et documents officiels.
      */
     @Column(name = "photo_url", columnDefinition = "TEXT")
     private String photoUrl;
 
     /**
-     * Nom complet formaté pour les rapports et l'interface Web/Mobile[cite: 48, 156].
+     * ✅ NOUVEAU : Lien vers le compte utilisateur global de l'application
+     * @JsonIgnore empêche la sérialisation infinie et protège les données d'authentification
+     */
+    @JsonIgnore
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
+
+    /**
+     * Nom complet formaté pour les rapports et l'interface Web/Mobile.
      */
     @Transient
     public String getFullName() {
         return String.format("%s %s %s", lastName, postName, firstName).toUpperCase();
     }
-
 }

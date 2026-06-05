@@ -1,7 +1,9 @@
 package com.school.management.model.academic;
+
 import com.school.management.model.enums.LevelType;
 import jakarta.persistence.*;
 import lombok.*;
+
 @Entity
 @Table(
         name = "classrooms",
@@ -19,7 +21,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Classroom {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -48,6 +49,13 @@ public class Classroom {
     @ManyToOne
     @JoinColumn(name = "room_id")
     private Room room;
+
+    /**
+     * Relation avec l'enseignant titulaire de la classe
+     */
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "titulaire_id", unique = true) // Un enseignant ne peut être titulaire que d'une seule classe
+    private Teacher titulaire;
 
     private boolean active = true;
 

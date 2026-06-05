@@ -1,11 +1,10 @@
 package com.school.management.service.academic;
+
 import com.school.management.dto.academic.ClassroomDTO;
 import com.school.management.dto.academic.ClassroomRequestDTO;
 import com.school.management.dto.academic.ClassroomResponseDTO;
-import com.school.management.model.academic.Classroom;
 
 import java.util.List;
-
 
 public interface ClassroomService {
 
@@ -26,4 +25,8 @@ public interface ClassroomService {
 
     void delete(Long id);
     void toggleStatus(Long id);
+
+    // Nouvelles méthodes pour la gestion du Titulaire
+    void assignTitulaire(Long classroomId, Long teacherId);
+    void removeTitulaire(Long classroomId);
 }
