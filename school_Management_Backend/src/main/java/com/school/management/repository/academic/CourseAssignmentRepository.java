@@ -64,4 +64,6 @@ public interface CourseAssignmentRepository extends JpaRepository<CourseAssignme
             @Param("optionName") String optionName,
             @Param("yearId") Long yearId
     );
+
+    List<CourseAssignment> findByLevelIdAndAcademicYearId(Long levelId, Long academicYearId);
 }

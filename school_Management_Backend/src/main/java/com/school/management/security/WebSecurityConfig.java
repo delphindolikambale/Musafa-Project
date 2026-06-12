@@ -108,6 +108,9 @@ public class WebSecurityConfig {
                                 .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()
 
+                                // ✅ CORRECTION : Autorisation publique du dossier "storage"
+                                .requestMatchers("/storage/**").permitAll()
+
                                 // ✅ CORRECTION : Ajout de la route manquante pour le tableau de bord
                                 .requestMatchers("/api/teacher-assignments/**").authenticated()
 
