@@ -17,8 +17,8 @@ const StudentCourses = () => {
         try {
             const data = await MyStudentCoursesService.getMyCourses();
             
-            // SÉCURITÉ ABSOLUE : On vérifie si data est directement un tableau (response.data) 
-            // ou un objet contenant la classe (nouvelle version du service)
+            // SÉCURITÉ ABSOLUE : On vérifie si data est directement un tableau (ancienne version) 
+            // ou un objet contenant la classe et les cours (nouvelle version du service)
             let loadedCourses = [];
             let roomName = '';
 
@@ -26,7 +26,8 @@ const StudentCourses = () => {
                 loadedCourses = data;
             } else if (data && typeof data === 'object') {
                 loadedCourses = data.courses || [];
-                roomName = data.classroomDisplayName || '';
+                // Décodage optionnel au cas où le backend envoie des caractères spéciaux dans l'en-tête HTTP
+                roomName = data.classroomDisplayName ? decodeURIComponent(data.classroomDisplayName) : '';
             }
 
             setCourses(loadedCourses);
@@ -51,9 +52,9 @@ const StudentCourses = () => {
 
         // 1. Filtrage des cours selon le terme de recherche
         const filtered = currentCourses.filter(course =>
-            course?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (course?.domainName && course.domainName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            (course?.subDomainName && course.subDomainName.toLowerCase().includes(searchTerm.toLowerCase()))
+            (course?.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (course?.domainName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+            (course?.subDomainName?.toLowerCase() || '').includes(searchTerm.toLowerCase())
         );
 
         // 2. Tri intelligent : Regroupement par Domaine puis par Sous-Domaine
@@ -102,7 +103,7 @@ const StudentCourses = () => {
                         Mon Programme d'Études
                     </h1>
                     <p className="mt-2 text-sm sm:text-base text-emerald-100/80 max-w-xl font-medium">
-                        Retrouvez ici l'ensemble des matières et cours programmés pour votre classe au cours de cette année académique.
+                        Retrouvez ici l'ensemble des matières et cours programmés pour votre classe au cours de cette année scolaire.
                     </p>
                 </div>
             </div>
@@ -181,7 +182,6 @@ const StudentCourses = () => {
             {!loading && !error && coursesCount > 0 && (
                 <div className="w-full bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800/80 shadow-sm transition-all duration-300 overflow-hidden">
                     <div className="w-full overflow-x-auto">
-                        {/* Application de min-w-full pour forcer l'étirement */}
                         <table className="min-w-full text-left border-collapse">
                             {/* En-tête avec dégradé Vert et Bleu de nuit */}
                             <thead>

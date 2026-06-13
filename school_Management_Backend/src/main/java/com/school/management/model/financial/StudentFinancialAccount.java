@@ -5,6 +5,8 @@ import com.school.management.model.enums.AccountStatus;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "student_financial_accounts")
@@ -33,6 +35,11 @@ public class StudentFinancialAccount {
 
     @Column(nullable = false)
     private LocalDate openedAt;
+
+    // ✅ AJOUT DE LA RELATION BIDIRECTIONNELLE : Permet d'appeler .getAnnualProfiles()
+    @Builder.Default
+    @OneToMany(mappedBy = "financialAccount", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<StudentAnnualFinancialProfile> annualProfiles = new ArrayList<>();
 
     /**
      * Logique métier : Génération du numéro de compte (Matricule + NumPermanent)

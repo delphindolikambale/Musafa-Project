@@ -130,7 +130,6 @@ const StudentPedagogyLayout = () => {
           <button className="lg:hidden p-2 text-slate-600 dark:text-slate-400" onClick={() => setIsOpen(true)}><Menu /></button>
           
           <div className="hidden lg:block text-slate-400 dark:text-slate-500 font-bold italic text-xs uppercase tracking-wider">
-            "Conception et réalisation d'un système de gestion scolaire"
           </div>
 
           <div className="flex items-center gap-3">
