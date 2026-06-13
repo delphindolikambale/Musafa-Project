@@ -9,12 +9,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class SubjectServiceImpl implements SubjectService {
 
     private final SubjectRepository subjectRepository;
@@ -24,6 +29,9 @@ public class SubjectServiceImpl implements SubjectService {
     private final SectionRepository sectionRepository;
     private final OptionRepository optionRepository;
     private final AcademicYearRepository academicYearRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Override
     @Transactional
@@ -134,6 +142,40 @@ public class SubjectServiceImpl implements SubjectService {
     @Transactional(readOnly = true)
     public List<SubjectResponseDTO> getAllSubjects() {
         return subjectRepository.findAll().stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * ✅ AJOUT INTÉGRÉ : Récupère les matières et injecte le nom d'affichage de la classe dans la réponse HTTP via les Headers
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<SubjectResponseDTO> getSubjectsForConnectedStudent(Long userId) {
+        String classroomDisplayName = "";
+        try {
+            Classroom classroom = entityManager.createQuery(
+                            "SELECT e.classroom FROM Enrollment e WHERE e.student.user.id = :userId AND e.active = true", Classroom.class)
+                    .setParameter("userId", userId)
+                    .getSingleResult();
+            if (classroom != null) {
+                classroomDisplayName = classroom.getDisplayName();
+            }
+        } catch (Exception e) {
+            // Pas d'inscription active ou de classe trouvée pour cet utilisateur
+        }
+
+        // Injection sécurisée dans l'en-tête de réponse
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attributes != null) {
+            HttpServletResponse response = attributes.getResponse();
+            if (response != null) {
+                response.addHeader("X-Classroom-Display-Name", classroomDisplayName);
+                response.addHeader("Access-Control-Expose-Headers", "X-Classroom-Display-Name"); // Indispensable pour Axios/CORS
+            }
+        }
+
+        return subjectRepository.findSubjectsByStudentUserId(userId).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

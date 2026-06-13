@@ -19,4 +19,17 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
             @Param("optionId") Long optionId,
             @Param("yearId") Long yearId
     );
+
+    /**
+     * ✅ AJOUT : Récupère les matières associées à la classe actuelle de l'élève connecté
+     * en traversant son inscription annuelle active.
+     */
+    @Query("SELECT s FROM Subject s " +
+            "JOIN Enrollment e ON e.classroom.level.id = s.level.id " +
+            "AND ((s.section IS NULL AND e.classroom.section IS NULL) OR (s.section.id = e.classroom.section.id)) " +
+            "AND ((s.option IS NULL AND e.classroom.option IS NULL) OR (s.option.id = e.classroom.option.id)) " +
+            "AND e.academicYear.id = s.academicYear.id " +
+            "WHERE e.student.user.id = :userId " +
+            "AND e.active = true")
+    List<Subject> findSubjectsByStudentUserId(@Param("userId") Long userId);
 }
