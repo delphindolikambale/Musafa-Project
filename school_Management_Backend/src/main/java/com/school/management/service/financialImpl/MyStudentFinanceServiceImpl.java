@@ -1,6 +1,7 @@
 package com.school.management.service.financialImpl;
 
 import com.school.management.dto.financial.MyFinancialStatusDTO;
+import com.school.management.dto.financial.MyInstallmentStatusDTO;
 import com.school.management.dto.financial.MyPaymentTransactionDTO;
 import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.academic.Student;
@@ -12,11 +13,13 @@ import com.school.management.repository.academic.StudentRepository;
 import com.school.management.repository.auth.UserRepository;
 import com.school.management.repository.financial.StudentFinancialAccountRepository;
 import com.school.management.repository.financial.StudentPaymentRepository;
+import com.school.management.repository.financial.InstallmentSchedulePaymentRepository;
 import com.school.management.service.financial.MyStudentFinanceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,10 +27,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class MyStudentFinanceServiceImpl implements MyStudentFinanceService {
 
-    private final UserRepository userRepository; // Ajout de l'injection du UserRepository
+    private final UserRepository userRepository;
     private final StudentRepository studentRepository;
     private final StudentFinancialAccountRepository accountRepository;
     private final StudentPaymentRepository paymentRepository;
+    private final InstallmentSchedulePaymentRepository installmentSchedulePaymentRepository; // Injection du repository de suivi
 
     @Override
     @Transactional(readOnly = true)
@@ -77,7 +81,34 @@ public class MyStudentFinanceServiceImpl implements MyStudentFinanceService {
                     .build();
         }).collect(Collectors.toList());
 
-        // 7. Construire et retourner le DTO final global
+        // 7. CALCUL ET MAPPING DE L'ÉVOLUTION DE CHAQUE TRANCHE (Sans supposition)
+        List<MyInstallmentStatusDTO> installmentDTOs = activeProfile.getScheduleFees().getInstallments().stream()
+                .sorted((a, b) -> a.getInstallmentNumber().compareTo(b.getInstallmentNumber()))
+                .map(installment -> {
+                    // Utilisation de la méthode native et sécurisée par profil élève
+                    BigDecimal amountPaidForThisInstallment = installmentSchedulePaymentRepository
+                            .sumAmountAppliedByInstallmentAndProfile(installment.getId(), activeProfile.getId());
+
+                    BigDecimal remaining = installment.getAmount().subtract(amountPaidForThisInstallment);
+                    if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+                        remaining = BigDecimal.ZERO;
+                    }
+
+                    boolean isFullyPaid = remaining.compareTo(BigDecimal.ZERO) == 0;
+
+                    return MyInstallmentStatusDTO.builder()
+                            .installmentId(installment.getId())
+                            .installmentNumber(installment.getInstallmentNumber())
+                            .amountRequired(installment.getAmount())
+                            .amountPaid(amountPaidForThisInstallment)
+                            .remainingAmount(remaining)
+                            .startDate(installment.getStartDate())
+                            .dueDate(installment.getDueDate())
+                            .fullyPaid(isFullyPaid)
+                            .build();
+                }).collect(Collectors.toList());
+
+        // 8. Construire et retourner le DTO final global enrichi
         return MyFinancialStatusDTO.builder()
                 .accountNumber(account.getAccountNumber())
                 .academicYear(activeProfile.getAcademicYear().getAnnee())
@@ -86,6 +117,7 @@ public class MyStudentFinanceServiceImpl implements MyStudentFinanceService {
                 .totalAmountPaid(activeProfile.getTotalAmountPaid())
                 .balance(activeProfile.getBalance())
                 .currency(activeProfile.getCurrency().toString())
+                .installments(installmentDTOs)
                 .paymentHistory(transactionDTOs)
                 .build();
     }

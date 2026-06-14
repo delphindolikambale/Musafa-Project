@@ -23,6 +23,9 @@ public class MyFinancialStatusDTO {
     private BigDecimal balance;
     private String currency;
 
+    // Évolutions des paiements par tranche
+    private List<MyInstallmentStatusDTO> installments;
+
     // Historique des mouvements
     private List<MyPaymentTransactionDTO> paymentHistory;
 }

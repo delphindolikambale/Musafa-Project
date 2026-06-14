@@ -162,6 +162,83 @@ const StudentFinance = () => {
 
       </div>
 
+      {/* 📈 ÉVOLUTION DES PAIEMENTS PAR TRANCHE */}
+      {financialData?.installments && financialData.installments.length > 0 && (
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
+          <div className="flex items-center space-x-3 mb-6">
+            <div className="p-2.5 bg-emerald-100 dark:bg-emerald-900/30 rounded-xl text-emerald-600 dark:text-emerald-400">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+            </div>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Suivi de progression par Tranche
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {financialData.installments.map((installment) => {
+              // Calcul du pourcentage d'avancement
+              const percent = installment.amountRequired > 0 
+                ? Math.min(100, Math.round((installment.amountPaid / installment.amountRequired) * 100)) 
+                : 100;
+
+              return (
+                <div key={installment.installmentId} className="p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-2xl space-y-4 hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="text-sm font-black text-slate-800 dark:text-slate-200">
+                        Tranche {installment.installmentNumber}
+                      </h4>
+                      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mt-0.5">
+                        Échéance : <span className="font-semibold text-slate-700 dark:text-slate-300">{formatDate(installment.dueDate)}</span>
+                      </p>
+                    </div>
+                    
+                    <div className="text-right">
+                      {installment.fullyPaid ? (
+                        <span className="inline-flex items-center px-2 py-1 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold uppercase rounded">
+                          <svg className="w-3 h-3 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Soldé
+                        </span>
+                      ) : (
+                        <span className="inline-block px-2 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 text-[10px] font-bold uppercase rounded">
+                          Reste: {formatCurrency(installment.remainingAmount, financialData.currency)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Détail montants et barre de progression */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-xs">
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                        {formatCurrency(installment.amountPaid, financialData.currency)} payé
+                      </span>
+                      <span className="text-slate-400 font-medium">
+                        sur {formatCurrency(installment.amountRequired, financialData.currency)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                      <div 
+                        className={`h-2.5 rounded-full transition-all duration-1000 ease-out ${
+                          installment.fullyPaid 
+                            ? 'bg-emerald-500' 
+                            : 'bg-gradient-to-r from-blue-500 to-emerald-400'
+                        }`}
+                        style={{ width: `${percent}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 🗓️ TABLEAU DES TRANSACTIONS / HISTORIQUE */}
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
@@ -196,7 +273,10 @@ const StudentFinance = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-300">
-                {financialData.paymentHistory.map((payment, index) => (
+                {/* 🟢 TRI EFFECTUÉ ICI : Création d'une copie du tableau et tri par date décroissante */}
+                {[...financialData.paymentHistory]
+                  .sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate))
+                  .map((payment, index) => (
                   <tr 
                     key={payment.paymentId || index}
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"

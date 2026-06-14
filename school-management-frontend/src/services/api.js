@@ -7,6 +7,13 @@ export const BACKEND_BASE = deployeeSurRender
     ? "https://musafa-projectbackend.onrender.com" 
     : "http://localhost:8080";
 
+// ✅ AJOUT DE LA FONCTION : Génère l'URL correcte en pointant directement sur la racine du serveur
+export const getImageUrl = (path) => {
+    if (!path) return '';
+    // S'assure que le chemin commence bien à la racine de l'URL sans doublon de slash
+    return `${BACKEND_BASE}/${path.replace(/^\/+/, '')}`;
+};
+
 const api = axios.create({
     baseURL: `${BACKEND_BASE}/api`,
     headers: {

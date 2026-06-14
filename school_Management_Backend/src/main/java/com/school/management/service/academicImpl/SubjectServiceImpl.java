@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -30,6 +31,9 @@ public class SubjectServiceImpl implements SubjectService {
     private final OptionRepository optionRepository;
     private final AcademicYearRepository academicYearRepository;
 
+    // Ajout du repository pour accéder aux détails des enseignants et des maximas
+    private final TeacherAssignmentRepository teacherAssignmentRepository;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -41,7 +45,6 @@ public class SubjectServiceImpl implements SubjectService {
 
         SubDomain subDomain;
 
-        // LOGIQUE : Si aucun sous-domaine n'est fourni, on utilise/crée le sous-domaine technique
         if (dto.getSubDomainId() == null) {
             subDomain = getOrCreateTechnicalSubDomain(domain, dto);
         } else {
@@ -68,11 +71,7 @@ public class SubjectServiceImpl implements SubjectService {
         return mapToResponse(subjectRepository.save(subject));
     }
 
-    /**
-     * Gère la création automatique du sous-domaine technique (fantôme)
-     */
     private SubDomain getOrCreateTechnicalSubDomain(Domain domain, SubjectRequestDTO dto) {
-        // On cherche s'il existe déjà un sous-domaine avec le même nom que le domaine pour cette classe
         return subDomainRepository.findByClassContext(
                         dto.getLevelId(), dto.getSectionId(), dto.getOptionId(), dto.getAcademicYearId())
                 .stream()
@@ -146,40 +145,38 @@ public class SubjectServiceImpl implements SubjectService {
                 .collect(Collectors.toList());
     }
 
-    /**
-     * ✅ AJOUT INTÉGRÉ : Récupère les matières et injecte le nom d'affichage de la classe dans la réponse HTTP via les Headers
-     */
     @Override
     @Transactional(readOnly = true)
     public List<SubjectResponseDTO> getSubjectsForConnectedStudent(Long userId) {
-        String classroomDisplayName = "";
         try {
-            Classroom classroom = entityManager.createQuery(
-                            "SELECT e.classroom FROM Enrollment e WHERE e.student.user.id = :userId AND e.active = true", Classroom.class)
+            // 1. Récupérer l'inscription active de l'élève
+            Enrollment enrollment = entityManager.createQuery(
+                            "SELECT e FROM Enrollment e WHERE e.student.user.id = :userId AND e.active = true", Enrollment.class)
                     .setParameter("userId", userId)
                     .getSingleResult();
-            if (classroom != null) {
-                classroomDisplayName = classroom.getDisplayName();
+
+            Classroom classroom = enrollment.getClassroom();
+            AcademicYear year = enrollment.getAcademicYear();
+
+            // Gestion en-tête
+            ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+            if (attributes != null && attributes.getResponse() != null) {
+                attributes.getResponse().addHeader("X-Classroom-Display-Name", classroom.getDisplayName());
+                attributes.getResponse().addHeader("Access-Control-Expose-Headers", "X-Classroom-Display-Name");
             }
+
+            // 2. Récupérer les affectations de cours en utilisant l'ID de la classe et l'ID de l'année récupérés via l'inscription
+            return teacherAssignmentRepository.findByClassroomIdAndAcademicYearId(classroom.getId(), year.getId())
+                    .stream()
+                    .map(this::mapAssignmentToResponse)
+                    .collect(Collectors.toList());
+
         } catch (Exception e) {
-            // Pas d'inscription active ou de classe trouvée pour cet utilisateur
+            return Collections.emptyList();
         }
-
-        // Injection sécurisée dans l'en-tête de réponse
-        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attributes != null) {
-            HttpServletResponse response = attributes.getResponse();
-            if (response != null) {
-                response.addHeader("X-Classroom-Display-Name", classroomDisplayName);
-                response.addHeader("Access-Control-Expose-Headers", "X-Classroom-Display-Name"); // Indispensable pour Axios/CORS
-            }
-        }
-
-        return subjectRepository.findSubjectsByStudentUserId(userId).stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
     }
 
+    // Mapper basique pour création/mise à jour
     private SubjectResponseDTO mapToResponse(Subject s) {
         return SubjectResponseDTO.builder()
                 .id(s.getId())
@@ -188,6 +185,29 @@ public class SubjectServiceImpl implements SubjectService {
                 .domainName(s.getDomain() != null ? s.getDomain().getName() : null)
                 .subDomainId(s.getSubDomain() != null ? s.getSubDomain().getId() : null)
                 .subDomainName(s.getSubDomain() != null ? s.getSubDomain().getName() : null)
+                .build();
+    }
+
+    // Mapper complet pour l'espace élève (Modal)
+    private SubjectResponseDTO mapAssignmentToResponse(TeacherAssignment ta) {
+        CourseAssignment ca = ta.getCourseAssignment();
+        Subject s = ca.getSubject();
+
+        return SubjectResponseDTO.builder()
+                .id(s.getId())
+                .name(s.getName())
+                .domainName(s.getDomain() != null ? s.getDomain().getName() : null)
+                .teacherFullName(ta.getTeacher() != null ? ta.getTeacher().getFullName() : "Non attribué")
+                .weeklyHours(ta.getWeeklyHours())
+                .maxP1(ca.getMaxP1())
+                .maxP2(ca.getMaxP2())
+                .maxExam1(ca.getMaxExam1())
+                .maxP3(ca.getMaxP3())
+                .maxP4(ca.getMaxP4())
+                .maxExam2(ca.getMaxExam2())
+                .maxS1(ca.getMaxS1())
+                .maxS2(ca.getMaxS2())
+                .maxTotal(ca.getMaxTotal())
                 .build();
     }
 }

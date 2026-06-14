@@ -36,8 +36,8 @@ const StudentBulletinPrint = ({ bulletinData, studentInfo }) => {
             {/* Séparateur structural */}
             <div className="w-full bg-black h-[2px] my-2"></div>
             
-            {/* Grille principale des notes et bilans */}
-            <BulletinBody bulletinData={bulletinData} />
+            {/* Grille principale des notes et bilans (Ajout du header ici) */}
+            <BulletinBody bulletinData={bulletinData} header={headerConfig} />
 
             {/* Pied de page et signatures */}
             <BulletinFooter bulletinData={bulletinData} />

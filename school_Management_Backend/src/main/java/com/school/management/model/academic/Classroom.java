@@ -67,14 +67,11 @@ public class Classroom {
             if (section != null) sb.append(" - ").append(section.getSectionName());
             if (option != null) sb.append(" - ").append(option.getOptionName());
         }
-
         if (division != null && !division.isEmpty()) {
             sb.append(" (").append(division).append(")");
         }
-
         return sb.toString();
     }
-
     /**
      * Récupère dynamiquement la capacité via la salle liée
      */
