@@ -29,6 +29,7 @@ import ArchiveDashboard from "./components/structure/ArchiveDashboard";
 import FinanceAdmin from "./components/structure/FinanceAdmin"; 
 import SettingsDashboard from "./components/structure/admin/SettingsDashboard";
 import RoleAccessManager from "./components/structure/admin/RoleAccessManager"; 
+import BulletinHomePage from "./components/structure/admin/BulletinHomePage"; // NOUVEL IMPORT
 
 // --- COMPONENTS CAISSIER ---
 import CashierDashboard from "./components/dashboard/CashierDashboard";
@@ -194,6 +195,7 @@ function App() {
                 <Route path="presences" element={<AttendanceManagement />} />
                 <Route path="reception-fiches" element={<GradeSheetReception />} />
                 <Route path="validation-fiche/:assignmentId/:period" element={<GradeSheetValidation />} />
+                <Route path="bulletin" element={<BulletinHomePage />} /> {/* NOUVELLE ROUTE BULLETINS */}
                 <Route index element={<Navigate to="dashboard" />} />
               </Route>
 

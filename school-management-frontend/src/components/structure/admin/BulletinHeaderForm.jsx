@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Loader2, Image as ImageIcon, UploadCloud } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-// Remplacez vos imports par ceux-ci :
 import BulletinHeaderService from "../../../services/admin/bulletinHeaderService";
-import { BACKEND_BASE } from "../../../services/api"; // Correction ici pour pointer vers le bon dossier
+import { BACKEND_BASE } from "../../../services/api";
+
 const BulletinHeaderForm = () => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);

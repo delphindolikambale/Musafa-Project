@@ -13,6 +13,9 @@ const BulletinBody = ({ bulletinData, header }) => {
 
     // Classe CSS pour l'effet hachuré officiel des cellules non applicables
     const hatchedBg = "bg-[repeating-linear-gradient(-45deg,#a3a3a3,#a3a3a3_1px,transparent_1px,transparent_4px)] print:opacity-70";
+    
+    // Style pour forcer l'impression du fond noir de la colonne de séparation
+    const printBlackColStyle = { backgroundColor: 'black', WebkitPrintColorAdjust: 'exact', printColorAdjust: 'exact' };
 
     // Extraction à plat de tous les cours pour le format Humanités
     const allHumanitesSubjects = isHumanites ? (domains?.flatMap(d => d.subjects || []) || []) : [];
@@ -31,11 +34,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                 </div>
             )}
 
-            {/* GRILLE PRINCIPALE DES EVALUATIONS (z-10 pour être au-dessus du filigrane, bg-transparent pour le laisser passer) */}
+            {/* GRILLE PRINCIPALE DES EVALUATIONS */}
             <table className="relative z-10 w-full border-collapse border-2 border-black text-center table-fixed bg-transparent">
                 
                 {/* ================================================= */}
-                {/* EN-TÊTE : FORMAT ÉDUCATION DE BASE (7e & 8e)      */}
+                {/* EN-TÊTE : FORMAT ÉDUCATION DE BASE (7e & 8e)       */}
                 {/* ================================================= */}
                 {isEB && (
                     <thead>
@@ -49,9 +52,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                             <th colSpan={5} className="border-r-2 border-black p-0.5 text-[10px] align-middle font-bold">
                                 SECOND SEMESTRE
                             </th>
-                            <th rowSpan={3} className="border-r-[3px] border-r-black p-0.5 text-[9px] align-middle font-black w-12 bg-transparent">
+                            <th rowSpan={3} className="border-r border-black p-0.5 text-[9px] align-middle font-black w-12 bg-transparent">
                                 TOTAL<br/>GENERAL
                             </th>
+                            {/* NOUVELLE COLONNE DE SÉPARATION NOIRE */}
+                            <th rowSpan={3} className="border-r-2 border-black w-2.5" style={printBlackColStyle}></th>
                             <th colSpan={2} className="p-0.5 text-[9px] align-middle w-18 leading-tight font-black">
                                 EXAMEN DE<br/>REPECHAGE
                             </th>
@@ -94,9 +99,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                             <th colSpan={4} className="border-r-2 border-black p-0.5 text-[10px] align-middle font-bold">
                                 SECOND SEMESTRE
                             </th>
-                            <th rowSpan={3} className="border-r-[3px] border-r-black p-0.5 text-[9px] align-middle font-black w-12 bg-transparent">
+                            <th rowSpan={3} className="border-r border-black p-0.5 text-[9px] align-middle font-black w-12 bg-transparent">
                                 TOTAL<br/>GENERAL
                             </th>
+                            {/* NOUVELLE COLONNE DE SÉPARATION NOIRE */}
+                            <th rowSpan={3} className="border-r-2 border-black w-2.5" style={printBlackColStyle}></th>
                             <th colSpan={2} className="p-0.5 text-[9px] align-middle w-18 leading-tight font-black">
                                 EXAMEN DE<br/>REPECHAGE
                             </th>
@@ -131,7 +138,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                     {isEB && domains?.map((domain, dIdx) => (
                         <React.Fragment key={`eb-dom-${dIdx}`}>
                             <tr className="border-b border-black font-black text-left text-[9px] bg-gray-100/50 print:bg-gray-100/50">
-                                <td colSpan={14} className="p-1 pl-2 uppercase tracking-wider">
+                                {/* Augmentation du colSpan à 15 (au lieu de 14) */}
+                                <td colSpan={15} className="p-1 pl-2 uppercase tracking-wider">
                                     {domain.name}
                                 </td>
                             </tr>
@@ -153,7 +161,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                                     <td className="border-r border-black p-0.5 font-bold bg-transparent">{sub.maxExam || '20'}</td>
                                     <td className="border-r-2 border-black p-0.5 font-bold bg-transparent">{sub.totalS2 ?? ''}</td>
                                     
-                                    <td className="border-r-[3px] border-r-black p-0.5 font-black bg-transparent">{sub.totalAnnuel ?? ''}</td>
+                                    <td className="border-r border-black p-0.5 font-black bg-transparent">{sub.totalAnnuel ?? ''}</td>
+                                    
+                                    {/* CELLULE NOIRE LIGNE DE COURS */}
+                                    <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                                    
                                     <td className="border-r border-black p-0.5 font-bold bg-transparent">{sub.repechagePct ?? ''}</td>
                                     <td className="p-0.5 bg-transparent"></td>
                                 </tr>
@@ -173,7 +185,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                                 <td className="border-r border-black p-0.5 font-bold">{domain.subMaxExam ?? ''}</td>
                                 <td className="border-r-2 border-black p-0.5 font-bold">{domain.subTotalS2 ?? ''}</td>
                                 
-                                <td className="border-r-[3px] border-r-black p-0.5 font-black">{domain.subTotalAnnuel ?? ''}</td>
+                                <td className="border-r border-black p-0.5 font-black">{domain.subTotalAnnuel ?? ''}</td>
+                                
+                                {/* CELLULE NOIRE SOUS-TOTAL */}
+                                <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                                
                                 <td className={`border-r border-black p-0.5 ${hatchedBg}`}></td>
                                 <td className={hatchedBg}></td>
                             </tr>
@@ -196,7 +212,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                                 <td className="border-r border-black p-0.5 font-bold">{results?.maxExam || '20'}</td>
                                 <td className="border-r-2 border-black p-0.5 font-bold">{results?.maxS2_Tot || '40'}</td>
                                 
-                                <td className="border-r-[3px] border-r-black p-0.5 font-black">{results?.totalGeneralMax || '80'}</td>
+                                <td className="border-r border-black p-0.5 font-black">{results?.totalGeneralMax || '80'}</td>
+                                
+                                {/* CELLULE NOIRE LIGNE MAXIMA */}
+                                <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                                
                                 <td className={`border-r border-black p-0.5 ${hatchedBg}`}></td>
                                 <td className={hatchedBg}></td>
                             </tr>
@@ -216,7 +236,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                                     <td className="border-r border-black p-0.5 bg-transparent">{sub.maxExam ? (sub.examS2 ?? '') : ''}</td>
                                     <td className="border-r-2 border-black p-0.5 font-bold bg-transparent">{sub.totalS2 ?? ''}</td>
                                     
-                                    <td className="border-r-[3px] border-r-black p-0.5 font-black bg-transparent">{sub.totalAnnuel ?? ''}</td>
+                                    <td className="border-r border-black p-0.5 font-black bg-transparent">{sub.totalAnnuel ?? ''}</td>
+                                    
+                                    {/* CELLULE NOIRE LIGNE DE COURS */}
+                                    <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                                    
                                     <td className="border-r border-black p-0.5 font-bold bg-transparent">{sub.repechagePct ?? ''}</td>
                                     <td className="p-0.5 bg-transparent"></td>
                                 </tr>
@@ -256,7 +280,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                                 <td className="border-r-2 border-black p-0.5 font-black">{results?.maxS2_Tot || ''}</td>
                             </>
                         )}
-                        <td className="border-r-[3px] border-r-black p-0.5 font-black">{results?.totalGeneralMax || ''}</td>
+                        <td className="border-r border-black p-0.5 font-black">{results?.totalGeneralMax || ''}</td>
+                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                         <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className={hatchedBg}></td>
                     </tr>
@@ -276,7 +301,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         {isEB && <td className={`border-r border-black ${hatchedBg}`}></td>}
                         <td className="border-r-2 border-black p-0.5 font-black">{results?.obtS2_Tot ?? ''}</td>
                         
-                        <td className="border-r-[3px] border-r-black p-0.5 font-black">{results?.totalGeneralObt ?? ''}</td>
+                        <td className="border-r border-black p-0.5 font-black">{results?.totalGeneralObt ?? ''}</td>
+                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                         <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className={hatchedBg}></td>
                     </tr>
@@ -296,7 +322,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         {isEB && <td className={`border-r border-black ${hatchedBg}`}></td>}
                         <td className="border-r-2 border-black p-0.5 font-black">{results?.pctS2_Tot ? `${results.pctS2_Tot}%` : ''}</td>
                         
-                        <td className="border-r-[3px] border-r-black p-0.5 font-black">{results?.pourcentageGeneral ? `${results.pourcentageGeneral}%` : ''}</td>
+                        <td className="border-r border-black p-0.5 font-black">{results?.pourcentageGeneral ? `${results.pourcentageGeneral}%` : ''}</td>
+                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                         <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className={hatchedBg}></td>
                     </tr>
@@ -316,7 +343,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         {isEB && <td className={`border-r border-black ${hatchedBg}`}></td>}
                         <td className="border-r-2 border-black p-0.5 font-bold">{results?.placeS2_Tot || ''} / {results?.nbEleves || ''}</td>
                         
-                        <td className="border-r-[3px] border-r-black p-0.5 font-black">{results?.placeGeneral || ''} / {results?.nbEleves || ''}</td>
+                        <td className="border-r border-black p-0.5 font-black">{results?.placeGeneral || ''} / {results?.nbEleves || ''}</td>
+                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                         <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className={hatchedBg}></td>
                     </tr>
@@ -336,7 +364,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         {isEB && <td className={`border-r border-black ${hatchedBg}`}></td>}
                         <td className={`border-r-2 border-black ${hatchedBg}`}></td>
                         
-                        <td className={`border-r-[3px] border-r-black ${hatchedBg}`}></td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                         <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className={hatchedBg}></td>
                     </tr>
@@ -356,7 +385,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         {isEB && <td className={`border-r border-black ${hatchedBg}`}></td>}
                         <td className={`border-r-2 border-black ${hatchedBg}`}></td>
                         
-                        <td className={`border-r-[3px] border-r-black ${hatchedBg}`}></td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                         <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className={hatchedBg}></td>
                     </tr>
@@ -376,7 +406,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         {isEB && <td className={`border-r border-black ${hatchedBg}`}></td>}
                         <td className={`border-r-2 border-black ${hatchedBg}`}></td>
                         
-                        <td className={`border-r-[3px] border-r-black ${hatchedBg}`}></td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                         <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className={hatchedBg}></td>
                     </tr>

@@ -31,7 +31,6 @@ public class SubjectServiceImpl implements SubjectService {
     private final OptionRepository optionRepository;
     private final AcademicYearRepository academicYearRepository;
 
-    // Ajout du repository pour accéder aux détails des enseignants et des maximas
     private final TeacherAssignmentRepository teacherAssignmentRepository;
 
     @PersistenceContext
@@ -165,18 +164,58 @@ public class SubjectServiceImpl implements SubjectService {
                 attributes.getResponse().addHeader("Access-Control-Expose-Headers", "X-Classroom-Display-Name");
             }
 
-            // 2. Récupérer les affectations de cours en utilisant l'ID de la classe et l'ID de l'année récupérés via l'inscription
-            return teacherAssignmentRepository.findByClassroomIdAndAcademicYearId(classroom.getId(), year.getId())
-                    .stream()
-                    .map(this::mapAssignmentToResponse)
-                    .collect(Collectors.toList());
+            // 2. CORRECTION : Jointure externe (LEFT JOIN) pour récupérer TOUS les cours (CourseAssignment)
+            // de la classe, et optionnellement l'enseignant (TeacherAssignment) s'il y en a un.
+            List<Object[]> results = entityManager.createQuery(
+                            "SELECT ca, ta FROM CourseAssignment ca " +
+                                    "LEFT JOIN TeacherAssignment ta ON ta.courseAssignment = ca AND ta.classroom.id = :classroomId " +
+                                    "WHERE ca.level.id = :levelId " +
+                                    "AND (ca.section.id = :sectionId OR (ca.section IS NULL AND :sectionId IS NULL)) " +
+                                    "AND (ca.option.id = :optionId OR (ca.option IS NULL AND :optionId IS NULL)) " +
+                                    "AND ca.academicYear.id = :yearId", Object[].class)
+                    .setParameter("classroomId", classroom.getId())
+                    .setParameter("levelId", classroom.getLevel().getId())
+                    .setParameter("sectionId", classroom.getSection() != null ? classroom.getSection().getId() : null)
+                    .setParameter("optionId", classroom.getOption() != null ? classroom.getOption().getId() : null)
+                    .setParameter("yearId", year.getId())
+                    .getResultList();
+
+            // Mappage des résultats
+            return results.stream().map(result -> {
+                CourseAssignment ca = (CourseAssignment) result[0];
+                TeacherAssignment ta = (TeacherAssignment) result[1]; // Peut être null
+                Subject s = ca.getSubject();
+
+                return SubjectResponseDTO.builder()
+                        .id(s.getId())
+                        .name(s.getName())
+                        .domainId(s.getDomain() != null ? s.getDomain().getId() : null)
+                        .domainName(s.getDomain() != null ? s.getDomain().getName() : null)
+                        // CORRECTION : Mappage du sous-domaine ajouté ici
+                        .subDomainId(s.getSubDomain() != null ? s.getSubDomain().getId() : null)
+                        .subDomainName(s.getSubDomain() != null ? s.getSubDomain().getName() : null)
+                        // Détails TeacherAssignment (sécurisé contre les valeurs nulles)
+                        .teacherFullName(ta != null && ta.getTeacher() != null ? ta.getTeacher().getFullName() : "Non attribué")
+                        .weeklyHours(ta != null ? ta.getWeeklyHours() : 0.0)
+                        // Maximas
+                        .maxP1(ca.getMaxP1())
+                        .maxP2(ca.getMaxP2())
+                        .maxExam1(ca.getMaxExam1())
+                        .maxP3(ca.getMaxP3())
+                        .maxP4(ca.getMaxP4())
+                        .maxExam2(ca.getMaxExam2())
+                        .maxS1(ca.getMaxS1())
+                        .maxS2(ca.getMaxS2())
+                        .maxTotal(ca.getMaxTotal())
+                        .build();
+            }).collect(Collectors.toList());
 
         } catch (Exception e) {
+            e.printStackTrace();
             return Collections.emptyList();
         }
     }
-
-    // Mapper basique pour création/mise à jour
+    // Mapper basique pour création/mise à jour classique
     private SubjectResponseDTO mapToResponse(Subject s) {
         return SubjectResponseDTO.builder()
                 .id(s.getId())
@@ -185,29 +224,6 @@ public class SubjectServiceImpl implements SubjectService {
                 .domainName(s.getDomain() != null ? s.getDomain().getName() : null)
                 .subDomainId(s.getSubDomain() != null ? s.getSubDomain().getId() : null)
                 .subDomainName(s.getSubDomain() != null ? s.getSubDomain().getName() : null)
-                .build();
-    }
-
-    // Mapper complet pour l'espace élève (Modal)
-    private SubjectResponseDTO mapAssignmentToResponse(TeacherAssignment ta) {
-        CourseAssignment ca = ta.getCourseAssignment();
-        Subject s = ca.getSubject();
-
-        return SubjectResponseDTO.builder()
-                .id(s.getId())
-                .name(s.getName())
-                .domainName(s.getDomain() != null ? s.getDomain().getName() : null)
-                .teacherFullName(ta.getTeacher() != null ? ta.getTeacher().getFullName() : "Non attribué")
-                .weeklyHours(ta.getWeeklyHours())
-                .maxP1(ca.getMaxP1())
-                .maxP2(ca.getMaxP2())
-                .maxExam1(ca.getMaxExam1())
-                .maxP3(ca.getMaxP3())
-                .maxP4(ca.getMaxP4())
-                .maxExam2(ca.getMaxExam2())
-                .maxS1(ca.getMaxS1())
-                .maxS2(ca.getMaxS2())
-                .maxTotal(ca.getMaxTotal())
                 .build();
     }
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import MyStudentCoursesService from '../../../services/pedagogieService/MyStudentCoursesService';
 import { BookOpen, Search, Layers, Compass, Loader2, AlertCircle, RefreshCw, GraduationCap } from 'lucide-react';
+import MyStudentCourseModal from './MyStudentCourseModal';
 
 const StudentCourses = () => {
     const [courses, setCourses] = useState([]);
@@ -9,6 +10,10 @@ const StudentCourses = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    
+    // --- ÉTATS POUR LE MODAL ---
+    const [selectedCourse, setSelectedCourse] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     // Chargement dynamique des données depuis le Backend
     const fetchStudentCourses = async () => {
@@ -75,6 +80,12 @@ const StudentCourses = () => {
 
         setFilteredCourses(sorted);
     }, [searchTerm, courses]);
+
+    // --- FONCTION POUR OUVRIR LE MODAL ---
+    const handleOpenModal = (course) => {
+        setSelectedCourse(course);
+        setIsModalOpen(true);
+    };
 
     // Constante sécurisée pour le comptage
     const coursesCount = filteredCourses?.length || 0;
@@ -178,7 +189,7 @@ const StudentCourses = () => {
                 </div>
             )}
 
-            {/* TABLEAU PREMIUM : LARGEUR MAXIMALE, SANS COLONNE ACTION */}
+            {/* TABLEAU PREMIUM : LARGEUR MAXIMALE */}
             {!loading && !error && coursesCount > 0 && (
                 <div className="w-full bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800/80 shadow-sm transition-all duration-300 overflow-hidden">
                     <div className="w-full overflow-x-auto">
@@ -199,7 +210,8 @@ const StudentCourses = () => {
                                 {filteredCourses?.map((course, index) => (
                                     <tr 
                                         key={course?.id || index}
-                                        className="group hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors duration-200"
+                                        onClick={() => handleOpenModal(course)}
+                                        className="group hover:bg-emerald-50 dark:hover:bg-emerald-950/20 transition-colors duration-200 cursor-pointer"
                                     >
                                         {/* 1ère Colonne : Numéro d'ordre */}
                                         <td className="py-4 px-5 whitespace-nowrap text-center font-mono text-xs font-bold text-slate-400 dark:text-slate-500 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
@@ -255,6 +267,14 @@ const StudentCourses = () => {
                     </div>
                 </div>
             )}
+
+            {/* --- LE MODAL INTÉGRÉ --- */}
+            <MyStudentCourseModal 
+                isOpen={isModalOpen} 
+                onClose={() => setIsModalOpen(false)} 
+                course={selectedCourse} 
+            />
+
         </div>
     );
 };

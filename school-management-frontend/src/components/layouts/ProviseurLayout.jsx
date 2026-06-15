@@ -6,7 +6,7 @@ import { ThemeContext } from '../../App';
 import { 
   LayoutDashboard, Users, BookOpen, UserCheck, Calendar, 
   Fingerprint, LogOut, Menu, X, 
-  ChevronLeft, ChevronRight, Sun, Moon, Inbox 
+  ChevronLeft, ChevronRight, Sun, Moon, Inbox, FileText 
 } from 'lucide-react';
 // Import du service de notification WebSocket
 import ProviseurNotificationService from '../../services/pedagogieService/ProviseurNotificationService'; 
@@ -95,6 +95,8 @@ const ProviseurLayout = () => {
     { path: '/proviseur/horaires', icon: <Calendar size={20} />, label: 'Horaires' },
     { path: '/proviseur/presences', icon: <Fingerprint size={20} />, label: 'Présences/Pointage' },
     { path: '/proviseur/reception-fiches', icon: <Inbox size={20} />, label: 'Réception Fiches' },
+    // NOUVEAU LIEN VERS LE HUB DES BULLETINS
+    { path: '/proviseur/bulletin', icon: <FileText size={20} />, label: 'Bulletins' },
   ];
 
   const getInitials = (name) => {
