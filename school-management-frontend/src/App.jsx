@@ -7,6 +7,7 @@ import Welcome from "./views/Welcome";
 import Login from "./views/Login";
 import Register from "./views/Register";
 import ProtectedRoute from "./components/ProtectedRoute"; 
+import SaaSGuard from "./guards/SaaSGuard"; // ✅ INJECTÉ : Notre nouveau protecteur de licence multi-établissement
 
 // --- LAYOUTS ---
 import AdminLayout from "./components/layouts/AdminLayout";
@@ -15,6 +16,7 @@ import RegisterStudents from "./components/layouts/RegisterStudents";
 import ProviseurLayout from "./components/layouts/ProviseurLayout"; 
 import StudentPedagogyLayout from "./components/layouts/StudentPedagogyLayout"; 
 import TeacherLayout from "./components/layouts/TeacherLayout";
+import SuperAdminSystemLayout from "./components/layouts/multitenant/SuperAdminSystemLayout"; 
 
 // --- COMPONENTS ADMIN ---
 import DashboardStats from "./components/dashboard/DashboardStats";
@@ -29,7 +31,15 @@ import ArchiveDashboard from "./components/structure/ArchiveDashboard";
 import FinanceAdmin from "./components/structure/FinanceAdmin"; 
 import SettingsDashboard from "./components/structure/admin/SettingsDashboard";
 import RoleAccessManager from "./components/structure/admin/RoleAccessManager"; 
-import BulletinHomePage from "./components/structure/admin/BulletinHomePage"; // NOUVEL IMPORT
+import BulletinHomePage from "./components/structure/admin/BulletinHomePage"; 
+
+// --- COMPONENTS SUPER ADMIN MULTI-TENANT --- 
+import SuperAdminSystemDashboard from "./components/dashboard/multitenant/SuperAdminSystemDashboard";
+import SchoolManager from "./components/structure/multitenant/SchoolManager";
+import Abonnement from "./components/structure/multitenant/Abonnement";
+import FinanceAbonnement from "./components/structure/multitenant/FinanceAbonnement";
+import GlobalUsersSystem from "./components/structure/multitenant/GlobalUsersSystem";
+import Parametres from "./components/structure/multitenant/Parametres";
 
 // --- COMPONENTS CAISSIER ---
 import CashierDashboard from "./components/dashboard/CashierDashboard";
@@ -54,7 +64,6 @@ import GradeSheetReception from "./components/structure/pedagogie/GradeSheetRece
 import GradeSheetValidation from "./components/structure/pedagogie/GradeSheetValidation";
 
 // --- COMPONENTS ÉLÈVE ---
-// CORRECTION : Le chemin pointe maintenant vers le dossier structure où se trouvent les autres composants élèves
 import StudentLinkAccount from "./components/structure/student/StudentLinkAccount";
 import StudentPedagogyDashboard from "./components/dashboard/pedagogieDashboard/StudentPedagogyDashboard";
 import StudentCourses from "./components/structure/student/StudentCourses";
@@ -68,15 +77,13 @@ import StudentSettings from "./components/structure/student/StudentSettings";
 import TeacherEvaluationDashboard from "./components/dashboard/pedagogieDashboard/TeacherEvaluationDashboard";
 import TeacherClassesManager from "./components/structure/pedagogie/TeacherClassesManager";
 import TitulaireDashboard from "./components/structure/pedagogie/TitulaireDashboard";
-import TitulaireGradeSheetValidation from "./components/structure/pedagogie/TitulaireGradeSheetValidation"; // NOUVEL IMPORT
+import TitulaireGradeSheetValidation from "./components/structure/pedagogie/TitulaireGradeSheetValidation"; 
 
-// --- IMPORT DU SERVICE POUR LA VÉRIFICATION DE SÉCURITÉ DU TITULAIRE ---
 import titulaireService from "./services/pedagogieService/titulaireService";
 
 export const ThemeContext = createContext();
 export const LanguageContext = createContext();
 
-// --- COMPOSANT DE GARDE INTERNE POUR LA ROUTE DE TITULARISATION ---
 const TitulaireRoute = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
@@ -94,7 +101,7 @@ const TitulaireRoute = ({ children }) => {
             setHasAccess(true);
           }
         } catch (error) {
-          console.error("Erreur lors de la validation d'accès de la route titulaire:", error);
+          console.error("Erreur validation titulaire:", error);
         }
       }
       setIsLoading(false);
@@ -145,81 +152,99 @@ function App() {
         <SchoolProvider>
           <Router>
             <Routes>
+              {/* --- ROUTES PUBLIQUES LIBRES --- */}
               <Route path="/" element={<Welcome />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+
+              {/* --- ACCÈS HORS-SAAS : LE PLAN LOCAL DE SUPER-ADMINISTRAION GLOBALE --- */}
+              <Route path="/super-admin" element={<ProtectedRoute allowedRoles={["ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM"]}><SuperAdminSystemLayout /></ProtectedRoute>}>
+                <Route path="dashboard" element={<SuperAdminSystemDashboard />} />
+                <Route path="ecoles" element={<SchoolManager />} />
+                <Route path="abonnements" element={<Abonnement />} />
+                <Route path="finances" element={<FinanceAbonnement />} />
+                <Route path="utilisateurs" element={<GlobalUsersSystem />} />
+                <Route path="parametres" element={<Parametres />} />
+                <Route index element={<Navigate to="dashboard" />} />
+              </Route>
               
-              {/* --- GROUPE ADMIN PROTÉGÉ --- */}
-              <Route element={<ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN","ROLE_ADMIN_SYSTEM"]}><AdminLayout /></ProtectedRoute>}>
-                <Route path="/dashboard" element={<DashboardStats />} />
-                <Route path="/annee-scolaire" element={<AnneeScolaire />} />
-                <Route path="/niveaux" element={<NiveauScolaire />} />
-                <Route path="/sections-options" element={<SectionsOptions />} />
-                <Route path="/classes" element={<ClassroomManager />} />
-                <Route path="/salles" element={<RoomManager />} />
-                <Route path="/registre" element={<StudentManagement />} />
-                <Route path="/inscriptions" element={<EnrollmentModule />} />
-                <Route path="/archives" element={<ArchiveDashboard />} />
-                <Route path="/finances" element={<FinanceAdmin />} />
-                <Route path="/roles" element={<RoleAccessManager />} /> 
-                <Route path="/parametres" element={<SettingsDashboard />} />
-              </Route>
+              {/* 🔒 TOUTES LES SESSIONS LOCALES DES ÉCOLES SONT SOUMISES AUX RESTRICTIONS DU SAASGUARD */}
+              <Route element={<SaaSGuard />}>
 
-              {/* --- GROUPE CAISSIER PROTÉGÉ --- */}
-              <Route element={<ProtectedRoute allowedRoles={["CAISSIER", "ROLE_CAISSIER", "ADMIN", "ROLE_ADMIN"]}><CashierLayout /></ProtectedRoute>}>
-                <Route path="/caissier/dashboard" element={<CashierDashboard />} />
-                <Route path="/caissier/paiements" element={<PaymentWindow />} />
-                <Route path="/caissier/recouvrement" element={<RecouvrementFraisManager />} />
-                <Route path="/caissier/comptes" element={<FinancialAccountManager />} />
-                <Route path="/caissier/entrees-caisse" element={<CashReceipts />} />
-                <Route path="/caissier/depenses" element={<ExpenseManager />} />
-                <Route path="/caissier/historique" element={<TransactionHistory />} />
-              </Route>
+                {/* --- GROUPE ADMIN PROTÉGÉ --- */}
+                <Route element={<ProtectedRoute allowedRoles={["ADMIN", "ROLE_ADMIN", "ROLE_ADMIN_SYSTEM"]}><AdminLayout /></ProtectedRoute>}>
+                  <Route path="/dashboard" element={<DashboardStats />} />
+                  <Route path="/annee-scolaire" element={<AnneeScolaire />} />
+                  <Route path="/niveaux" element={<NiveauScolaire />} />
+                  <Route path="/sections-options" element={<SectionsOptions />} />
+                  <Route path="/classes" element={<ClassroomManager />} />
+                  <Route path="/salles" element={<RoomManager />} />
+                  <Route path="/registre" element={<StudentManagement />} />
+                  <Route path="/eleves" element={<StudentManagement />} />
+                  <Route path="/enseignants" element={<TeacherManagement />} />
+                  <Route path="/inscriptions" element={<EnrollmentModule />} />
+                  <Route path="/archives" element={<ArchiveDashboard />} />
+                  <Route path="/finances" element={<FinanceAdmin />} />
+                  <Route path="/roles" element={<RoleAccessManager />} /> 
+                  <Route path="/parametres" element={<SettingsDashboard />} />
+                </Route>
 
-              {/* --- GROUPE PRÉFET PROTÉGÉ --- */}
-              <Route path="/prefet" element={<ProtectedRoute allowedRoles={["PREFET", "ROLE_PREFET", "ADMIN", "ROLE_ADMIN"]}><RegisterStudents /></ProtectedRoute>}>
-                <Route path="dashboard" element={<RegisterStudentsDashboard />} />
-                <Route path="eleves" element={<StudentManagement />} />
-                <Route path="inscriptions" element={<EnrollmentModule />} />
-                <Route path="cours" element={<SectionsOptions />} />
-                <Route index element={<Navigate to="dashboard" />} />
-              </Route>
+                {/* --- GROUPE CAISSIER PROTÉGÉ --- */}
+                <Route element={<ProtectedRoute allowedRoles={["CAISSIER", "ROLE_CAISSIER", "ADMIN", "ROLE_ADMIN"]}><CashierLayout /></ProtectedRoute>}>
+                  <Route path="/caissier/dashboard" element={<CashierDashboard />} />
+                  <Route path="/caissier/paiements" element={<PaymentWindow />} />
+                  <Route path="/caissier/recouvrement" element={<RecouvrementFraisManager />} />
+                  <Route path="/caissier/comptes" element={<FinancialAccountManager />} />
+                  <Route path="/caissier/entrees-caisse" element={<CashReceipts />} />
+                  <Route path="/caissier/depenses" element={<ExpenseManager />} />
+                  <Route path="/caissier/historique" element={<TransactionHistory />} />
+                </Route>
 
-              {/* --- GROUPE PROVISEUR PROTÉGÉ --- */}
-              <Route path="/proviseur" element={<ProtectedRoute allowedRoles={["PROVISEUR", "ROLE_PROVISEUR", "ADMIN", "ROLE_ADMIN"]}><ProviseurLayout /></ProtectedRoute>}>
-                <Route path="dashboard" element={<PedagogieDashboard />} />
-                <Route path="enseignants" element={<TeacherManagement />} />
-                <Route path="unites-cours" element={<CourseManagement />} />
-                <Route path="affectations" element={<TeacherAssignment />} />
-                <Route path="horaires" element={<ScheduleManagement />} />
-                <Route path="presences" element={<AttendanceManagement />} />
-                <Route path="reception-fiches" element={<GradeSheetReception />} />
-                <Route path="validation-fiche/:assignmentId/:period" element={<GradeSheetValidation />} />
-                <Route path="bulletin" element={<BulletinHomePage />} /> {/* NOUVELLE ROUTE BULLETINS */}
-                <Route index element={<Navigate to="dashboard" />} />
-              </Route>
+                {/* --- GROUPE PRÉFET PROTÉGÉ --- */}
+                <Route path="/prefet" element={<ProtectedRoute allowedRoles={["PREFET", "ROLE_PREFET", "ADMIN", "ROLE_ADMIN"]}><RegisterStudents /></ProtectedRoute>}>
+                  <Route path="dashboard" element={<RegisterStudentsDashboard />} />
+                  <Route path="eleves" element={<StudentManagement />} />
+                  <Route path="inscriptions" element={<EnrollmentModule />} />
+                  <Route path="cours" element={<SectionsOptions />} />
+                  <Route index element={<Navigate to="dashboard" />} />
+                </Route>
 
-              {/* --- GROUPE ENSEIGNANT PROTÉGÉ --- */}
-              <Route path="/enseignant" element={<ProtectedRoute allowedRoles={["ENSEIGNANT", "ROLE_ENSEIGNANT", "ADMIN", "ROLE_ADMIN"]}><TeacherLayout /></ProtectedRoute>}>
-                <Route path="dashboard" element={<TeacherEvaluationDashboard />} />
-                <Route path="classes" element={<TeacherClassesManager />} />
-                <Route path="titulaire" element={<TitulaireRoute><TitulaireDashboard /></TitulaireRoute>} />
-                {/* NOUVELLE ROUTE POUR LA VALIDATION DES FICHES PAR LE TITULAIRE */}
-                <Route path="titulaire/validation-fiche/:assignmentId/:period" element={<TitulaireRoute><TitulaireGradeSheetValidation /></TitulaireRoute>} />
-                <Route index element={<Navigate to="dashboard" />} />
-              </Route>
+                {/* --- GROUPE PROVISEUR PROTÉGÉ --- */}
+                <Route path="/proviseur" element={<ProtectedRoute allowedRoles={["PROVISEUR", "ROLE_PROVISEUR", "ADMIN", "ROLE_ADMIN"]}><ProviseurLayout /></ProtectedRoute>}>
+                  <Route path="dashboard" element={<PedagogieDashboard />} />
+                  <Route path="enseignants" element={<TeacherManagement />} />
+                  <Route path="unites-cours" element={<CourseManagement />} />
+                  <Route path="affectations" element={<TeacherAssignment />} />
+                  <Route path="horaires" element={<ScheduleManagement />} />
+                  <Route path="presences" element={<AttendanceManagement />} />
+                  <Route path="reception-fiches" element={<GradeSheetReception />} />
+                  <Route path="validation-fiche/:assignmentId/:period" element={<GradeSheetValidation />} />
+                  <Route path="bulletin" element={<BulletinHomePage />} /> 
+                  <Route index element={<Navigate to="dashboard" />} />
+                </Route>
 
-              {/* --- GROUPE ÉLÈVE PROTÉGÉ --- */}
-              <Route path="/student" element={<ProtectedRoute allowedRoles={["ELEVE", "ROLE_ELEVE", "ADMIN", "ROLE_ADMIN"]}><StudentPedagogyLayout /></ProtectedRoute>}>
-                <Route path="link-account" element={<StudentLinkAccount />} />
-                <Route path="dashboard" element={<StudentPedagogyDashboard />} />
-                <Route path="courses" element={<StudentCourses />} />
-                <Route path="library" element={<StudentLibrary />} />
-                <Route path="schedule" element={<StudentSchedule />} />
-                <Route path="attendance" element={<StudentAttendance />} />
-                <Route path="finance" element={<StudentFinance />} />
-                <Route path="settings" element={<StudentSettings />} />
-                <Route index element={<Navigate to="dashboard" />} />
+                {/* --- GROUPE ENSEIGNANT PROTÉGÉ --- */}
+                <Route path="/enseignant" element={<ProtectedRoute allowedRoles={["ENSEIGNANT", "ROLE_ENSEIGNANT", "ADMIN", "ROLE_ADMIN"]}><TeacherLayout /></ProtectedRoute>}>
+                  <Route path="dashboard" element={<TeacherEvaluationDashboard />} />
+                  <Route path="classes" element={<TeacherClassesManager />} />
+                  <Route path="titulaire" element={<TitulaireRoute><TitulaireDashboard /></TitulaireRoute>} />
+                  <Route path="titulaire/validation-fiche/:assignmentId/:period" element={<TitulaireRoute><TitulaireGradeSheetValidation /></TitulaireRoute>} />
+                  <Route index element={<Navigate to="dashboard" />} />
+                </Route>
+
+                {/* --- GROUPE ÉLÈVE PROTÉGÉ --- */}
+                <Route path="/student" element={<ProtectedRoute allowedRoles={["ELEVE", "ROLE_ELEVE", "ADMIN", "ROLE_ADMIN"]}><StudentPedagogyLayout /></ProtectedRoute>}>
+                  <Route path="link-account" element={<StudentLinkAccount />} />
+                  <Route path="dashboard" element={<StudentPedagogyDashboard />} />
+                  <Route path="courses" element={<StudentCourses />} />
+                  <Route path="library" element={<StudentLibrary />} />
+                  <Route path="schedule" element={<StudentSchedule />} />
+                  <Route path="attendance" element={<StudentAttendance />} />
+                  <Route path="finance" element={<StudentFinance />} />
+                  <Route path="settings" element={<StudentSettings />} />
+                  <Route index element={<Navigate to="dashboard" />} />
+                </Route>
+
               </Route>
 
               <Route path="*" element={<Navigate to="/" />} />

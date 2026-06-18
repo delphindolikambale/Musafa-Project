@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, DollarSign, ListChecks, CheckSquare, Square, Clock, AlertCircle, CheckCircle2, Trash2, Edit3, XCircle, Printer, Lock, Eye } from 'lucide-react';
+import { Calendar, DollarSign, ListChecks, CheckSquare, Square, Clock, AlertCircle, CheckCircle2, Trash2, Edit3, XCircle, Printer, Lock, Eye, HelpCircle } from 'lucide-react';
 import { ClassroomService } from '../../services/classroomService';
 import financeAdminService from '../../services/financeAdminService';
 
@@ -24,6 +24,15 @@ const PricingConfig = () => {
     
     // État pour les messages flash (Succès/Erreur)
     const [message, setMessage] = useState(null);
+
+    // État pour la boîte de dialogue informative / de confirmation
+    const [dialog, setDialog] = useState({
+        isOpen: false,
+        type: 'info', // 'info' | 'success' | 'warning' | 'danger'
+        title: '',
+        message: '',
+        onConfirm: null
+    });
 
     useEffect(() => {
         loadInitialData();
@@ -118,18 +127,27 @@ const PricingConfig = () => {
         setViewingSchedule(null);
     };
 
-    const handleDelete = async () => {
+    const handleDelete = () => {
         if (!viewingSchedule) return;
-        if (!window.confirm("Êtes-vous sûr de vouloir supprimer ce barème ? Toutes les tranches associées seront supprimées.")) return;
-        
-        try {
-            await financeAdminService.deleteSchedule(viewingSchedule.id);
-            setViewingSchedule(null);
-            setMessage({ type: 'success', text: "Le barème a été supprimé avec succès." });
-            loadInitialData();
-        } catch (error) {
-            setMessage({ type: 'error', text: "Erreur lors de la suppression." });
-        }
+
+        // Remplacement du window.confirm par la boîte de dialogue personnalisée
+        setDialog({
+            isOpen: true,
+            type: 'danger',
+            title: 'Suppression du barème',
+            message: 'Êtes-vous sûr de vouloir supprimer ce barème ? Toutes les tranches associées seront définitivement retirées.',
+            onConfirm: async () => {
+                setDialog(prev => ({ ...prev, isOpen: false }));
+                try {
+                    await financeAdminService.deleteSchedule(viewingSchedule.id);
+                    setViewingSchedule(null);
+                    setMessage({ type: 'success', text: "Le barème a été supprimé avec succès." });
+                    loadInitialData();
+                } catch (error) {
+                    setMessage({ type: 'error', text: "Erreur lors de la suppression." });
+                }
+            }
+        });
     };
 
     const formatDate = (dateValue) => {
@@ -255,9 +273,29 @@ const PricingConfig = () => {
         return preview;
     };
 
-    const handleSaveConfig = async () => {
+    // Déclencheur de l'action d'enregistrement ou modification
+    const handleSaveConfig = () => {
         if (!activeYear) return setMessage({ type: 'error', text: "Aucune année scolaire active sélectionnée." });
-        
+        if (!totalAmount || parseFloat(totalAmount) <= 0 || !startDate) {
+            return setMessage({ type: 'error', text: "Veuillez remplir correctement tous les champs requis." });
+        }
+
+        setDialog({
+            isOpen: true,
+            type: isEditing ? 'info' : 'success',
+            title: isEditing ? 'Confirmer la modification' : 'Confirmer l\'enregistrement',
+            message: isEditing 
+                ? `Êtes-vous sûr de vouloir appliquer ces modifications sur le barème de la classe sélectionnée ?`
+                : `Vous allez générer et appliquer ce nouveau barème à ${selectedClasses.length} classe(s) sélectionnée(s). Souhaitez-vous continuer ?`,
+            onConfirm: async () => {
+                setDialog(prev => ({ ...prev, isOpen: false }));
+                await executeSaveConfig();
+            }
+        });
+    };
+
+    // Logique réelle d'envoi réseau isolée pour être appelée post-validation par la boîte de dialogue
+    const executeSaveConfig = async () => {
         setSubmitting(true);
         try {
             const instCount = { 'MONTHLY': 10, 'TRIMESTER': 3, 'SEMESTER': 2, 'ANNUAL': 1 }[frequency];
@@ -287,7 +325,7 @@ const PricingConfig = () => {
                     };
                     await financeAdminService.createSchedule(payload);
                 }
-                setMessage({ type: 'success', text: `${selectedClasses.length} barème(s) crée(s) avec succès !` });
+                setMessage({ type: 'success', text: `${selectedClasses.length} barème(s) créé(s) avec succès !` });
             }
             setIsEditing(false);
             setViewingSchedule(null);
@@ -305,12 +343,12 @@ const PricingConfig = () => {
 
     if (!loading && !activeYear) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-[500px] bg-white rounded-[2.5rem] border-2 border-dashed border-slate-200 p-10">
-                <div className="p-6 bg-rose-50 text-rose-500 rounded-full mb-6">
+            <div className="flex flex-col items-center justify-center min-h-[500px] bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-dashed border-slate-200 dark:border-slate-800 p-10 transition-colors">
+                <div className="p-6 bg-rose-50 dark:bg-rose-950/30 text-rose-500 rounded-full mb-6">
                     <Lock size={48} />
                 </div>
-                <h2 className="text-xl font-black text-slate-800 uppercase tracking-tighter mb-2">Configuration Verrouillée</h2>
-                <p className="text-slate-400 text-sm font-bold text-center max-w-xs uppercase">
+                <h2 className="text-xl font-black text-slate-800 dark:text-slate-200 uppercase tracking-tighter mb-2">Configuration Verrouillée</h2>
+                <p className="text-slate-400 dark:text-slate-500 text-sm font-bold text-center max-w-xs uppercase">
                     Veuillez activer une année scolaire dans les paramètres académiques pour configurer les tarifs.
                 </p>
             </div>
@@ -318,46 +356,95 @@ const PricingConfig = () => {
     }
 
     return (
-        <div className="relative">
+        <div className="relative text-slate-800 dark:text-slate-100 transition-colors">
+            
             {/* Notification flottante */}
             {message && (
                 <div className="fixed top-10 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
-                    <div className={`flex items-center gap-3 px-6 py-4 rounded-3xl shadow-2xl border ${message.type === 'success' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
+                    <div className={`flex items-center gap-3 px-6 py-4 rounded-3xl shadow-2xl border ${message.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/90 border-emerald-100 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-950/90 border-rose-100 dark:border-rose-800 text-rose-600 dark:text-rose-400'}`}>
                         {message.type === 'success' ? <CheckCircle2 size={20} /> : <AlertCircle size={20} />}
                         <span className="text-xs font-black uppercase tracking-wider">{message.text}</span>
                     </div>
                 </div>
             )}
 
+            {/* Boîte de dialogue informative / Modal de confirmation personnalisée */}
+            {dialog.isOpen && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 w-full max-w-md rounded-[2.5rem] p-6 shadow-2xl transform scale-100 animate-in zoom-in-95 duration-200 text-center">
+                        <div className="flex justify-center mb-4">
+                            <div className={`p-4 rounded-full ${
+                                dialog.type === 'danger' ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-500' :
+                                dialog.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-500' :
+                                'bg-blue-50 dark:bg-blue-950/40 text-blue-500'
+                            }`}>
+                                {dialog.type === 'danger' ? <Trash2 size={32} /> : dialog.type === 'success' ? <CheckCircle2 size={32} /> : <HelpCircle size={32} />}
+                            </div>
+                        </div>
+                        <h4 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight mb-2">
+                            {dialog.title}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-6 leading-relaxed px-2">
+                            {dialog.message}
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setDialog(prev => ({ ...prev, isOpen: false }))}
+                                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-colors"
+                            >
+                                Annuler
+                            </button>
+                            <button 
+                                onClick={dialog.onConfirm}
+                                className={`flex-1 py-3 text-white rounded-2xl text-[11px] font-black uppercase tracking-wider transition-opacity hover:opacity-90 shadow-md ${
+                                    dialog.type === 'danger' ? 'bg-rose-600' :
+                                    dialog.type === 'success' ? 'bg-emerald-600' :
+                                    'bg-blue-600'
+                                }`}
+                            >
+                                Confirmer
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="grid grid-cols-12 gap-6 p-2">
+                
+                {/* Section gauche : Configuration */}
                 <div className="col-span-12 lg:col-span-6 space-y-6">
-                    <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 transition-colors">
+                        
+                        {/* En-tête du volet */}
                         <div className="flex items-center justify-between mb-8">
                             <div className="flex items-center gap-4">
                                 <div className={`p-4 ${isEditing ? 'bg-blue-500' : 'bg-emerald-500'} rounded-2xl text-white shadow-lg`}>
                                     <DollarSign size={24} />
                                 </div>
                                 <div>
-                                    <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">
+                                    <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase text-sm tracking-widest">
                                         {isEditing ? "Modification Barème" : "Barèmes par Classe"}
                                     </h3>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase">
+                                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase">
                                         {isEditing ? "Ajustement des paramètres" : "Configurez ou consultez un barème"}
                                     </p>
                                 </div>
                             </div>
                             {activeYear && (
-                                <div className="px-4 py-2 bg-slate-900 rounded-xl text-white text-[10px] font-black uppercase tracking-widest">
+                                <div className="px-4 py-2 bg-slate-900 dark:bg-slate-800 rounded-xl text-white text-[10px] font-black uppercase tracking-widest">
                                     {activeYear.name}
                                 </div>
                             )}
                         </div>
 
+                        {/* Répertoire des classes */}
                         <div className="space-y-3">
-                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Répertoire des classes</label>
-                            <div className="border border-slate-100 rounded-[2rem] max-h-64 overflow-y-auto p-3 bg-slate-50/50">
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest px-2">Répertoire des classes</label>
+                            <div className="border border-slate-100 dark:border-slate-800 rounded-[2rem] max-h-64 overflow-y-auto p-3 bg-slate-50/50 dark:bg-slate-950/30">
                                 {loading ? (
-                                    <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500"></div></div>
+                                    <div className="flex justify-center py-10">
+                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-emerald-500"></div>
+                                    </div>
                                 ) : (
                                     classrooms.map(cls => {
                                         const schedule = getScheduleForClass(cls);
@@ -372,10 +459,10 @@ const PricingConfig = () => {
                                                 onMouseEnter={() => setHoveredClass(cls.id)}
                                                 onMouseLeave={() => setHoveredClass(null)}
                                                 className={`flex items-center justify-between p-3 mb-2 rounded-2xl cursor-pointer transition-all border-2 
-                                                    ${schedule ? 'bg-white border-slate-100 opacity-80' : 'bg-white border-transparent hover:border-emerald-200'}
-                                                    ${isSelected ? 'border-emerald-500 bg-emerald-50 shadow-md scale-[1.01]' : ''}
-                                                    ${isViewing ? 'border-blue-500 bg-blue-50' : ''}
-                                                    ${isHovered && !isSelected && !isViewing ? 'bg-slate-100/50 border-slate-200 translate-x-1' : ''}`}
+                                                    ${schedule ? 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800/60 opacity-80' : 'bg-white dark:bg-slate-900 border-transparent hover:border-emerald-200 dark:hover:border-emerald-900/60'}
+                                                    ${isSelected ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 shadow-md scale-[1.01]' : ''}
+                                                    ${isViewing ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : ''}
+                                                    ${isHovered && !isSelected && !isViewing ? 'bg-slate-100/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 translate-x-1' : ''}`}
                                             >
                                                 <div className="flex items-center gap-3">
                                                     {schedule ? (
@@ -383,14 +470,14 @@ const PricingConfig = () => {
                                                     ) : isSelected ? (
                                                         <CheckSquare size={18} className="text-emerald-500" />
                                                     ) : (
-                                                        <Square size={18} className={`${isHovered ? 'text-emerald-400' : 'text-slate-300'} transition-all`} />
+                                                        <Square size={18} className={`${isHovered ? 'text-emerald-400' : 'text-slate-300 dark:text-slate-600'} transition-all`} />
                                                     )}
                                                     <div className="flex flex-col">
-                                                        <span className={`text-xs font-black uppercase tracking-tight ${schedule ? 'text-slate-400' : 'text-slate-700'}`}>
+                                                        <span className={`text-xs font-black uppercase tracking-tight ${schedule ? 'text-slate-400 dark:text-slate-500' : 'text-slate-700 dark:text-slate-300'}`}>
                                                             {cls.displayName}
                                                         </span>
                                                         {isHovered && (
-                                                            <span className="text-[8px] font-black text-slate-400 uppercase animate-pulse">
+                                                            <span className="text-[8px] font-black text-slate-400 dark:text-slate-500 uppercase animate-pulse">
                                                                 {schedule ? "Voir le détail" : isSelected ? "Désélectionner" : "Sélectionner"}
                                                             </span>
                                                         )}
@@ -398,7 +485,7 @@ const PricingConfig = () => {
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     {schedule && (
-                                                        <span className="text-[9px] font-black bg-emerald-100 text-emerald-600 px-2 py-1 rounded-lg uppercase">
+                                                        <span className="text-[9px] font-black bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 px-2 py-1 rounded-lg uppercase">
                                                             {schedule.totalAmount} {schedule.currency}
                                                         </span>
                                                     )}
@@ -411,16 +498,26 @@ const PricingConfig = () => {
                             </div>
                         </div>
 
+                        {/* Formulaire de configuration */}
                         {(selectedClasses.length > 0 || isEditing) && (
-                            <div className="mt-6 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-bottom-4">
+                            <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800 animate-in fade-in slide-in-from-bottom-4">
                                 <div className="grid grid-cols-2 gap-4 mb-4">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Montant Global</label>
-                                        <input type="number" value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl font-mono text-emerald-600 text-xl font-black outline-none border-2 border-transparent focus:border-emerald-500 transition-all" />
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2">Montant Global</label>
+                                        <input 
+                                            type="number" 
+                                            value={totalAmount} 
+                                            onChange={(e) => setTotalAmount(e.target.value)} 
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-2xl font-mono text-emerald-600 dark:text-emerald-400 text-xl font-black outline-none border-2 border-transparent focus:border-emerald-500 dark:focus:border-emerald-400 transition-all" 
+                                        />
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Devise</label>
-                                        <select value={currency} onChange={(e) => setCurrency(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 outline-none">
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2">Devise</label>
+                                        <select 
+                                            value={currency} 
+                                            onChange={(e) => setCurrency(e.target.value)} 
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-slate-300 outline-none border-2 border-transparent focus:border-emerald-500 transition-all"
+                                        >
                                             <option value="USD">USD ($)</option>
                                             <option value="CDF">CDF (FC)</option>
                                         </select>
@@ -428,8 +525,12 @@ const PricingConfig = () => {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4 mb-6">
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Fréquence</label>
-                                        <select value={frequency} onChange={(e) => setFrequency(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 outline-none">
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2">Fréquence</label>
+                                        <select 
+                                            value={frequency} 
+                                            onChange={(e) => setFrequency(e.target.value)} 
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-slate-300 outline-none border-2 border-transparent focus:border-emerald-500 transition-all"
+                                        >
                                             <option value="ANNUAL">Annuel</option>
                                             <option value="SEMESTER">Semestriel</option>
                                             <option value="TRIMESTER">Trimestriel</option>
@@ -437,16 +538,28 @@ const PricingConfig = () => {
                                         </select>
                                     </div>
                                     <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Date début</label>
-                                        <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full p-4 bg-slate-50 rounded-2xl font-bold text-slate-700 outline-none" />
+                                        <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2">Date début</label>
+                                        <input 
+                                            type="date" 
+                                            value={startDate} 
+                                            onChange={(e) => setStartDate(e.target.value)} 
+                                            className="w-full p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl font-bold text-slate-700 dark:text-slate-300 outline-none border-2 border-transparent focus:border-emerald-500 transition-all" 
+                                        />
                                     </div>
                                 </div>
                                 <div className="flex flex-col gap-2">
-                                    <button onClick={handleSaveConfig} disabled={submitting} className={`w-full py-5 ${isEditing ? 'bg-blue-600' : 'bg-slate-900'} hover:opacity-90 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest shadow-xl transition-all`}>
+                                    <button 
+                                        onClick={handleSaveConfig} 
+                                        disabled={submitting} 
+                                        className={`w-full py-5 ${isEditing ? 'bg-blue-600' : 'bg-slate-900 dark:bg-slate-100 dark:text-slate-900'} hover:opacity-90 text-white rounded-[1.5rem] font-black uppercase text-xs tracking-widest shadow-xl transition-all`}
+                                    >
                                         {submitting ? 'Traitement...' : isEditing ? 'Mettre à jour' : `Appliquer à ${selectedClasses.length} classe(s)`}
                                     </button>
                                     {isEditing && (
-                                        <button onClick={handleCancelEdit} className="flex items-center justify-center gap-2 py-3 text-rose-500 font-bold text-[10px] uppercase hover:bg-rose-50 rounded-xl">
+                                        <button 
+                                            onClick={handleCancelEdit} 
+                                            className="flex items-center justify-center gap-2 py-3 text-rose-500 font-bold text-[10px] uppercase hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-xl transition-colors"
+                                        >
                                             <XCircle size={14} /> Annuler
                                         </button>
                                     )}
@@ -456,56 +569,69 @@ const PricingConfig = () => {
                     </div>
                 </div>
 
+                {/* Section droite : Aperçu / Barème Configuré */}
                 <div className="col-span-12 lg:col-span-6">
-                    <div className={`${viewingSchedule && !isEditing ? 'bg-blue-50/50 border-blue-100' : 'bg-slate-50 border-slate-100'} p-6 rounded-[2.5rem] border min-h-[500px] transition-colors`}>
-                        <div className="flex items-center justify-between mb-8 border-b border-slate-200 pb-5">
+                    <div className={`${viewingSchedule && !isEditing ? 'bg-blue-50/50 dark:bg-blue-950/20 border-blue-100 dark:border-blue-900' : 'bg-slate-50 dark:bg-slate-900/40 border-slate-100 dark:border-slate-800'} p-6 rounded-[2.5rem] border min-h-[500px] transition-colors`}>
+                        
+                        {/* En-tête de l'aperçu */}
+                        <div className="flex items-center justify-between mb-8 border-b border-slate-200 dark:border-slate-800 pb-5">
                             <div className="flex items-center gap-3">
                                 <ListChecks size={22} className={viewingSchedule ? "text-blue-500" : "text-emerald-500"} />
-                                <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">
+                                <h3 className="font-black text-slate-800 dark:text-slate-200 uppercase text-sm tracking-widest">
                                     {viewingSchedule && !isEditing ? "Barème Configuré" : "Aperçu de l'échéancier"}
                                 </h3>
                             </div>
                             {viewingSchedule && !isEditing && (
                                 <div className="flex gap-2">
-                                    <button onClick={handlePrint} className="p-2 bg-white text-emerald-600 rounded-xl border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm">
+                                    <button 
+                                        onClick={handlePrint} 
+                                        className="p-2 bg-white dark:bg-slate-800 text-emerald-600 dark:text-emerald-400 rounded-xl border border-emerald-100 dark:border-emerald-800 hover:bg-emerald-600 dark:hover:bg-emerald-500 hover:text-white transition-all shadow-sm"
+                                    >
                                         <Printer size={16} />
                                     </button>
-                                    <button onClick={handleStartEdit} className="p-2 bg-white text-blue-600 rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all shadow-sm">
+                                    <button 
+                                        onClick={handleStartEdit} 
+                                        className="p-2 bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 rounded-xl border border-blue-100 dark:border-blue-800 hover:bg-blue-600 dark:hover:bg-blue-500 hover:text-white transition-all shadow-sm"
+                                    >
                                         <Edit3 size={16} />
                                     </button>
-                                    <button onClick={handleDelete} className="p-2 bg-white text-rose-500 rounded-xl border border-rose-100 hover:bg-rose-500 hover:text-white transition-all shadow-sm">
+                                    <button 
+                                        onClick={handleDelete} 
+                                        className="p-2 bg-white dark:bg-slate-800 text-rose-500 rounded-xl border border-rose-100 dark:border-rose-800 hover:bg-rose-500 hover:text-white transition-all shadow-sm"
+                                    >
                                         <Trash2 size={16} />
                                     </button>
                                 </div>
                             )}
                         </div>
 
+                        {/* Liste des tranches / Échéances */}
                         {displayData.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-28 text-slate-300">
+                            <div className="flex flex-col items-center justify-center py-28 text-slate-300 dark:text-slate-700">
                                 <Calendar size={60} className="mb-4 opacity-10" />
                                 <p className="font-bold text-xs uppercase tracking-widest opacity-40">Aucun aperçu disponible</p>
                             </div>
                         ) : (
                             <div className="space-y-4">
                                 {displayData.map((t, i) => (
-                                    <div key={i} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                                    <div key={i} className="bg-white dark:bg-slate-900 p-4 rounded-3xl border border-slate-100 dark:border-slate-800/80 shadow-sm hover:shadow-md transition-all">
                                         <div className="flex justify-between items-center mb-3">
                                             <div className="flex items-center gap-3">
-                                                <div className={`w-8 h-8 ${viewingSchedule ? 'bg-blue-600' : 'bg-slate-900'} text-white rounded-xl flex items-center justify-center text-[10px] font-black`}>
+                                                <div className={`w-8 h-8 ${viewingSchedule ? 'bg-blue-600' : 'bg-slate-900 dark:bg-slate-100 dark:text-slate-900'} text-white rounded-xl flex items-center justify-center text-[10px] font-black`}>
                                                     {t.installmentNumber}
                                                 </div>
-                                                <span className="font-black text-slate-800 uppercase text-[10px]">Tranche {t.installmentNumber}</span>
+                                                <span className="font-black text-slate-800 dark:text-slate-200 uppercase text-[10px]">Tranche {t.installmentNumber}</span>
                                             </div>
                                             <div className="text-right">
-                                                <span className="font-mono font-black text-lg text-slate-900">{t.amount}</span>
-                                                <span className="ml-1 text-[10px] font-bold text-slate-400">{currency}</span>
+                                                <span className="font-mono font-black text-lg text-slate-900 dark:text-slate-100">{t.amount}</span>
+                                                <span className="ml-1 text-[10px] font-bold text-slate-400 dark:text-slate-500">{currency}</span>
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-2 gap-2">
-                                            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 rounded-xl text-[9px] font-bold text-slate-500">
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-xl text-[9px] font-bold text-slate-500 dark:text-slate-400">
                                                 <Clock size={12} className="text-emerald-500" /> {formatDate(t.startDate)}
                                             </div>
-                                            <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 rounded-xl text-[9px] font-bold text-rose-500">
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 dark:bg-rose-950/20 rounded-xl text-[9px] font-bold text-rose-500 dark:text-rose-400">
                                                 <Calendar size={12} /> {formatDate(t.dueDate)}
                                             </div>
                                         </div>
@@ -515,6 +641,7 @@ const PricingConfig = () => {
                         )}
                     </div>
                 </div>
+
             </div>
         </div>
     );

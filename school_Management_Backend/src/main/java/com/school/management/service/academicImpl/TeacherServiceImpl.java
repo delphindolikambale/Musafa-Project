@@ -10,9 +10,12 @@ import com.school.management.repository.academic.DomainRepository;
 import com.school.management.repository.academic.DomainSpecialityRepository;
 import com.school.management.repository.academic.TeacherRepository;
 import com.school.management.service.academic.TeacherService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -55,6 +58,30 @@ public class TeacherServiceImpl implements TeacherService {
         }
     }
 
+    /**
+     * ✅ MÉTHODE UTILITAIRE PRIVÉE ADAPTÉE SÉCURISÉE
+     * Extrait de manière sécurisée les détails de session de l'utilisateur connecté
+     * Évite le crash ClassCastException si le principal est une instance de String ("anonymousUser")
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session utilisateur invalide ou expirée. Veuillez vous reconnecter.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    /**
+     * ✅ MÉTHODE UTILITAIRE PRIVÉE
+     * Extrait l'ID de l'école de l'utilisateur connecté pour le cloisonnement multi-tenant
+     */
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("Action impossible : Votre compte utilisateur n'est rattaché à aucune école.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
     @Override
     @Transactional
     public TeacherResponseDTO createTeacher(TeacherCreateDTO dto, MultipartFile photo, MultipartFile cv, List<MultipartFile> titleDocs, List<MultipartFile> trainingDocs) {
@@ -63,6 +90,9 @@ public class TeacherServiceImpl implements TeacherService {
                 .filter(AcademicYear::isActive)
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Aucune année académique active trouvée."));
+
+        // ✅ MULTI-TENANT : Rattachement direct de l'enseignant à l'école de la session courante
+        teacher.setSchool(getCurrentUser().getSchool());
 
         teacher.setSchoolRegistrationNumber(generateUniqueRegistrationNumber(activeYear));
         teacher.setActive(dto.isActive()); // Initialisation du statut
@@ -95,13 +125,21 @@ public class TeacherServiceImpl implements TeacherService {
     public TeacherResponseDTO toggleActiveStatus(Long id) {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ : Vérifie que l'enseignant appartient à la même école
+        if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Cet enseignant n'appartient pas à votre établissement.");
+        }
+
         teacher.setActive(!teacher.isActive()); // Inverse le statut
         return mapToResponseDTO(teacherRepository.save(teacher));
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<TeacherResponseDTO> getActiveTeachers() {
-        return teacherRepository.findAllByActiveTrue().stream()
+        // ✅ MULTI-TENANT : Sélection uniquement des enseignants actifs de l'école connectée
+        return teacherRepository.findAllByActiveTrueAndSchoolId(getCurrentSchoolId()).stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
     }
@@ -111,6 +149,11 @@ public class TeacherServiceImpl implements TeacherService {
     public TeacherResponseDTO updateTeacher(Long id, TeacherCreateDTO dto, MultipartFile photo, MultipartFile cv, List<MultipartFile> titleDocs, List<MultipartFile> trainingDocs) {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ : Interdiction de modifier un enseignant d'une autre école
+        if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Vous ne pouvez pas modifier un enseignant d'un autre établissement.");
+        }
 
         handleSpecialityAssignment(teacher, dto);
         mapBasicInfo(teacher, dto);
@@ -149,7 +192,8 @@ public class TeacherServiceImpl implements TeacherService {
     private String generateUniqueRegistrationNumber(AcademicYear activeYear) {
         String fullYear = activeYear.getAnnee();
         String yearSuffix = (fullYear != null && fullYear.length() >= 2) ? fullYear.substring(fullYear.length() - 2) : "26";
-        long nextOrderNumber = teacherRepository.count() + 1;
+        // On effectue le décompte uniquement basé sur l'école courante pour garder des matricules séquentiels par établissement
+        long nextOrderNumber = teacherRepository.findAllBySchoolIdOrderByIdDesc(getCurrentSchoolId()).size() + 1;
         return "ENS" + nextOrderNumber + yearSuffix;
     }
 
@@ -249,9 +293,56 @@ public class TeacherServiceImpl implements TeacherService {
         }
     }
 
-    @Override public List<TeacherResponseDTO> getAllTeachers() { return teacherRepository.findAllByOrderByIdDesc().stream().map(this::mapToResponseDTO).collect(Collectors.toList()); }
-    @Override public List<TeacherResponseDTO> searchTeachers(String query) { return teacherRepository.searchTeachers(query).stream().map(this::mapToResponseDTO).collect(Collectors.toList()); }
-    @Override public TeacherResponseDTO getTeacherByRegistrationNumber(String reg) { return teacherRepository.findBySchoolRegistrationNumber(reg).map(this::mapToResponseDTO).orElse(null); }
-    @Override public TeacherResponseDTO getTeacherById(Long id) { return teacherRepository.findById(id).map(this::mapToResponseDTO).orElse(null); }
-    @Override @Transactional public void deleteTeacher(Long id) { teacherRepository.deleteById(id); }
+    @Override
+    @Transactional(readOnly = true)
+    public List<TeacherResponseDTO> getAllTeachers() {
+        // ✅ MULTI-TENANT : Liste inversée filtrée par école de session
+        return teacherRepository.findAllBySchoolIdOrderByIdDesc(getCurrentSchoolId()).stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TeacherResponseDTO> searchTeachers(String query) {
+        // ✅ CORRECTION DE L'ERREUR DE COMPILATION : Fournit à la fois le texte recherché et l'ID de l'école
+        return teacherRepository.searchTeachers(query, getCurrentSchoolId()).stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TeacherResponseDTO getTeacherByRegistrationNumber(String reg) {
+        // ✅ MULTI-TENANT : Recherche sécurisée par matricule et école
+        return teacherRepository.findBySchoolRegistrationNumberAndSchoolId(reg, getCurrentSchoolId())
+                .map(this::mapToResponseDTO)
+                .orElse(null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TeacherResponseDTO getTeacherById(Long id) {
+        Teacher teacher = teacherRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ : Bloque la consultation si l'ID de l'école diverge
+        if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Accès refusé : Cet enseignant n'appartient pas à votre établissement.");
+        }
+        return mapToResponseDTO(teacher);
+    }
+
+    @Override
+    @Transactional
+    public void deleteTeacher(Long id) {
+        Teacher teacher = teacherRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ : Empêche la suppression d'un enseignant externe
+        if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Suppression non autorisée.");
+        }
+        teacherRepository.delete(teacher);
+    }
 }

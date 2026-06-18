@@ -3,14 +3,14 @@ package com.school.management.security.jwt;
 import com.school.management.security.services.UserDetailsImpl;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
-import io.jsonwebtoken.security.SignatureException; // Import spécifique pour la gestion d'erreur
+import io.jsonwebtoken.security.SignatureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets; // Pour transformer la clé en bytes proprement
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 
@@ -19,8 +19,6 @@ import java.util.Date;
  * Version adaptée pour accepter tout type de caractères dans la clé secrète.
  */
 @Component
-
-
 public class JwtUtils {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtUtils.class);
@@ -45,11 +43,16 @@ public class JwtUtils {
     public String generateJwtToken(Authentication authentication) {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
+        // ✅ ADAPTATION : Extraction de l'ID de l'école pour l'injecter dans le jeton
+        Long schoolId = (userPrincipal.getSchool() != null) ? userPrincipal.getSchool().getId() : null;
+
         return Jwts.builder()
                 .setSubject((userPrincipal.getUsername()))
+                // ✅ NOUVEAU : React lira directement "schoolId" depuis le Token !
+                .claim("schoolId", schoolId)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
-                .signWith(key(), SignatureAlgorithm.HS256) // Signe le badge numériquement
+                .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
     }
 

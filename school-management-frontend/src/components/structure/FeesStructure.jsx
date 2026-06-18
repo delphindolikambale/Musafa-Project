@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import financeAdminService from '../../services/financeAdminService';
-import { PieChart, CheckCircle, Trash2, Pencil, X, Save, PlusCircle, Printer, Loader2, AlertTriangle } from 'lucide-react';
+import { PieChart, CheckCircle, Trash2, Pencil, X, Save, PlusCircle, Printer, Loader2, AlertTriangle, Info } from 'lucide-react';
 
 const FeesStructure = () => {
     const [groups, setGroups] = useState([]);
@@ -26,19 +26,40 @@ const FeesStructure = () => {
     const [newItemName, setNewItemName] = useState('');
     const [newItemPercent, setNewItemPercent] = useState('');
 
+    // Gestion de la boîte de dialogue (Modal)
+    const [dialog, setDialog] = useState({
+        isOpen: false,
+        type: 'info', // 'info', 'confirm', 'error', 'success'
+        title: '',
+        message: '',
+        onConfirm: null
+    });
+
     useEffect(() => {
         fetchInitialData();
     }, []);
+
+    const showDialog = (type, title, message, onConfirm = null) => {
+        setDialog({
+            isOpen: true,
+            type,
+            title,
+            message,
+            onConfirm
+        });
+    };
+
+    const closeDialog = () => {
+        setDialog(prev => ({ ...prev, isOpen: false }));
+    };
 
     const fetchInitialData = async () => {
         try {
             setLoading(true);
             setError(null);
-            // 1. Récupérer l'année active dynamiquement
             const resYear = await financeAdminService.getActiveAcademicYear();
             if (resYear.data) {
                 setActiveYear(resYear.data);
-                // 2. Charger les données liées à cet ID
                 await loadData(resYear.data.id);
             } else {
                 setError("Aucune année scolaire active trouvée.");
@@ -120,7 +141,7 @@ const FeesStructure = () => {
 
     const handleError = (error) => {
         const message = error.response?.data?.message || "Une erreur est survenue";
-        alert(message);
+        showDialog('error', 'Erreur Opération', message);
     };
 
     const totalGroupPercentage = groups.reduce((acc, curr) => acc + (curr.percentage || 0), 0);
@@ -130,7 +151,7 @@ const FeesStructure = () => {
         e.preventDefault();
         const percent = parseFloat(newGroupPercent);
         if (percent + totalGroupPercentage > 100) {
-            alert(`Total dépasserait 100% (actuel: ${totalGroupPercentage}%)`);
+            showDialog('info', 'Quota Dépassé', `Le total dépasserait 100% (actuel: ${totalGroupPercentage}%)`);
             return;
         }
         try {
@@ -140,6 +161,7 @@ const FeesStructure = () => {
                 percentage: percent
             });
             setNewGroupPercent('');
+            showDialog('success', 'Enregistrement réussi', 'Le groupe de frais a été configuré avec succès.');
             loadData(activeYear.id);
         } catch (error) { handleError(error); }
     };
@@ -147,7 +169,7 @@ const FeesStructure = () => {
     const handleUpdateGroup = async (group) => {
         const newPercent = parseFloat(editGroupPercent);
         if ((totalGroupPercentage - group.percentage) + newPercent > 100) {
-            alert("Le total des groupes ne peut pas dépasser 100%.");
+            showDialog('info', 'Quota Dépassé', 'Le total des groupes ne peut pas dépasser 100%.');
             return;
         }
         try {
@@ -157,6 +179,7 @@ const FeesStructure = () => {
                 academicYearId: activeYear.id
             });
             setEditingGroupId(null);
+            showDialog('success', 'Modification réussie', 'Le groupe a été mis à jour.');
             loadData(activeYear.id);
         } catch (error) { handleError(error); }
     };
@@ -166,7 +189,7 @@ const FeesStructure = () => {
         const percent = parseFloat(newItemPercent);
         const currentItemsTotal = group.items.reduce((acc, item) => acc + item.percentage, 0);
         if (currentItemsTotal + percent > group.percentage) {
-            alert(`Dépassement du quota groupe (${group.percentage}%).`);
+            showDialog('info', 'Quota Limité', `Dépassement du quota groupe (${group.percentage}%).`);
             return;
         }
         try {
@@ -179,6 +202,7 @@ const FeesStructure = () => {
             setActiveGroupId(null);
             setNewItemName('');
             setNewItemPercent('');
+            showDialog('success', 'Enregistrement réussi', 'Le sous-frais a bien été rajouté au groupe.');
             loadData(activeYear.id);
         } catch (error) { handleError(error); }
     };
@@ -187,7 +211,7 @@ const FeesStructure = () => {
         const newPercent = parseFloat(editItemPercent);
         const otherItemsTotal = group.items.filter(i => i.id !== item.id).reduce((acc, i) => acc + i.percentage, 0);
         if (otherItemsTotal + newPercent > group.percentage) {
-            alert(`Total items (${otherItemsTotal + newPercent}%) dépasse le groupe (${group.percentage}%).`);
+            showDialog('info', 'Quota Limité', `Total items (${otherItemsTotal + newPercent}%) dépasse le groupe (${group.percentage}%).`);
             return;
         }
         try {
@@ -198,33 +222,38 @@ const FeesStructure = () => {
                 academicYearId: activeYear.id
             });
             setEditingItemId(null);
+            showDialog('success', 'Modification réussie', 'Le sous-frais a été mis à jour avec succès.');
             loadData(activeYear.id);
         } catch (error) { handleError(error); }
     };
 
     const handleDeleteGroup = async (id) => {
-        if (!window.confirm("Supprimer ce groupe ?")) return;
-        try {
-            await financeAdminService.deleteGroup(id);
-            loadData(activeYear.id);
-        } catch (error) { handleError(error); }
+        showDialog('confirm', 'Confirmation de suppression', 'Êtes-vous sûr de vouloir supprimer ce groupe ? Tous les sous-frais associés seront affectés.', async () => {
+            try {
+                await financeAdminService.deleteGroup(id);
+                loadData(activeYear.id);
+                closeDialog();
+            } catch (error) { handleError(error); }
+        });
     };
 
     const handleDeleteItem = async (id) => {
-        if (!window.confirm("Supprimer ce sous-frais ?")) return;
-        try {
-            await financeAdminService.deleteItem(id);
-            loadData(activeYear.id);
-        } catch (error) { handleError(error); }
+        showDialog('confirm', 'Confirmation de suppression', 'Êtes-vous sûr de vouloir supprimer ce sous-frais ?', async () => {
+            try {
+                await financeAdminService.deleteItem(id);
+                loadData(activeYear.id);
+                closeDialog();
+            } catch (error) { handleError(error); }
+        });
     };
 
     if (error || (!activeYear && !loading)) {
         return (
-            <div className="flex flex-col items-center justify-center p-20 bg-white rounded-[3rem] shadow-sm border-2 border-dashed border-slate-200">
+            <div className="flex flex-col items-center justify-center p-20 bg-white dark:bg-slate-800 rounded-[3rem] shadow-sm border-2 border-dashed border-slate-200 dark:border-slate-700 transition-colors">
                 <AlertTriangle size={48} className="text-amber-500 mb-4" />
-                <h2 className="text-xl font-black text-slate-800 uppercase">Année scolaire non active</h2>
-                <p className="text-slate-500 text-center mt-2">{error || "Veuillez activer une année dans le Calendrier."}</p>
-                <button onClick={fetchInitialData} className="mt-6 px-6 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold uppercase">Réessayer</button>
+                <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 uppercase">Année scolaire non active</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-center mt-2">{error || "Veuillez activer une année dans le Calendrier."}</p>
+                <button onClick={fetchInitialData} className="mt-6 px-6 py-2 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-xl text-xs font-bold uppercase hover:opacity-90 transition-opacity">Réessayer</button>
             </div>
         );
     }
@@ -233,47 +262,47 @@ const FeesStructure = () => {
         <div className="grid grid-cols-12 gap-6 p-4">
             {/* Colonne Gauche */}
             <div className="col-span-12 lg:col-span-4 space-y-6">
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 transition-colors">
                     <div className="flex items-center gap-3 mb-6">
                         <div className="p-3 bg-blue-600 rounded-2xl text-white"><PieChart size={20} /></div>
-                        <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">Nouveau Groupe</h3>
+                        <h3 className="font-black text-slate-800 dark:text-slate-100 uppercase text-sm tracking-widest">Nouveau Groupe</h3>
                     </div>
 
                     <div className="mb-6">
                         <div className="flex justify-between text-xs font-bold mb-2">
-                            <span className="text-slate-500">Total {activeYear?.annee}</span>
-                            <span className={isGlobalValid ? "text-green-500" : "text-amber-500"}>{totalGroupPercentage}% / 100%</span>
+                            <span className="text-slate-500 dark:text-slate-400">Total {activeYear?.annee}</span>
+                            <span className={isGlobalValid ? "text-green-500 dark:text-green-400" : "text-amber-500 dark:text-amber-400"}>{totalGroupPercentage}% / 100%</span>
                         </div>
-                        <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden">
+                        <div className="w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                             <div className={`h-full transition-all duration-500 ${isGlobalValid ? 'bg-green-500' : 'bg-amber-400'}`} style={{ width: `${Math.min(totalGroupPercentage, 100)}%` }}></div>
                         </div>
                     </div>
                     
                     <form onSubmit={handleCreateGroup} className="space-y-4">
                         <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Type</label>
-                            <select value={newGroupType} onChange={(e) => setNewGroupType(e.target.value)} className="w-full p-4 bg-slate-50 border-none rounded-2xl text-slate-700 font-bold focus:ring-2 focus:ring-blue-500">
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2">Type</label>
+                            <select value={newGroupType} onChange={(e) => setNewGroupType(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-none rounded-2xl text-slate-700 dark:text-slate-200 font-bold focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 transition-colors">
                                 <option value="SCOLARITE">Scolarité</option>
                                 <option value="DIVERS">Frais Divers</option>
                             </select>
                         </div>
                         <div>
-                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Pourcentage (%)</label>
-                            <input type="number" value={newGroupPercent} onChange={(e) => setNewGroupPercent(e.target.value)} className="w-full p-4 bg-slate-50 border-none rounded-2xl font-mono text-blue-600 font-bold" placeholder="0-100" required />
+                            <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase ml-2">Pourcentage (%)</label>
+                            <input type="number" value={newGroupPercent} onChange={(e) => setNewGroupPercent(e.target.value)} className="w-full p-4 bg-slate-50 dark:bg-slate-700 border-none rounded-2xl font-mono text-blue-600 dark:text-blue-400 font-bold focus:ring-2 focus:ring-blue-500" placeholder="0-100" required />
                         </div>
-                        <button type="submit" disabled={totalGroupPercentage >= 100} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold uppercase text-xs tracking-widest shadow-lg disabled:bg-slate-300 transition-colors">Enregistrer</button>
+                        <button type="submit" disabled={totalGroupPercentage >= 100} className="w-full py-4 bg-slate-900 dark:bg-blue-600 text-white rounded-2xl font-bold uppercase text-xs tracking-widest shadow-lg disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:text-slate-500 dark:disabled:text-slate-500 transition-colors hover:opacity-95">Enregistrer</button>
                     </form>
                 </div>
             </div>
 
             {/* Colonne Droite */}
             <div className="col-span-12 lg:col-span-8">
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 min-h-[400px]">
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 min-h-[400px] transition-colors">
                     <div className="flex justify-between items-center mb-6">
-                        <h3 className="font-black text-slate-800 uppercase text-sm tracking-widest">Structure Active</h3>
+                        <h3 className="font-black text-slate-800 dark:text-slate-100 uppercase text-sm tracking-widest">Structure Active</h3>
                         <div className="flex items-center gap-3">
-                            {!loading && <button onClick={handlePrint} className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl transition-colors flex items-center gap-2 text-xs font-bold"><Printer size={16} /> Imprimer</button>}
-                            {isGlobalValid && <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> 100% OK</span>}
+                            {!loading && <button onClick={handlePrint} className="p-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl transition-colors flex items-center gap-2 text-xs font-bold"><Printer size={16} /> Imprimer</button>}
+                            {isGlobalValid && <span className="px-3 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-full text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> 100% OK</span>}
                         </div>
                     </div>
                     
@@ -285,44 +314,44 @@ const FeesStructure = () => {
                                 const totalItemsPercent = group.items.reduce((acc, curr) => acc + curr.percentage, 0);
                                 const isGroupEditing = editingGroupId === group.id;
                                 return (
-                                    <div key={group.id} className="border-2 border-slate-100 rounded-2xl p-5 hover:border-blue-100 transition-colors">
-                                        <div className="flex justify-between items-center mb-4 border-b pb-3">
+                                    <div key={group.id} className="border-2 border-slate-100 dark:border-slate-700 rounded-2xl p-5 hover:border-blue-100 dark:hover:border-blue-900/50 transition-colors">
+                                        <div className="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-3">
                                             <div className="flex items-center gap-4">
-                                                <h4 className="font-black text-lg text-slate-800 uppercase">{group.type}</h4>
+                                                <h4 className="font-black text-lg text-slate-800 dark:text-slate-100 uppercase+">{group.type}</h4>
                                                 <div className="flex gap-1">
-                                                    <button onClick={() => { setEditingGroupId(group.id); setEditGroupPercent(group.percentage); }} className="p-1 text-slate-400 hover:text-blue-600"><Pencil size={16}/></button>
-                                                    <button onClick={() => handleDeleteGroup(group.id)} className="p-1 text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
+                                                    <button onClick={() => { setEditingGroupId(group.id); setEditGroupPercent(group.percentage); }} className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"><Pencil size={16}/></button>
+                                                    <button onClick={() => handleDeleteGroup(group.id)} className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"><Trash2 size={16}/></button>
                                                 </div>
                                             </div>
                                             {isGroupEditing ? (
                                                 <div className="flex items-center gap-2">
-                                                    <input type="number" value={editGroupPercent} onChange={e => setEditGroupPercent(e.target.value)} className="w-20 p-1 border rounded font-mono text-blue-600" />
-                                                    <button onClick={() => handleUpdateGroup(group)} className="text-green-600"><Save size={18}/></button>
+                                                    <input type="number" value={editGroupPercent} onChange={e => setEditGroupPercent(e.target.value)} className="w-20 p-1 border dark:border-slate-600 dark:bg-slate-700 rounded font-mono text-blue-600 dark:text-blue-400" />
+                                                    <button onClick={() => handleUpdateGroup(group)} className="text-green-600 dark:text-green-400"><Save size={18}/></button>
                                                     <button onClick={() => setEditingGroupId(null)} className="text-slate-400"><X size={18}/></button>
                                                 </div>
                                             ) : (
-                                                <span className="text-2xl font-black text-blue-600">{group.percentage}%</span>
+                                                <span className="text-2xl font-black text-blue-600 dark:text-blue-400">{group.percentage}%</span>
                                             )}
                                         </div>
 
-                                        <div className="space-y-2 mb-4 pl-4 border-l-2 border-blue-50">
+                                        <div className="space-y-2 mb-4 pl-4 border-l-2 border-blue-50 dark:border-slate-700">
                                             {group.items.map(item => (
-                                                <div key={item.id} className="flex justify-between items-center bg-slate-50 p-2 rounded-lg group">
+                                                <div key={item.id} className="flex justify-between items-center bg-slate-50 dark:bg-slate-700/50 p-2 rounded-lg group transition-colors">
                                                     {editingItemId === item.id ? (
                                                         <div className="flex items-center gap-2 w-full">
-                                                            <input type="text" value={editItemName} onChange={e => setEditItemName(e.target.value)} className="flex-1 p-1 border rounded text-sm" />
-                                                            <input type="number" value={editItemPercent} onChange={e => setEditItemPercent(e.target.value)} className="w-16 p-1 border rounded text-sm" />
-                                                            <button onClick={() => handleUpdateItem(item, group)} className="text-green-600"><Save size={16}/></button>
+                                                            <input type="text" value={editItemName} onChange={e => setEditItemName(e.target.value)} className="flex-1 p-1 border dark:border-slate-600 dark:bg-slate-700 rounded text-sm dark:text-white" />
+                                                            <input type="number" value={editItemPercent} onChange={e => setEditItemPercent(e.target.value)} className="w-16 p-1 border dark:border-slate-600 dark:bg-slate-700 rounded text-sm font-mono dark:text-white" />
+                                                            <button onClick={() => handleUpdateItem(item, group)} className="text-green-600 dark:text-green-400"><Save size={16}/></button>
                                                             <button onClick={() => setEditingItemId(null)} className="text-slate-400"><X size={16}/></button>
                                                         </div>
                                                     ) : (
                                                         <>
-                                                            <span className="text-sm font-bold text-slate-600">↳ {item.nameFeesItem}</span>
+                                                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300">↳ {item.nameFeesItem}</span>
                                                             <div className="flex items-center gap-3">
-                                                                <span className="text-sm font-black text-slate-400">{item.percentage}%</span>
+                                                                <span className="text-sm font-black text-slate-400 dark:text-slate-500">{item.percentage}%</span>
                                                                 <div className="hidden group-hover:flex gap-1">
-                                                                    <button onClick={() => { setEditingItemId(item.id); setEditItemName(item.nameFeesItem); setEditItemPercent(item.percentage); }} className="text-blue-500"><Pencil size={14}/></button>
-                                                                    <button onClick={() => handleDeleteItem(item.id)} className="text-red-500"><Trash2 size={14}/></button>
+                                                                    <button onClick={() => { setEditingItemId(item.id); setEditItemName(item.nameFeesItem); setEditItemPercent(item.percentage); }} className="text-blue-500 dark:text-blue-400"><Pencil size={14}/></button>
+                                                                    <button onClick={() => handleDeleteItem(item.id)} className="text-red-500 dark:text-red-400"><Trash2 size={14}/></button>
                                                                 </div>
                                                             </div>
                                                         </>
@@ -331,19 +360,19 @@ const FeesStructure = () => {
                                             ))}
                                         </div>
 
-                                        <div className="bg-slate-50 p-3 rounded-xl">
+                                        <div className="bg-slate-50 dark:bg-slate-700/30 p-3 rounded-xl transition-colors">
                                             {activeGroupId === group.id ? (
                                                 <div className="flex items-end gap-2">
-                                                    <input type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="flex-1 p-2 bg-white border rounded font-bold text-sm" placeholder="Nom" />
-                                                    <input type="number" value={newItemPercent} onChange={e => setNewItemPercent(e.target.value)} className="w-20 p-2 bg-white border rounded font-bold text-sm" placeholder="%" />
-                                                    <button onClick={() => handleCreateItem(group.id, group)} className="p-2 bg-blue-600 text-white rounded font-bold text-sm px-4">OK</button>
-                                                    <button onClick={() => setActiveGroupId(null)} className="p-2 bg-slate-300 rounded text-sm px-3">✕</button>
+                                                    <input type="text" value={newItemName} onChange={e => setNewItemName(e.target.value)} className="flex-1 p-2 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded font-bold text-sm dark:text-white" placeholder="Nom" />
+                                                    <input type="number" value={newItemPercent} onChange={e => setNewItemPercent(e.target.value)} className="w-20 p-2 bg-white dark:bg-slate-700 border dark:border-slate-600 rounded font-bold text-sm dark:text-white" placeholder="%" />
+                                                    <button onClick={() => handleCreateItem(group.id, group)} className="p-2 bg-blue-600 text-white rounded font-bold text-sm px-4 hover:bg-blue-700 transition-colors">OK</button>
+                                                    <button onClick={() => setActiveGroupId(null)} className="p-2 bg-slate-300 dark:bg-slate-600 text-slate-700 dark:text-slate-200 rounded text-sm px-3 hover:bg-slate-400 transition-colors">✕</button>
                                                 </div>
                                             ) : (
                                                 <div className="flex justify-between items-center text-xs font-bold">
-                                                    <span className="text-slate-400">Total : {totalItemsPercent}% / {group.percentage}%</span>
+                                                    <span className="text-slate-400 dark:text-slate-500">Total : {totalItemsPercent}% / {group.percentage}%</span>
                                                     {totalItemsPercent < group.percentage && (
-                                                        <button onClick={() => setActiveGroupId(group.id)} className="text-blue-600 flex items-center gap-1 hover:underline"><PlusCircle size={14}/> Ajouter un item</button>
+                                                        <button onClick={() => setActiveGroupId(group.id)} className="text-blue-600 dark:text-blue-400 flex items-center gap-1 hover:underline"><PlusCircle size={14}/> Ajouter un item</button>
                                                     )}
                                                 </div>
                                             )}
@@ -355,6 +384,47 @@ const FeesStructure = () => {
                     )}
                 </div>
             </div>
+
+            {/* Boîte de dialogue informative et responsive personnalisée */}
+            {dialog.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl border border-slate-100 dark:border-slate-700 transform transition-all scale-100">
+                        <div className="flex items-start gap-4">
+                            <div className={`p-3 rounded-2xl ${
+                                dialog.type === 'success' ? 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' :
+                                dialog.type === 'error' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' :
+                                dialog.type === 'confirm' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' :
+                                'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+                            }`}>
+                                {dialog.type === 'success' && <CheckCircle size={24} />}
+                                {dialog.type === 'error' && <AlertTriangle size={24} />}
+                                {dialog.type === 'confirm' && <AlertTriangle size={24} />}
+                                {dialog.type === 'info' && <Info size={24} />}
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="text-lg font-black text-slate-800 dark:text-slate-100">{dialog.title}</h3>
+                                <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 leading-relaxed">{dialog.message}</p>
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end gap-3">
+                            {dialog.type === 'confirm' ? (
+                                <>
+                                    <button onClick={closeDialog} className="px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors">
+                                        Annuler
+                                    </button>
+                                    <button onClick={dialog.onConfirm} className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-lg shadow-red-600/20">
+                                        Confirmer
+                                    </button>
+                                </>
+                            ) : (
+                                <button onClick={closeDialog} className="px-5 py-2 text-xs font-bold uppercase tracking-wider text-white bg-slate-900 dark:bg-blue-600 dark:hover:bg-blue-700 rounded-xl transition-colors shadow-md">
+                                    Fermer
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

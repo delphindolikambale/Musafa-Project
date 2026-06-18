@@ -8,8 +8,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -23,6 +23,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableMethodSecurity
@@ -45,9 +46,10 @@ public class WebSecurityConfig {
         return authProvider;
     }
 
+    // ✅ ADAPTATION : Liaison explicite et prioritaire du fournisseur d'authentification BCrypt au gestionnaire
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-        return authConfig.getAuthenticationManager();
+    public AuthenticationManager authenticationManager() {
+        return new ProviderManager(List.of(authenticationProvider()));
     }
 
     @Bean
@@ -74,9 +76,7 @@ public class WebSecurityConfig {
                 "http://127.0.0.1:*"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList(
-                "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"
-        ));
+        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -99,29 +99,26 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/auth/**").permitAll()
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
-                                .requestMatchers("/api/academic/**").permitAll()
-                                .requestMatchers("/api/config/**").permitAll()
-                                .requestMatchers("/api/v1/admin/school-config").permitAll()
-                                .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").permitAll()
                                 .requestMatchers("/api/resources/**").permitAll()
-                                .requestMatchers("/api/specialities/**").permitAll()
                                 .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()
-
-                                // ✅ CORRECTION : Autorisation publique du dossier "storage"
                                 .requestMatchers("/storage/**").permitAll()
 
-                                // ✅ CORRECTION : Ajout de la route manquante pour le tableau de bord
-                                .requestMatchers("/api/teacher-assignments/**").authenticated()
+                                // ✅ ADAPTATION : Harmonisation parfaite avec le nom de rôle de l'Enum AppRole
+                                .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
 
-                                .requestMatchers("/api/archives/**").authenticated()
+                                // Droits pour l'administration de l'école (Maintenance technique existante)
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")
 
-                                // ✅ CORRECTION : Sécurisation par défaut de toute autre requête non listée
+                                // Fonctionnalités multi-tenant locales aux écoles (soumises à l'authentification)
+                                .requestMatchers("/api/academic/**", "/api/config/**", "/api/v1/admin/school-config").authenticated()
+                                .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").authenticated()
+                                .requestMatchers("/api/specialities/**", "/api/teacher-assignments/**", "/api/archives/**").authenticated()
+
                                 .anyRequest().authenticated()
                 );
 
-        // ✅ CORRECTION : Ajout du provider et du filtre JWT pour finaliser la chaîne de sécurité
+        // ✅ COHÉRENCE ET SÉCURISATION EXTENSION : Liaison obligatoire de l'AuthenticationProvider personnalisé
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 

@@ -1,11 +1,11 @@
 package com.school.management.security.jwt;
 
+import com.school.management.security.services.UserDetailsImpl;
 import com.school.management.security.services.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,23 +18,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/**
- * Filtre qui intercepte chaque requête HTTP pour vérifier la présence et la validité d'un JWT.
- * Imaginez que ce filtre est le "portier" de votre école.
- * À chaque fois qu'une requête arrive
- * (pour voir une liste d'élèves ou un reçu), ce portier
- * arrête la requête, regarde si elle possède un badge JWT, vérifie sa validité avec JwtUtils,
- * et si tout est correct, laisse passer la requête en disant au système :
- * "C'est bon, c'est le Comptable qui demande cela".
- */
-
-public class AuthTokenFilter extends OncePerRequestFilter{
+public class AuthTokenFilter extends OncePerRequestFilter {
 
     @Autowired
-    private JwtUtils jwtUtils; // Utilitaire pour manipuler le token
+    private JwtUtils jwtUtils;
 
     @Autowired
-    private UserDetailsServiceImpl userDetailsService; // Service pour charger l'utilisateur
+    private UserDetailsServiceImpl userDetailsService;
 
     private static final Logger logger = LoggerFactory.getLogger(AuthTokenFilter.class);
 
@@ -42,48 +32,71 @@ public class AuthTokenFilter extends OncePerRequestFilter{
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         try {
-            // 1. Extraire le JWT de l'en-tête "Authorization" de la requête
             String jwt = parseJwt(request);
 
-            // 2. Si le token existe et qu'il est valide (vérification de la signature et expiration)
             if (jwt != null && jwtUtils.validateJwtToken(jwt)) {
-
-                // 3. Récupérer le nom d'utilisateur contenu dans le token
                 String username = jwtUtils.getUserNameFromJwtToken(jwt);
-
-                // 4. Charger les détails de l'utilisateur (rôles inclus) depuis la base de données
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                // 5. Créer l'objet d'authentification que Spring Security utilise en interne
+                if (userDetails instanceof UserDetailsImpl userPrincipal) {
+                    // ✅ ADAPTATION : Vérification stricte du rôle Super Admin basée sur l'Enum
+                    boolean isSuperAdmin = userPrincipal.getAuthorities().stream()
+                            .anyMatch(grantedAuthority ->
+                                    grantedAuthority.getAuthority().equals("ROLE_SUPER_ADMIN_SYSTEM") ||
+                                            grantedAuthority.getAuthority().equals("SUPER_ADMIN_SYSTEM")
+                            );
+
+                    // ✅ VALIDATION MULTI-TENANT STRICTE POUR LES RÔLES LOCAUX
+                    if (!isSuperAdmin) {
+
+                        // 1. L'utilisateur doit impérativement avoir une école associée
+                        if (userPrincipal.getSchool() == null) {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"error\": \"Erreur de cloisonnement : Aucun établissement associé à ce compte.\"}");
+                            return;
+                        }
+
+                        // 2. L'établissement doit être actif sur la plateforme
+                        if (!userPrincipal.getSchool().isActive()) {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"error\": \"L'accès à l'application est suspendu pour votre établissement. Veuillez contacter le support de la plateforme.\"}");
+                            return;
+                        }
+
+                        // 3. Contrôle de l'Abonnement Expiré
+                        String path = request.getRequestURI();
+                        // Exception cruciale : on laisse passer les requêtes d'authentification et les routes d'activation de licence
+                        boolean isActivationRoute = path.contains("/api/auth/") || path.contains("/activate");
+
+                        if (!userPrincipal.getSchool().isSubscriptionActive() && !isActivationRoute) {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.getWriter().write("{\"error\": \"L'abonnement de votre établissement a expiré. Veuillez renouveler votre licence pour débloquer l'accès.\"}");
+                            return;
+                        }
+                    }
+                }
+
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-
-                // 6. Ajouter les détails de la requête (IP, Session, etc.) à l'authentification
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                // 7. Enregistrer l'utilisateur authentifié dans le "Context" de sécurité de Spring
-                // À partir d'ici, l'utilisateur est considéré comme "Connecté" pour cette requête
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception e) {
             logger.error("Impossible de définir l'authentification de l'utilisateur: {}", e.getMessage());
         }
 
-        // 8. Passer la main au filtre suivant dans la chaîne (ou au contrôleur final)
         filterChain.doFilter(request, response);
     }
 
-    /**
-     * Méthode utilitaire pour extraire le token du header Authorization.
-     * Le format attendu est : "Authorization: Bearer <TOKEN>"
-     */
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
-
         if (StringUtils.hasText(headerAuth) && headerAuth.startsWith("Bearer ")) {
-            return headerAuth.substring(7); // On retire les 7 premiers caractères ("Bearer ")
+            return headerAuth.substring(7);
         }
-
         return null;
     }
 }

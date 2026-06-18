@@ -6,7 +6,9 @@ import com.school.management.model.auth.User;
 import com.school.management.model.enums.StudentStatus;
 import com.school.management.repository.academic.StudentRepository;
 import com.school.management.repository.auth.UserRepository;
+import com.school.management.security.services.UserDetailsImpl;
 import com.school.management.service.academic.StudentService;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,21 +20,43 @@ import java.util.Optional;
 public class StudentServiceImpl implements StudentService {
 
     private final StudentRepository studentRepository;
-    private final UserRepository userRepository; // NOUVEAU
-    private final PasswordEncoder passwordEncoder; // NOUVEAU
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    // ✅ ADAPTATION : Constructeur mis à jour avec les nouveaux repos/services
     public StudentServiceImpl(StudentRepository studentRepository, UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.studentRepository = studentRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
+    /**
+     * Extrait l'ID de l'établissement lié à la session courante
+     */
+    private Long getCurrentSchoolId() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        // ✅ CORRECTION : Vérification robuste alignée sur la casse exacte de l'enum AppRole (avec et sans préfixe ROLE_)
+        boolean isSuperAdmin = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("SUPER_ADMIN_SYSTEM") || a.getAuthority().equals("ROLE_SUPER_ADMIN_SYSTEM"));
+
+        if (isSuperAdmin) {
+            throw new IllegalStateException("Opération impossible : l'autorité globale SuperAdminSystem n'agit pas au sein d'une école locale.");
+        }
+
+        // ✅ INTÉGRATION SÉCURISÉE : Alerte explicite si un utilisateur local (ex: PREFET) n'a pas de school_id défini en BDD
+        if (userDetails.getSchool() == null) {
+            throw new IllegalStateException("❌ Configuration requise : Votre compte (" + userDetails.getUsername() + ") n'est rattaché à aucun établissement dans la base de données. Veuillez renseigner la colonne school_id de votre ligne utilisateur.");
+        }
+
+        return userDetails.getSchool().getId();
+    }
+
     @Override
     @Transactional
     public Student createStudent(Student student) {
-        if (studentRepository.existsByPermanentNumber(student.getPermanentNumber())) {
-            throw new IllegalStateException("❌ Un élève avec ce numéro permanent existe déjà");
+        Long schoolId = getCurrentSchoolId();
+        if (studentRepository.existsByPermanentNumberAndSchoolId(student.getPermanentNumber(), schoolId)) {
+            throw new IllegalStateException("❌ Un élève avec ce numéro permanent existe déjà dans votre établissement.");
         }
 
         if (student.getStatus() == null) {
@@ -45,13 +69,14 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(readOnly = true)
     public List<Student> getAllStudents() {
-        return studentRepository.findAll();
+        // 🛡️ ADAPTATION SÉCURITÉ : Cloisonnement hermétique par ID d'école
+        return studentRepository.findBySchoolId(getCurrentSchoolId());
     }
 
     @Override
     @Transactional(readOnly = true)
     public Student getStudentById(Long id) {
-        return studentRepository.findById(id)
+        return studentRepository.findByIdAndSchoolId(id, getCurrentSchoolId())
                 .orElseThrow(() -> new ResourceNotFoundException("❌ Élève introuvable avec l'id : " + id));
     }
 
@@ -67,14 +92,14 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional(readOnly = true)
     public Student getStudentByPermanentNumber(String permanentNumber) {
-        return studentRepository.findByPermanentNumber(permanentNumber)
+        return studentRepository.findByPermanentNumberAndSchoolId(permanentNumber, getCurrentSchoolId())
                 .orElseThrow(() -> new IllegalStateException("❌ Aucun élève trouvé avec le numéro permanent : " + permanentNumber));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Student getStudentByMatricule(String matricule) {
-        return studentRepository.findByMatricule(matricule)
+        return studentRepository.findByMatriculeAndSchoolId(matricule, getCurrentSchoolId())
                 .orElseThrow(() -> new IllegalStateException("❌ Aucun élève trouvé avec le matricule : " + matricule));
     }
 
@@ -89,10 +114,8 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public void deleteStudent(Long id) {
-        if (!studentRepository.existsById(id)) {
-            throw new ResourceNotFoundException("❌ Élève non trouvé avec l'id : " + id);
-        }
-        studentRepository.deleteById(id);
+        Student student = getStudentById(id);
+        studentRepository.delete(student);
     }
 
     @Override
@@ -101,44 +124,33 @@ public class StudentServiceImpl implements StudentService {
         if (query == null || query.trim().length() < 2) {
             return List.of();
         }
-        return studentRepository.searchStudentsWithAccount(query, StudentStatus.ACTIF);
+        return studentRepository.searchStudentsWithAccountMultiTenant(query, StudentStatus.ACTIF, getCurrentSchoolId());
     }
 
-    /**
-     * ✅ NOUVEAU : Logique de liaison sécurisée de l'espace élève
-     */
     @Override
     @Transactional
     public Student linkAccount(Long userId, String matricule, String password) {
-        // 1. Récupérer l'utilisateur
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur non trouvé"));
 
-        // 2. Vérifier strictement le mot de passe
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new IllegalArgumentException("Mot de passe incorrect");
         }
 
-        // 3. Récupérer l'élève via le matricule fourni
-        Student student = studentRepository.findByMatricule(matricule)
-                .orElseThrow(() -> new ResourceNotFoundException("Matricule introuvable. Veuillez vérifier vos données."));
+        Student student = studentRepository.findByMatriculeAndSchoolId(matricule, getCurrentSchoolId())
+                .orElseThrow(() -> new ResourceNotFoundException("Matricule introuvable dans votre établissement."));
 
-        // 4. Vérifier si l'élève n'est pas déjà lié à quelqu'un d'autre
         if (student.getUser() != null && !student.getUser().getId().equals(userId)) {
             throw new IllegalStateException("Ce matricule est déjà lié à un autre compte.");
         }
 
-        // 5. Appliquer la liaison et sauvegarder
         student.setUser(user);
         return studentRepository.save(student);
     }
 
-    /**
-     * ✅ NOUVEAU : Récupérer le dossier élève via l'ID de session globale
-     */
     @Override
     @Transactional(readOnly = true)
     public Optional<Student> getStudentByUserId(Long userId) {
-        return studentRepository.findByUserId(userId);
+        return studentRepository.findByUserIdAndSchoolId(userId, getCurrentSchoolId());
     }
 }

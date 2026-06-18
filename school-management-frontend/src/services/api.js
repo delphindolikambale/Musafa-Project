@@ -39,7 +39,6 @@ api.interceptors.request.use(
                 }
             }
         }
-
         // 3. Si on a trouvé un token, on l'injecte
         if (token) {
             config.headers['Authorization'] = 'Bearer ' + token;
@@ -51,5 +50,4 @@ api.interceptors.request.use(
         return Promise.reject(error);
     }
 );
-
 export default api;

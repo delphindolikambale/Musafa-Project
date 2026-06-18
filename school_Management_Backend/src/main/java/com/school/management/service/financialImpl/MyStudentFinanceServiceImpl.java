@@ -41,8 +41,9 @@ public class MyStudentFinanceServiceImpl implements MyStudentFinanceService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable avec ce pseudo : " + username));
 
-        // 2. Récupérer l'étudiant lié à cet ID utilisateur
-        Student student = studentRepository.findByUserId(user.getId())
+        // 2. Récupérer l'étudiant lié à cet ID utilisateur en sécurisant par son école (Multi-tenant)
+        // ✅ CORRECTION : Utilisation de la méthode native findByUserIdAndSchoolId
+        Student student = studentRepository.findByUserIdAndSchoolId(user.getId(), user.getSchool().getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Aucun profil étudiant n'est lié à cet utilisateur"));
 
         // 3. Récupérer le compte financier de l'étudiant

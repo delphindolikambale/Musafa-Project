@@ -2,6 +2,7 @@ package com.school.management.security.services;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.school.management.model.auth.User;
+import com.school.management.model.multitenant.School; // ✅ AJOUT : Importation de l'entité School
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -19,7 +20,6 @@ import java.util.stream.Stream;
  */
 @Getter
 @AllArgsConstructor
-
 public class UserDetailsImpl implements UserDetails {
 
     private static final long serialVersionUID = 1L;
@@ -30,6 +30,9 @@ public class UserDetailsImpl implements UserDetails {
 
     @JsonIgnore // Sécurité : on ne veut jamais que le mot de passe sorte du backend vers le frontend
     private String password;
+
+    // ✅ AJOUT : Le champ school permettant de propager l'école dans le contexte de sécurité
+    private School school;
 
     // Liste des rôles convertis en "Authorities" pour Spring
     private Collection<? extends GrantedAuthority> authorities;
@@ -49,12 +52,22 @@ public class UserDetailsImpl implements UserDetails {
                 })
                 .collect(Collectors.toList());
 
+        // ✅ MODIFICATION : Passage de user.getSchool() au constructeur pour alimenter le nouveau champ
         return new UserDetailsImpl(
                 user.getId(),
                 user.getUsername(),
                 user.getEmail(),
                 user.getPassword(),
+                user.getSchool(),
                 authorities);
+    }
+
+    /**
+     * ✅ AJOUT SÉCURISÉ : Vérifie de manière robuste si l'utilisateur possède le rôle Super Admin
+     */
+    public boolean isSuperAdminSystem() {
+        return authorities.stream()
+                .anyMatch(a -> a.getAuthority().equals("SUPER_ADMIN_SYSTEM") || a.getAuthority().equals("ROLE_SUPER_ADMIN_SYSTEM"));
     }
 
     @Override

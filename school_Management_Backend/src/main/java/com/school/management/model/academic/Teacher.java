@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.auth.User;
+import com.school.management.model.multitenant.School; // NOUVEAU
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -39,6 +40,14 @@ public class Teacher {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    /**
+     * ✅ NOUVEAU : Rattachement direct de l'enseignant à une école (Multi-tenant)
+     * Indispensable pour l'affectation administrative hors compte applicatif actif.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", unique = true)

@@ -1,9 +1,11 @@
 package com.school.management.model.academic;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties; // ✅ UNIQUE AJOUT D'IMPORT
 import com.school.management.model.enums.Gender;
 import com.school.management.model.enums.StudentStatus;
-import com.school.management.model.auth.User; // NOUVEAU
+import com.school.management.model.auth.User;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -101,7 +103,18 @@ public class Student {
     private String photoUrl;
 
     /**
-     * ✅ NOUVEAU : Lien vers le compte utilisateur global de l'application
+     * ✅ NOUVEAU : Rattachement direct de l'élève à une école spécifique (Multi-tenant)
+     * Permet à l'élève d'exister même sans compte utilisateur global actif.
+     * * 🔧 ADAPTATION : L'annotation @JsonIgnoreProperties empêche Jackson de bloquer
+     * sur les attributs proxy d'Hibernate lors du Lazy Loading.
+     */
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
+    /**
+     * Lien vers le compte utilisateur global de l'application
      * @JsonIgnore empêche la sérialisation infinie et protège les données d'authentification
      */
     @JsonIgnore

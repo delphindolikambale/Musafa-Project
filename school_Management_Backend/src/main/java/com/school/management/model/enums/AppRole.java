@@ -14,5 +14,6 @@ public enum AppRole {
     ROLE_CAISSIER,           // Perception des frais et émission de reçus
     ROLE_ADMIN_BUDGET,       // Planification budgétaire
     ROLE_ELEVE,              // Consultation des notes et soldes
-    ROLE_ADMIN_SYSTEM        // Super-utilisateur (Maintenance technique)
+    ROLE_ADMIN_SYSTEM,        // Admin-d'une école (Maintenance technique)
+    ROLE_SUPER_ADMIN_SYSTEM  // Super-utilisateur de l'ensemble de la plateforme SaaS
 }

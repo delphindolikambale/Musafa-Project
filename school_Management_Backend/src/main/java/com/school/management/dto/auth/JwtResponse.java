@@ -5,16 +5,21 @@ import lombok.Getter;
 import lombok.Setter;
 import java.util.List;
 
-@Getter @Setter @AllArgsConstructor
-
+@Getter
+@Setter
+@AllArgsConstructor
 public class JwtResponse {
 
     private String token;
-    private Long id; // ID du compte utilisateur
+    private Long id;
     private String username;
     private String email;
     private List<String> roles;
-
-    // NOUVEAU : ID de l'enseignant pour filtrer le dashboard côté React
     private Long teacherId;
+
+    // ✅ AJOUTS SAAS : Informations de licence renvoyées au Frontend pour les Route Guards
+    private Long schoolId;
+    private String schoolCode;
+    private boolean isSubscriptionActive;
+    private boolean isSchoolConfigured;
 }
