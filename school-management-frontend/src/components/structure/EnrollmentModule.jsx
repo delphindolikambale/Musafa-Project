@@ -309,7 +309,7 @@ const EnrollmentModule = ({ students = [], onClose }) => {
                     <button onClick={onClose ? onClose : () => navigate(-1)} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isDark ? 'hover:bg-slate-800 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>←</button>
                     <div>
                         <h1 className="text-xl font-black tracking-tight uppercase italic flex items-center gap-2">
-                            <span className="text-[#38BDF8]">Préfet d'Inscription</span>
+                            <span className="text-[#38BDF8]">Gérer Les Inscription</span>
                         </h1>
                         <p className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Gestion & Pilotage des Effectifs</p>
                     </div>

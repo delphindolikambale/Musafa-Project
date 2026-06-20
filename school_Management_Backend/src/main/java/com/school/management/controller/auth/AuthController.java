@@ -15,10 +15,12 @@ import com.school.management.security.services.UserDetailsImpl;
 import com.school.management.service.multitenant.SchoolService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -45,16 +47,22 @@ public class AuthController {
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
 
-        // JOURNALISATION DE DIAGNOSTIC
+        // CAPTURE ET JOURNALISATION AVANCÉE POUR LA PRODUCTION
         userRepository.findByUsername(loginRequest.getUsername()).ifPresent(user -> {
             boolean matches = encoder.matches(loginRequest.getPassword(), user.getPassword());
             System.out.println("[DIAGNOSTIC AUTH] Utilisateur trouvé : " + user.getUsername());
-            System.out.println("[DIAGNOSTIC AUTH] Hash stocké en BDD : " + user.getPassword());
             System.out.println("[DIAGNOSTIC AUTH] Correspondance brute de l'encodeur : " + matches);
         });
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword()));
+        } catch (AuthenticationException e) {
+            System.out.println("[ÉCHEC AUTHENTIFICATION EN PROD] Raison : " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("{\"error\": \"Erreur d'authentification : Nom d'utilisateur ou mot de passe incorrect.\"}");
+        }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
@@ -69,11 +77,9 @@ public class AuthController {
         User userEntity = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new RuntimeException("Erreur: Utilisateur non trouvé après authentification."));
 
-        // ✅ ANALYSE ET SÉCURISATION DU RÔLE - MISE EN COHÉRENCE AVEC APPROLE
         boolean isSuperAdmin = roles.contains("ROLE_SUPER_ADMIN_SYSTEM") || roles.contains("SUPER_ADMIN_SYSTEM");
         boolean isAdminSystem = roles.contains("ROLE_ADMIN_SYSTEM") || roles.contains("ADMIN_SYSTEM") || roles.contains("ADMIN") || roles.contains("ROLE_ADMIN");
 
-        // ✅ DOUBLE VERROU SAAS REVISITÉ : Exemption pour Super Admin et Admin System (pour éviter le blocage technique à la connexion)
         if (!isSuperAdmin && !isAdminSystem) {
             if (userEntity.getSchool() == null) {
                 return ResponseEntity.badRequest().body("{\"error\": \"Accès refusé : Votre compte n'est lié à aucun établissement enregistré sur la plateforme.\"}");
@@ -83,7 +89,6 @@ public class AuthController {
             }
         }
 
-        // ✅ LOGIQUE EXTRACTRICE SAAS : On récupère dynamiquement l'état de l'établissement
         Long schoolId = null;
         String schoolCode = null;
         boolean isSubscriptionActive = false;
@@ -93,12 +98,14 @@ public class AuthController {
             School school = userEntity.getSchool();
             schoolId = school.getId();
             schoolCode = school.getCode();
-            // Validation dynamique via le service de licence
             isSubscriptionActive = schoolService.checkSchoolSubscription(school.getId());
             isSchoolConfigured = school.isSchoolConfigured();
+        } else if (isSuperAdmin) {
+            // ADAPTATION CRUCIALE : Le Super Admin a tous les droits par défaut pour que l'interface front-end ne le bloque pas
+            isSubscriptionActive = true;
+            isSchoolConfigured = true;
         }
 
-        // ADAPTATION : Traitement de la liaison Enseignant
         Long teacherId = null;
         if (roles.contains("ROLE_ENSEIGNANT") || roles.contains("ENSEIGNANT")) {
             teacherId = teacherRepository.findByUserId(userDetails.getId())
@@ -106,7 +113,6 @@ public class AuthController {
                     .orElse(null);
         }
 
-        // ✅ RÉSULTAT : On retourne la réponse enrichie des métadonnées SaaS sans bloquer le flux de connexion
         return ResponseEntity.ok(new JwtResponse(
                 jwt,
                 userDetails.getId(),
@@ -160,7 +166,7 @@ public class AuthController {
         User superAdmin = new User();
         superAdmin.setUsername("superadmin");
         superAdmin.setEmail("admin@myacademia.com");
-        superAdmin.setPassword(encoder.encode("admin123"));
+        superAdmin.setPassword(encoder.encode("SuperAdmin2026!")); // Adaptation à votre mot de passe réel
         superAdmin.setAccountNonLocked(true);
         superAdmin.setEnabled(true);
         superAdmin.setSchool(null);
@@ -174,6 +180,6 @@ public class AuthController {
 
         userRepository.save(superAdmin);
 
-        return ResponseEntity.ok("Compte Super Admin réinitialisé à zéro avec succès ! (Utilisateur: superadmin | Mot de passe: admin123)");
+        return ResponseEntity.ok("Compte Super Admin réinitialisé à zéro avec succès ! (Utilisateur: superadmin | Mot de passe: SuperAdmin2026!)");
     }
 }

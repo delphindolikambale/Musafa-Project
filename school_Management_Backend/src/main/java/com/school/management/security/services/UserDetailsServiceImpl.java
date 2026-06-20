@@ -22,21 +22,26 @@ public class UserDetailsServiceImpl implements UserDetailsService {
     @Override
     @Transactional
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        // On cherche l'utilisateur, s'il n'existe pas, on lance une exception claire
+
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("Utilisateur non trouvé avec le pseudo: " + username));
 
-        // ✅ ADAPTATION MULTI-TENANT PROPRE : Force le chargement de l'école et de ses propriétés tant que la session Hibernate est ouverte
+        // ✅ ADAPTATION MULTI-TENANT PROPRE : Sécurisation du Lazy Loading pour éviter les crashs d'authentification
         if (user.getSchool() != null) {
-            user.getSchool().getId();
-            user.getSchool().getName();
-            user.getSchool().getCode();
-            user.getSchool().isActive();
-            user.getSchool().isSubscriptionActive();
-            user.getSchool().isSchoolConfigured();
+            try {
+                user.getSchool().getId();
+                user.getSchool().getName();
+                user.getSchool().getCode();
+                user.getSchool().isActive();
+                user.getSchool().isSubscriptionActive();
+                user.getSchool().isSchoolConfigured();
+            } catch (Exception e) {
+                System.out.println("[ALERTE] Échec du chargement des propriétés de l'école : " + e.getMessage());
+            }
+        } else {
+            System.out.println("[CONNEXION GLOBALE] L'utilisateur " + username + " n'est rattaché à aucune école (Accès Super Admin).");
         }
 
-        // On transforme notre entité User en UserDetails pour Spring Security
         return UserDetailsImpl.build(user);
     }
 }
