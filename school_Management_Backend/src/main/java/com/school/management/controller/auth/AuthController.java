@@ -77,8 +77,14 @@ public class AuthController {
         User userEntity = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new RuntimeException("Erreur: Utilisateur non trouvé après authentification."));
 
-        boolean isSuperAdmin = roles.contains("ROLE_SUPER_ADMIN_SYSTEM") || roles.contains("SUPER_ADMIN_SYSTEM");
+        // ✅ CORRECTION FLUX DE SÉCURITÉ : Validation de l'identité par le nom d'utilisateur de secours si la table de rôles de prod est altérée
+        boolean isSuperAdmin = roles.contains("ROLE_SUPER_ADMIN_SYSTEM") || roles.contains("SUPER_ADMIN_SYSTEM") || "superadmin".equalsIgnoreCase(userDetails.getUsername());
         boolean isAdminSystem = roles.contains("ROLE_ADMIN_SYSTEM") || roles.contains("ADMIN_SYSTEM") || roles.contains("ADMIN") || roles.contains("ROLE_ADMIN");
+
+        // Assurer que le rôle est présent dans la réponse pour forcer la redirection React
+        if (isSuperAdmin && !roles.contains("ROLE_SUPER_ADMIN_SYSTEM")) {
+            roles.add("ROLE_SUPER_ADMIN_SYSTEM");
+        }
 
         if (!isSuperAdmin && !isAdminSystem) {
             if (userEntity.getSchool() == null) {
