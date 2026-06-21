@@ -1,13 +1,19 @@
 import axios from "axios";
 
-// ✅ Détection automatique : On utilise l'URL Render en production, sinon on reste sur localhost
-const API_URL = window.location.hostname.includes('onrender.com')
-  ? "https://musafa-projectbackend.onrender.com/api/auth/"
-  : "http://localhost:8080/api/auth/";
+// ✅ Détection automatique rigoureuse et sécurisée de l'URL de production pour Render et le local
+const getBaseUrl = () => {
+  if (window.location.hostname.includes('onrender.com')) {
+    // Harmonisation parfaite avec l'URL de votre instance de production Render
+    return "https://musafa-project.onrender.com/api";
+  }
+  return "http://localhost:8080/api";
+};
+
+const API_BASE = getBaseUrl();
 
 const login = async (username, password) => {
   localStorage.removeItem("user");
-  const response = await axios.post(API_URL + "signin", {
+  const response = await axios.post(`${API_BASE}/auth/signin`, {
     username,
     password,
   });
@@ -19,7 +25,7 @@ const login = async (username, password) => {
 };
 
 const register = (username, email, password, role = "ELEVE") => {
-  return axios.post(API_URL + "signup", {
+  return axios.post(`${API_BASE}/auth/signup`, {
     username,
     email,
     password,
@@ -40,9 +46,9 @@ const activateSchool = async (schoolId, activationCode) => {
   const user = getCurrentUser();
   const token = user?.token;
 
-  // Adaptation dynamique de l'URL pour cibler le contrôleur d'établissement
+  // ✅ Adaptation dynamique propre et robuste sans altération de chaînes de caractères
   const response = await axios.post(
-    API_URL.replace("/auth/", "/school/") + "activate",
+    `${API_BASE}/school/activate`,
     { schoolId, activationCode },
     {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
