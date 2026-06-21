@@ -106,10 +106,11 @@ const Login = () => {
       
       localStorage.setItem("user", JSON.stringify(updatedUser));
 
+      // ✅ CORRECTION LOGIQUE : Séparation stricte pour éviter que isLocalAdmin capte "ROLE_SUPER_ADMIN_SYSTEM"
       const isSuperAdmin = userRoles.includes("ROLE_SUPER_ADMIN_SYSTEM") || userRoles.includes("SUPER_ADMIN_SYSTEM");
-      const isLocalAdmin = userRoles.includes("ROLE_ADMIN_SYSTEM") || userRoles.includes("ADMIN_SYSTEM") || userRoles.includes("ADMIN") || userRoles.includes("ROLE_ADMIN");
+      const isLocalAdmin = !isSuperAdmin && (userRoles.includes("ROLE_ADMIN_SYSTEM") || userRoles.includes("ADMIN_SYSTEM") || userRoles.includes("ADMIN") || userRoles.includes("ROLE_ADMIN"));
 
-      // ✅ CLARIFICATION TECHNIQUE DES ERREURS DE LIEN ÉCOLE POUR L'ADMINISTRATEUR SYSTEM DE L'ÉCOLE
+      // ✅ CLARIFICATION TECHNIQUE DES ERREURS DE LIEN ÉCOLE POUR L'ADMINISTRATEUR SYSTEM DE L'ÉCOLE (Exclut le Super Admin)
       if (isLocalAdmin && !updatedUser.schoolId) {
         setNotification({
           show: true,
@@ -177,11 +178,12 @@ const Login = () => {
       
       const currentUser = JSON.parse(localStorage.getItem("user")) || {};
       const currentUserRoles = currentUser.roles || [];
-      const isLocalAdmin = currentUserRoles.includes("ROLE_ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN") || currentUserRoles.includes("ROLE_ADMIN");
+      const isSuperAdminFallback = currentUserRoles.includes("ROLE_SUPER_ADMIN_SYSTEM") || currentUserRoles.includes("SUPER_ADMIN_SYSTEM");
+      const isLocalAdminFallback = !isSuperAdminFallback && (currentUserRoles.includes("ROLE_ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN") || currentUserRoles.includes("ROLE_ADMIN"));
 
       // Si l'erreur concerne l'abonnement mais que l'utilisateur est admin local, on affiche l'écran d'activation au lieu de bloquer
       if (backendError && (backendError.toLowerCase().includes("abonnement expiré") || backendError.toLowerCase().includes("suspendu"))) {
-        if (isLocalAdmin) {
+        if (isLocalAdminFallback) {
           setBarrier({ active: true, type: "EXPIRED" });
         } else {
           setBarrier({ active: true, type: "EXPIRED" });
@@ -203,13 +205,14 @@ const Login = () => {
   if (barrier.active) {
     const currentUser = JSON.parse(localStorage.getItem("user")) || {};
     const currentUserRoles = currentUser.roles || [];
-    const isLocalAdmin = currentUserRoles.includes("ROLE_ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN") || currentUserRoles.includes("ROLE_ADMIN");
+    const isSuperAdminFallback = currentUserRoles.includes("ROLE_SUPER_ADMIN_SYSTEM") || currentUserRoles.includes("SUPER_ADMIN_SYSTEM");
+    const isLocalAdmin = !isSuperAdminFallback && (currentUserRoles.includes("ROLE_ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN") || currentUserRoles.includes("ROLE_ADMIN"));
 
     return (
       <div className={`h-screen w-screen flex flex-col items-center justify-center font-sans ${darkMode ? "bg-slate-950 text-white" : "bg-slate-900 text-white"}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15),transparent_70%)] animate-pulse"></div>
         
-        {/* ✅ Redirection vers le formulaire de saisie de clé secrète d'activation si l'utilisateur est un ADMIN */}
+        {/* ✅ Redirection vers le formulaire de saisie de clé secrète d'activation si l'utilisateur est un ADMIN local */}
         {isLocalAdmin ? (
           <ActivationForm 
             type={barrier.type}
