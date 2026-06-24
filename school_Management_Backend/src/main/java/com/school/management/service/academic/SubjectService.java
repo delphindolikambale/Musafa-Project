@@ -1,5 +1,6 @@
 package com.school.management.service.academic;
 
+import com.school.management.dto.academic.GridSubjectRequestDTO;
 import com.school.management.dto.academic.SubjectRequestDTO;
 import com.school.management.dto.academic.SubjectResponseDTO;
 import java.util.List;
@@ -23,4 +24,6 @@ public interface SubjectService {
      * ✅ AJOUT : Récupère les matières de la classe de l'élève connecté à partir de son compte utilisateur global
      */
     List<SubjectResponseDTO> getSubjectsForConnectedStudent(Long userId);
+    void saveBulkGrid(GridSubjectRequestDTO dto);
+
 }

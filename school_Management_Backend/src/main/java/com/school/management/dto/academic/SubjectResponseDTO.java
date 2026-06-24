@@ -1,5 +1,6 @@
 package com.school.management.dto.academic;
 
+import com.school.management.model.enums.CourseCategory;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,9 +18,13 @@ public class SubjectResponseDTO {
     private Long subDomainId;
     private String subDomainName;
 
-    // --- NOUVEAUX CHAMPS POUR LE MODAL ---
+    // --- NOUVEAUX CHAMPS DE LA GRILLE HORAIRE ---
+    private CourseCategory category;
+    private Double hoursPerWeek;
+
+    // --- CHAMPS POUR LE MODAL ---
     private String teacherFullName;
-    private double weeklyHours;
+    private double weeklyHours; // Heures affectées à l'enseignant
 
     // Maxima
     private double maxP1;

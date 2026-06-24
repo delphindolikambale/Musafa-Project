@@ -27,13 +27,13 @@ const buildClassParams = (levelId, sectionId, optionId, yearId) => {
 
 const courseAcademicConfigService = {
     // --- INFORMATIONS INSTITUTION ---
-    // Correction de la route pour correspondre au SchoolConfigController (@RequestMapping("/api/v1/admin/school-config"))
     getInstitutionSettings: () => axios.get(`${API_URL}/v1/admin/school-config`, { headers: getHeader() }),
 
     // --- STRUCTURE PEDAGOGIQUE (Niveaux, Sections, Options) ---
     getAllLevels: () => axios.get(`${API_URL}/levels`, { headers: getHeader() }),
     getSectionsByLevel: (levelId) => axios.get(`${API_URL}/sections/level/${levelId}`, { headers: getHeader() }),
     getOptionsBySection: (sectionId) => axios.get(`${API_URL}/options/section/${sectionId}`, { headers: getHeader() }),
+    getAllOptions: () => axios.get(`${API_URL}/options`, { headers: getHeader() }), // AJOUT: Pour lister toutes les options
 
     // --- RÉFÉRENTIEL DES SPÉCIALITÉS (Compétences des enseignants) ---
     getAllSpecialities: () => axios.get(`${API_URL}/specialities`, { headers: getHeader() }),
@@ -41,7 +41,6 @@ const courseAcademicConfigService = {
     deleteSpeciality: (id) => axios.delete(`${API_URL}/specialities/${id}`, { headers: getHeader() }),
 
     // --- DOMAINES ---
-    // Note : Le 'data' envoyé à create/update doit contenir 'requiredSpecialityId' pour le Backend
     getAllDomains: () => axios.get(`${API_URL}/academic/domains`, { headers: getHeader() }),
     getDomainsByClass: (levelId, sectionId, optionId, yearId) => {
         const params = buildClassParams(levelId, sectionId, optionId, yearId);
@@ -71,6 +70,9 @@ const courseAcademicConfigService = {
     updateSubject: (id, data) => axios.put(`${API_URL}/academic/subjects/${id}`, data, { headers: getHeader() }),
     deleteSubject: (id) => axios.delete(`${API_URL}/academic/subjects/${id}`, { headers: getHeader() }),
 
+    // ✅ NOUVEAU : Sauvegarde matricielle en masse
+    saveBulkGrid: (data) => axios.post(`${API_URL}/academic/subjects/bulk-grid`, data, { headers: getHeader() }),
+
     // --- CONFIGURATION DES MAXIMA & AFFECTATIONS ---
     assignCourse: (data) => axios.post(`${API_URL}/config/courses/assign`, data, { headers: getHeader() }),
     updateCourseAssignment: (id, data) => axios.put(`${API_URL}/config/courses/${id}`, data, { headers: getHeader() }),
@@ -80,9 +82,6 @@ const courseAcademicConfigService = {
         return axios.get(`${API_URL}/config/courses/filter?${params.toString()}`, { headers: getHeader() });
     },
 
-    /**
-     * Clonage de la structure d'une année vers une autre
-     */
     importPreviousYearConfig: (data) => axios.post(`${API_URL}/config/courses/import-previous-year`, data, { headers: getHeader() })
 };
 

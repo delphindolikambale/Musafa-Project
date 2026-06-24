@@ -9,9 +9,15 @@ import java.util.List;
 
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
-    @Query("SELECT s FROM Subject s WHERE s.level.id = :levelId " +
-            "AND ((s.section IS NULL AND :sectionId IS NULL) OR (s.section.id = :sectionId)) " +
-            "AND ((s.option IS NULL AND :optionId IS NULL) OR (s.option.id = :optionId)) " +
+    // ADAPTATION MAJEURE : Remplacement de COALESCE par une logique JPQL standard et infaillible.
+    // Cette structure garantit que si sectionId est null (Ex: Cycle de Base),
+    // Hibernate cherchera précisément les cours où la section est également null.
+    @Query("SELECT s FROM Subject s " +
+            "LEFT JOIN s.section sec " +
+            "LEFT JOIN s.option opt " +
+            "WHERE s.level.id = :levelId " +
+            "AND ((:sectionId IS NULL AND sec IS NULL) OR (sec.id = :sectionId)) " +
+            "AND ((:optionId IS NULL AND opt IS NULL) OR (opt.id = :optionId)) " +
             "AND s.academicYear.id = :yearId")
     List<Subject> findByClassContext(
             @Param("levelId") Long levelId,
@@ -20,16 +26,18 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
             @Param("yearId") Long yearId
     );
 
-    /**
-     * ✅ AJOUT : Récupère les matières associées à la classe actuelle de l'élève connecté
-     * en traversant son inscription annuelle active.
-     */
+    // ADAPTATION SIMILAIRE : Application de la même logique stricte pour l'affichage
+    // de l'emploi du temps personnalisé côté espace étudiant.
     @Query("SELECT s FROM Subject s " +
+            "LEFT JOIN s.section sec " +
+            "LEFT JOIN s.option opt " +
             "JOIN Enrollment e ON e.classroom.level.id = s.level.id " +
-            "AND ((s.section IS NULL AND e.classroom.section IS NULL) OR (s.section.id = e.classroom.section.id)) " +
-            "AND ((s.option IS NULL AND e.classroom.option IS NULL) OR (s.option.id = e.classroom.option.id)) " +
-            "AND e.academicYear.id = s.academicYear.id " +
+            "LEFT JOIN e.classroom.section cSec " +
+            "LEFT JOIN e.classroom.option cOpt " +
             "WHERE e.student.user.id = :userId " +
-            "AND e.active = true")
+            "AND e.active = true " +
+            "AND ((sec IS NULL AND cSec IS NULL) OR (sec.id = cSec.id)) " +
+            "AND ((opt IS NULL AND cOpt IS NULL) OR (opt.id = cOpt.id)) " +
+            "AND e.academicYear.id = s.academicYear.id")
     List<Subject> findSubjectsByStudentUserId(@Param("userId") Long userId);
 }

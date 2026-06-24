@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { LayoutTemplate, CheckCircle2, ShieldAlert, Printer } from 'lucide-react';
-import StudentBulletinPrint from './StudentBulletinPrint';
+import React, { useState, useEffect } from 'react';
+import { LayoutTemplate, CheckCircle2, ShieldAlert, Printer, Loader2 } from 'lucide-react';
+import BulletinApercuContainer from './BulletinApercuContainer';
+import BulletinHeaderService from "../../../services/admin/bulletinHeaderService";
 
 // Données fictives pour l'étudiant
 const mockStudentInfo = {
@@ -56,6 +57,10 @@ const mockBulletins = {
 const BulletinFormatForm = () => {
     const [selectedFormat, setSelectedFormat] = useState('7eme_eb');
     const [selectedLevel, setSelectedLevel] = useState('tous');
+    
+    // ✅ CORRECTION : État pour stocker dynamiquement l'en-tête depuis le backend
+    const [headerData, setHeaderData] = useState(null);
+    const [loadingHeader, setLoadingHeader] = useState(true);
 
     const formatsVisuels = [
         {
@@ -84,6 +89,22 @@ const BulletinFormatForm = () => {
     const filteredFormats = selectedLevel === 'tous' 
         ? formatsVisuels 
         : formatsVisuels.filter(f => f.level === selectedLevel);
+
+    // ✅ CORRECTION : Récupération des données configurées de l'en-tête
+    useEffect(() => {
+        const fetchHeaderData = async () => {
+            try {
+                const data = await BulletinHeaderService.getHeader();
+                setHeaderData(data);
+            } catch (error) {
+                console.error("Erreur lors de la récupération de l'en-tête du bulletin:", error);
+            } finally {
+                setLoadingHeader(false);
+            }
+        };
+
+        fetchHeaderData();
+    }, []);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -162,10 +183,16 @@ const BulletinFormatForm = () => {
                     </div>
                     <div className="p-4 sm:p-8 bg-slate-100 dark:bg-slate-900/40 flex justify-center overflow-x-auto">
                         <div className="transform scale-[0.95] origin-top transition-all duration-300">
-                            <StudentBulletinPrint 
-                                bulletinData={mockBulletins[selectedFormat]} 
-                                studentInfo={mockStudentInfo}
-                            />
+                            {/* ✅ CORRECTION : Remplacement de "header={null}" par la donnée dynamique issue du backend */}
+                            {loadingHeader ? (
+                                <div className="flex items-center justify-center p-10"><Loader2 className="animate-spin text-emerald-500" /></div>
+                            ) : (
+                                <BulletinApercuContainer 
+                                    bulletinData={mockBulletins[selectedFormat]} 
+                                    studentInfo={mockStudentInfo}
+                                    header={headerData} 
+                                />
+                            )}
                         </div>
                     </div>
                 </div>

@@ -2,6 +2,7 @@ package com.school.management.service.academicImpl;
 
 import com.school.management.dto.academic.SubjectRequestDTO;
 import com.school.management.dto.academic.SubjectResponseDTO;
+import com.school.management.dto.academic.GridSubjectRequestDTO;
 import com.school.management.model.academic.*;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.SubjectService;
@@ -11,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -65,9 +66,100 @@ public class SubjectServiceImpl implements SubjectService {
                 .academicYear(year)
                 .section(dto.getSectionId() != null ? sectionRepository.findById(dto.getSectionId()).orElse(null) : null)
                 .option(dto.getOptionId() != null ? optionRepository.findById(dto.getOptionId()).orElse(null) : null)
+                .category(dto.getCategory())
+                .hoursPerWeek(dto.getHoursPerWeek())
                 .build();
 
         return mapToResponse(subjectRepository.save(subject));
+    }
+
+    /**
+     * ✅ MÉTHODE ADAPTÉE : Sauvegarde de la grille matricielle sans obligation d'année académique.
+     * Le backend récupère l'année active automatiquement.
+     */
+    @Override
+    @Transactional
+    public void saveBulkGrid(GridSubjectRequestDTO dto) {
+        // ADAPTATION : Récupération automatique de l'année active si l'ID n'est pas fourni.
+        AcademicYear year;
+        if (dto.getAcademicYearId() != null) {
+            year = academicYearRepository.findById(dto.getAcademicYearId())
+                    .orElseThrow(() -> new RuntimeException("Année introuvable"));
+        } else {
+            year = academicYearRepository.findByActiveTrue()
+                    .orElseThrow(() -> new IllegalArgumentException("Aucune année académique active n'a été trouvée."));
+        }
+
+        // Gestion du Cycle de Base
+        Section section = dto.getSectionId() != null ? sectionRepository.findById(dto.getSectionId()).orElse(null) : null;
+        Option option = dto.getOptionId() != null ? optionRepository.findById(dto.getOptionId()).orElse(null) : null;
+
+        for (GridSubjectRequestDTO.GridCourseDTO courseDTO : dto.getCourses()) {
+
+            Domain domain = null;
+            if (courseDTO.getDomainId() != null) {
+                domain = domainRepository.findById(courseDTO.getDomainId()).orElse(null);
+            }
+
+            for (Map.Entry<Long, Double> entry : courseDTO.getLevelHours().entrySet()) {
+                Long levelId = entry.getKey();
+                Double hours = entry.getValue();
+
+                if (levelId == null) {
+                    continue;
+                }
+
+                if (hours != null && hours > 0) {
+                    Level level = levelRepository.findById(levelId)
+                            .orElseThrow(() -> new RuntimeException("Niveau introuvable"));
+
+                    // ADAPTATION : Recherche avec l'ID de l'année active
+                    Subject existingSubject = subjectRepository.findByClassContext(
+                                    levelId, section != null ? section.getId() : null, option != null ? option.getId() : null, year.getId())
+                            .stream()
+                            .filter(s -> s.getName().equalsIgnoreCase(courseDTO.getName().trim()))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (existingSubject != null) {
+                        existingSubject.setHoursPerWeek(hours);
+                        subjectRepository.save(existingSubject);
+                    } else {
+                        Subject newSubject = Subject.builder()
+                                .name(courseDTO.getName().trim())
+                                .domain(domain)
+                                .subDomain(null)
+                                .level(level)
+                                .academicYear(year) // Année active injectée ici
+                                .section(section)
+                                .option(option)
+                                .category(courseDTO.getCategory())
+                                .hoursPerWeek(hours)
+                                .build();
+                        subjectRepository.save(newSubject);
+                    }
+                }
+            }
+        }
+    }
+
+    private SubDomain getOrCreateTechnicalSubDomainForGrid(Domain domain, Long levelId, Long sectionId, Long optionId, Long yearId) {
+        return subDomainRepository.findByClassContext(levelId, sectionId, optionId, yearId)
+                .stream()
+                .filter(sd -> sd.getName().equalsIgnoreCase(domain.getName()))
+                .findFirst()
+                .orElseGet(() -> {
+                    SubDomain techSd = SubDomain.builder()
+                            .name(domain.getName())
+                            .domain(domain)
+                            .level(levelRepository.findById(levelId).orElse(null))
+                            .section(sectionId != null ? sectionRepository.findById(sectionId).orElse(null) : null)
+                            .option(optionId != null ? optionRepository.findById(optionId).orElse(null) : null)
+                            .academicYear(academicYearRepository.findById(yearId).orElse(null))
+                            .orderIndex(0)
+                            .build();
+                    return subDomainRepository.save(techSd);
+                });
     }
 
     private SubDomain getOrCreateTechnicalSubDomain(Domain domain, SubjectRequestDTO dto) {
@@ -116,6 +208,8 @@ public class SubjectServiceImpl implements SubjectService {
         subject.setAcademicYear(year);
         subject.setSection(dto.getSectionId() != null ? sectionRepository.findById(dto.getSectionId()).orElse(null) : null);
         subject.setOption(dto.getOptionId() != null ? optionRepository.findById(dto.getOptionId()).orElse(null) : null);
+        subject.setCategory(dto.getCategory());
+        subject.setHoursPerWeek(dto.getHoursPerWeek());
 
         return mapToResponse(subjectRepository.save(subject));
     }
@@ -148,7 +242,6 @@ public class SubjectServiceImpl implements SubjectService {
     @Transactional(readOnly = true)
     public List<SubjectResponseDTO> getSubjectsForConnectedStudent(Long userId) {
         try {
-            // 1. Récupérer l'inscription active de l'élève
             Enrollment enrollment = entityManager.createQuery(
                             "SELECT e FROM Enrollment e WHERE e.student.user.id = :userId AND e.active = true", Enrollment.class)
                     .setParameter("userId", userId)
@@ -157,15 +250,12 @@ public class SubjectServiceImpl implements SubjectService {
             Classroom classroom = enrollment.getClassroom();
             AcademicYear year = enrollment.getAcademicYear();
 
-            // Gestion en-tête
             ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
             if (attributes != null && attributes.getResponse() != null) {
                 attributes.getResponse().addHeader("X-Classroom-Display-Name", classroom.getDisplayName());
                 attributes.getResponse().addHeader("Access-Control-Expose-Headers", "X-Classroom-Display-Name");
             }
 
-            // 2. CORRECTION : Jointure externe (LEFT JOIN) pour récupérer TOUS les cours (CourseAssignment)
-            // de la classe, et optionnellement l'enseignant (TeacherAssignment) s'il y en a un.
             List<Object[]> results = entityManager.createQuery(
                             "SELECT ca, ta FROM CourseAssignment ca " +
                                     "LEFT JOIN TeacherAssignment ta ON ta.courseAssignment = ca AND ta.classroom.id = :classroomId " +
@@ -180,10 +270,9 @@ public class SubjectServiceImpl implements SubjectService {
                     .setParameter("yearId", year.getId())
                     .getResultList();
 
-            // Mappage des résultats
             return results.stream().map(result -> {
                 CourseAssignment ca = (CourseAssignment) result[0];
-                TeacherAssignment ta = (TeacherAssignment) result[1]; // Peut être null
+                TeacherAssignment ta = (TeacherAssignment) result[1];
                 Subject s = ca.getSubject();
 
                 return SubjectResponseDTO.builder()
@@ -191,13 +280,12 @@ public class SubjectServiceImpl implements SubjectService {
                         .name(s.getName())
                         .domainId(s.getDomain() != null ? s.getDomain().getId() : null)
                         .domainName(s.getDomain() != null ? s.getDomain().getName() : null)
-                        // CORRECTION : Mappage du sous-domaine ajouté ici
                         .subDomainId(s.getSubDomain() != null ? s.getSubDomain().getId() : null)
                         .subDomainName(s.getSubDomain() != null ? s.getSubDomain().getName() : null)
-                        // Détails TeacherAssignment (sécurisé contre les valeurs nulles)
+                        .category(s.getCategory())
+                        .hoursPerWeek(s.getHoursPerWeek() != null ? s.getHoursPerWeek() : 0.0)
                         .teacherFullName(ta != null && ta.getTeacher() != null ? ta.getTeacher().getFullName() : "Non attribué")
                         .weeklyHours(ta != null ? ta.getWeeklyHours() : 0.0)
-                        // Maximas
                         .maxP1(ca.getMaxP1())
                         .maxP2(ca.getMaxP2())
                         .maxExam1(ca.getMaxExam1())
@@ -215,7 +303,7 @@ public class SubjectServiceImpl implements SubjectService {
             return Collections.emptyList();
         }
     }
-    // Mapper basique pour création/mise à jour classique
+
     private SubjectResponseDTO mapToResponse(Subject s) {
         return SubjectResponseDTO.builder()
                 .id(s.getId())
@@ -224,6 +312,8 @@ public class SubjectServiceImpl implements SubjectService {
                 .domainName(s.getDomain() != null ? s.getDomain().getName() : null)
                 .subDomainId(s.getSubDomain() != null ? s.getSubDomain().getId() : null)
                 .subDomainName(s.getSubDomain() != null ? s.getSubDomain().getName() : null)
+                .category(s.getCategory())
+                .hoursPerWeek(s.getHoursPerWeek() != null ? s.getHoursPerWeek() : 0.0)
                 .build();
     }
 }

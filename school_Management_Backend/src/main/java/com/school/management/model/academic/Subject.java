@@ -1,4 +1,6 @@
 package com.school.management.model.academic;
+
+import com.school.management.model.enums.CourseCategory;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.ArrayList;
@@ -7,7 +9,6 @@ import java.util.List;
 @Entity
 @Table(name = "subjects")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
 public class Subject {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -16,7 +17,8 @@ public class Subject {
     @Column(nullable = false)
     private String name;
 
-    @ManyToOne(optional = false)
+    // ADAPTATION : optional = false a été retiré pour permettre la sauvegarde sans domaine initial
+    @ManyToOne
     @JoinColumn(name = "domain_id")
     private Domain domain;
 
@@ -40,6 +42,14 @@ public class Subject {
     @ManyToOne(optional = false)
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
+
+    // --- AJOUTS POUR LA LOGIQUE GRILLE HORAIRE ---
+    @Enumerated(EnumType.STRING)
+    @Column(name = "category")
+    private CourseCategory category;
+
+    @Column(name = "hours_per_week")
+    private Double hoursPerWeek;
 
     // Gestion de la suppression en cascade : Supprime les maxima liés si le cours est supprimé
     @OneToMany(mappedBy = "subject", cascade = CascadeType.ALL, orphanRemoval = true)
