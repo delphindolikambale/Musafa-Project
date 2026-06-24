@@ -1,15 +1,7 @@
 import axios from "axios";
+import { BACKEND_BASE } from "./api"; // Importation de l'URL correcte depuis api.js
 
-// ✅ Détection automatique rigoureuse et sécurisée de l'URL de production pour Render et le local
-const getBaseUrl = () => {
-  if (window.location.hostname.includes('onrender.com')) {
-    // Harmonisation parfaite avec l'URL de votre instance de production Render
-    return "https://musafa-project.onrender.com/api";
-  }
-  return "http://localhost:8080/api";
-};
-
-const API_BASE = getBaseUrl();
+const API_BASE = `${BACKEND_BASE}/api`;
 
 const login = async (username, password) => {
   localStorage.removeItem("user");
@@ -38,15 +30,14 @@ const logout = () => {
 };
 
 const getCurrentUser = () => {
-  return JSON.parse(localStorage.getItem("user"));
+  const user = localStorage.getItem("user");
+  return user ? JSON.parse(user) : null;
 };
 
-// ✅ Méthode d'activation de la licence d'un établissement pour l'administrateur système
 const activateSchool = async (schoolId, activationCode) => {
   const user = getCurrentUser();
-  const token = user?.token;
+  const token = user?.token || user?.accessToken;
 
-  // ✅ Adaptation dynamique propre et robuste sans altération de chaînes de caractères
   const response = await axios.post(
     `${API_BASE}/school/activate`,
     { schoolId, activationCode },
