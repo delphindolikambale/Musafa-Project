@@ -48,12 +48,19 @@ const activateSchool = async (schoolId, activationCode) => {
   return response.data;
 };
 
+// ✅ ADAPTATION : Ajout de la méthode d'initialisation automatique pour réparer le compte superadmin directement via le cycle de vie de l'application
+const initSuperAdmin = async () => {
+  const response = await axios.post(`${API_BASE}/auth/init-superadmin`);
+  return response.data;
+};
+
 const AuthService = {
   login,
   register,
   logout,
   getCurrentUser,
   activateSchool,
+  initSuperAdmin, // Exportation de la méthode de secours
 };
 
 export default AuthService;
