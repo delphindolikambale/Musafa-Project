@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Plus, Search, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react';
+import { Building2, Plus, Search, CheckCircle2, XCircle, ShieldCheck, Mail, Key } from 'lucide-react';
 import api from '../../../services/api'; // Appel direct à votre intercepteur configuré
 
 const SchoolManager = () => {
@@ -7,8 +7,8 @@ const SchoolManager = () => {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   
-  // Formulaire d'école
-  const [formData, setFormData] = useState({ name: "", code: "", province: "", city: "" });
+  // ✅ ADAPTATION : Ajout de 'contactEmail' dans l'état initial
+  const [formData, setFormData] = useState({ name: "", code: "", province: "", city: "", contactEmail: "" });
 
   useEffect(() => {
     fetchSchools();
@@ -32,9 +32,10 @@ const SchoolManager = () => {
       const response = await api.post('/system-admin/schools', formData);
       setSchools([...schools, response.data]);
       setShowForm(false);
-      setFormData({ name: "", code: "", province: "", city: "" });
+      // ✅ ADAPTATION : Réinitialisation incluant le champ email
+      setFormData({ name: "", code: "", province: "", city: "", contactEmail: "" });
     } catch (error) {
-      alert("Erreur lors de la création de l'école : " + (error.response?.data?.message || error.message));
+      alert("Erreur lors de la création de l'école : " + (error.response?.data?.message || error.response?.data?.error || error.message));
     }
   };
 
@@ -76,7 +77,8 @@ const SchoolManager = () => {
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
             <ShieldCheck className="text-blue-500" size={20} /> Enregistrer un nouvel établissement
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* ✅ ADAPTATION : Changement de la grille pour accueillir 5 champs (3 en haut, 2 en bas ou autre disposition) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nom Complet</label>
               <input type="text" required placeholder="Ex: C.S. Musafa" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 text-slate-800 dark:text-white" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
@@ -84,6 +86,11 @@ const SchoolManager = () => {
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Code Court (10 max)</label>
               <input type="text" required maxLength={10} placeholder="Ex: CSM" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 text-slate-800 dark:text-white" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
+            </div>
+            {/* ✅ NOUVEAU CHAMP : Email de contact admin */}
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email de l'Administrateur</label>
+              <input type="email" required placeholder="Ex: admin@csmusafa.com" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 text-slate-800 dark:text-white" value={formData.contactEmail} onChange={e => setFormData({...formData, contactEmail: e.target.value})} />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Province</label>
@@ -116,9 +123,9 @@ const SchoolManager = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
-                <th className="p-4 font-bold">ID</th>
-                <th className="p-4 font-bold">Nom de l'école</th>
-                <th className="p-4 font-bold">Code</th>
+                <th className="p-4 font-bold">Nom & Code</th>
+                {/* ✅ ADAPTATION : Nouvelle colonne pour voir les accès */}
+                <th className="p-4 font-bold">Contact & Accès</th>
                 <th className="p-4 font-bold">Localisation</th>
                 <th className="p-4 font-bold text-center">Statut</th>
                 <th className="p-4 font-bold text-right">Actions</th>
@@ -126,15 +133,31 @@ const SchoolManager = () => {
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-800/50 text-sm">
               {loading ? (
-                <tr><td colSpan="6" className="p-8 text-center text-slate-500">Chargement des données...</td></tr>
+                <tr><td colSpan="5" className="p-8 text-center text-slate-500">Chargement des données...</td></tr>
               ) : schools.length === 0 ? (
-                <tr><td colSpan="6" className="p-8 text-center text-slate-500">Aucune école enregistrée pour le moment.</td></tr>
+                <tr><td colSpan="5" className="p-8 text-center text-slate-500">Aucune école enregistrée pour le moment.</td></tr>
               ) : (
                 schools.map((school) => (
                   <tr key={school.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                    <td className="p-4 font-bold text-slate-400">#{school.id}</td>
-                    <td className="p-4 font-bold text-slate-800 dark:text-white">{school.name}</td>
-                    <td className="p-4"><span className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 rounded-md font-bold text-xs">{school.code}</span></td>
+                    <td className="p-4">
+                      <div className="font-bold text-slate-800 dark:text-white">{school.name}</div>
+                      <span className="inline-block mt-1 px-2 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-xs font-bold text-slate-600 dark:text-slate-300">
+                        Code: {school.code}
+                      </span>
+                    </td>
+                    {/* ✅ ADAPTATION : Affichage de l'Email et du Code Secret d'Activation (uniquement visible par Super Admin) */}
+                    <td className="p-4">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 text-xs">
+                          <Mail size={12} /> {school.contactEmail || 'Non renseigné'}
+                        </div>
+                        {school.activationCode && (
+                          <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-500 font-mono text-xs font-bold">
+                            <Key size={12} /> Clé: {school.activationCode}
+                          </div>
+                        )}
+                      </div>
+                    </td>
                     <td className="p-4 text-slate-600 dark:text-slate-300">{school.city}, {school.province}</td>
                     <td className="p-4 text-center">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${school.active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'}`}>
