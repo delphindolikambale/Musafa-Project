@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import AuthService from "../services/auth.service";
 import ActivationForm from "./errors/ActivationForm";
+import ChangeCredentialsForm from "./ChangeCredentialsForm"; // ✅ IMPORT DE LA NOUVELLE VUE
 import { Link, useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode"; // ✅ NÉCESSITE: npm install jwt-decode
 import { 
   User, Lock, ArrowRight, Loader2, Home, 
   Eye, EyeOff, CheckCircle2, XCircle, 
@@ -69,7 +71,7 @@ const Login = () => {
   // Dialogues de notification personnalisés
   const [notification, setNotification] = useState({ show: false, type: "", title: "", text: "" });
   
-  // Écran barrière d'interception (SaaS restreint)
+  // Écran barrière d'interception (CREDENTIALS, EXPIRED, UNCONFIGURED)
   const [barrier, setBarrier] = useState({ active: false, type: "" }); 
 
   const navigate = useNavigate();
@@ -95,22 +97,31 @@ const Login = () => {
       const userData = await AuthService.login(username, password);
       const userRoles = userData.roles || [];
       
-      // ✅ Enregistrement complet des métadonnées du backend
+      // ✅ LECTURE DU TOKEN POUR VÉRIFIER LE FLAG D'ONBOARDING
+      let mustChangePassword = false;
+      if (userData.token) {
+        try {
+          const decoded = jwtDecode(userData.token);
+          mustChangePassword = decoded.mustChangePassword === true;
+        } catch (err) {
+          console.error("Erreur de décodage du token", err);
+        }
+      }
+
       const updatedUser = { 
         ...userData, 
         schoolId: userData.schoolId,
         schoolCode: userData.schoolCode,
         isSubscriptionActive: userData.isSubscriptionActive ?? userData.subscriptionActive,
-        isSchoolConfigured: userData.isSchoolConfigured ?? userData.schoolConfigured
+        isSchoolConfigured: userData.isSchoolConfigured ?? userData.schoolConfigured,
+        mustChangePassword: mustChangePassword // Ajout à l'objet local pour le routage futur
       };
       
       localStorage.setItem("user", JSON.stringify(updatedUser));
 
-      // ✅ CORRECTION LOGIQUE : Séparation stricte pour éviter que isLocalAdmin capte "ROLE_SUPER_ADMIN_SYSTEM"
       const isSuperAdmin = userRoles.includes("ROLE_SUPER_ADMIN_SYSTEM") || userRoles.includes("SUPER_ADMIN_SYSTEM");
       const isLocalAdmin = !isSuperAdmin && (userRoles.includes("ROLE_ADMIN_SYSTEM") || userRoles.includes("ADMIN_SYSTEM") || userRoles.includes("ADMIN") || userRoles.includes("ROLE_ADMIN"));
 
-      // ✅ CLARIFICATION TECHNIQUE DES ERREURS DE LIEN ÉCOLE POUR L'ADMINISTRATEUR SYSTEM DE L'ÉCOLE (Exclut le Super Admin)
       if (isLocalAdmin && !updatedUser.schoolId) {
         setNotification({
           show: true,
@@ -123,7 +134,14 @@ const Login = () => {
         return;
       }
 
-      // ✅ LOGIQUE DE BARRIÈRE SAAS CORRIGÉE : Exemption d'interception directe pour l'administrateur local afin de lui laisser l'accès d'activation
+      // ✅ BARRIÈRE 1 : CHANGEMENT DE MOT DE PASSE OBLIGATOIRE (L'emporte sur tout le reste)
+      if (mustChangePassword) {
+        setBarrier({ active: true, type: "CREDENTIALS" });
+        setLoading(false);
+        return;
+      }
+
+      // ✅ BARRIÈRE 2 : RESTRICTION SAAS POUR LES NON-ADMINS
       if (!isSuperAdmin && !isLocalAdmin && updatedUser.schoolId) {
         if (updatedUser.isSubscriptionActive === false) {
           setBarrier({ active: true, type: "EXPIRED" });
@@ -149,7 +167,7 @@ const Login = () => {
         if (isSuperAdmin) {
           navigate("/super-admin/dashboard");
         } else if (isLocalAdmin) {
-          // Si l'admin local a un abonnement expiré ou non configuré, on l'intercepte ici pour lui présenter l'ActivationForm
+          // ✅ BARRIÈRE 3 : RESTRICTION SAAS POUR L'ADMIN LOCAL (Affichage du formulaire d'activation)
           if (updatedUser.isSubscriptionActive === false) {
             setNotification({ show: false, type: "", title: "", text: "" });
             setBarrier({ active: true, type: "EXPIRED" });
@@ -173,21 +191,14 @@ const Login = () => {
       }, 2000);
 
     } catch (error) {
-      // ✅ EXTRACTEUR DE MESSAGE PRÉCIS PROVENANT DU BACKEND
       const backendError = error.response?.data?.error || error.response?.data?.message;
-      
       const currentUser = JSON.parse(localStorage.getItem("user")) || {};
       const currentUserRoles = currentUser.roles || [];
       const isSuperAdminFallback = currentUserRoles.includes("ROLE_SUPER_ADMIN_SYSTEM") || currentUserRoles.includes("SUPER_ADMIN_SYSTEM");
       const isLocalAdminFallback = !isSuperAdminFallback && (currentUserRoles.includes("ROLE_ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN") || currentUserRoles.includes("ROLE_ADMIN"));
 
-      // Si l'erreur concerne l'abonnement mais que l'utilisateur est admin local, on affiche l'écran d'activation au lieu de bloquer
       if (backendError && (backendError.toLowerCase().includes("abonnement expiré") || backendError.toLowerCase().includes("suspendu"))) {
-        if (isLocalAdminFallback) {
-          setBarrier({ active: true, type: "EXPIRED" });
-        } else {
-          setBarrier({ active: true, type: "EXPIRED" });
-        }
+        setBarrier({ active: true, type: "EXPIRED" });
       } else if (error.response?.data?.status === "SUBSCRIPTION_EXPIRED") {
         setBarrier({ active: true, type: "EXPIRED" });
       } else {
@@ -202,6 +213,13 @@ const Login = () => {
     }
   };
 
+  const handleLogoutCancel = () => {
+    localStorage.clear();
+    setBarrier({ active: false, type: "" });
+    setUsername("");
+    setPassword("");
+  };
+
   if (barrier.active) {
     const currentUser = JSON.parse(localStorage.getItem("user")) || {};
     const currentUserRoles = currentUser.roles || [];
@@ -212,15 +230,25 @@ const Login = () => {
       <div className={`h-screen w-screen flex flex-col items-center justify-center font-sans ${darkMode ? "bg-slate-950 text-white" : "bg-slate-900 text-white"}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15),transparent_70%)] animate-pulse"></div>
         
-        {/* ✅ Redirection vers le formulaire de saisie de clé secrète d'activation si l'utilisateur est un ADMIN local */}
-        {isLocalAdmin ? (
+        {/* ✅ ÉCRAN D'ONBOARDING 1 : Changement des identifiants */}
+        {barrier.type === "CREDENTIALS" ? (
+          <ChangeCredentialsForm 
+            currentUsername={currentUser.username || username}
+            darkMode={darkMode}
+            lang={lang}
+            onCancel={handleLogoutCancel}
+            onSuccess={() => {
+              // Après succès du changement, on force la déconnexion pour se reconnecter proprement avec les nouveaux identifiants
+              handleLogoutCancel();
+            }}
+          />
+        ) : 
+        /* ✅ ÉCRAN D'ONBOARDING 2 : Activation de licence (réservé aux admins locaux) */
+        isLocalAdmin ? (
           <ActivationForm 
             type={barrier.type}
             schoolId={currentUser.schoolId}
-            onCancel={() => {
-              localStorage.clear();
-              setBarrier({ active: false, type: "" });
-            }}
+            onCancel={handleLogoutCancel}
             onSuccess={() => {
               if (barrier.type === "EXPIRED") currentUser.isSubscriptionActive = true;
               if (barrier.type === "UNCONFIGURED") currentUser.isSchoolConfigured = true;
@@ -232,6 +260,7 @@ const Login = () => {
             lang={lang}
           />
         ) : (
+          /* ✅ ÉCRAN DE BLOCAGE STANDARD : Pour les simples utilisateurs si l'école est suspendue */
           <div className="relative z-10 max-w-xl text-center p-8 bg-slate-900/60 backdrop-blur-xl border border-red-500/30 rounded-[2.5rem] shadow-2xl shadow-red-950/50 mx-4">
             <div className="w-24 h-24 bg-red-500/10 border-2 border-red-500/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-red-500/20">
               <ShieldAlert size={48} className="text-red-500 animate-bounce" />
@@ -243,10 +272,7 @@ const Login = () => {
               {barrier.type === "EXPIRED" ? t.barrierExpiredText : t.barrierConfigText}
             </p>
             <button 
-              onClick={() => {
-                localStorage.clear();
-                setBarrier({ active: false, type: "" });
-              }}
+              onClick={handleLogoutCancel}
               className="px-8 py-4 bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-white font-bold rounded-2xl uppercase tracking-widest text-xs transition-all active:scale-[0.98] shadow-xl shadow-red-900/30"
             >
               {t.barrierBtn}

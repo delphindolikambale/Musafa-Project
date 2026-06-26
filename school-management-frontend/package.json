@@ -25,6 +25,7 @@
     "recharts": "^3.8.1",
     "sockjs-client": "^1.6.1",
     "stompjs": "^2.3.3",
+    "sweetalert2": "^11.26.25",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

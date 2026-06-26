@@ -304,6 +304,8 @@ public class SubjectServiceImpl implements SubjectService {
         }
     }
 
+    // ADAPTATION MAJEURE : Injection explicite des métadonnées contextuelles de niveau, section et option.
+    // Sans ces éléments, le composant graphique React reçoit une liste brute de cours sans savoir à quelle colonne les relier.
     private SubjectResponseDTO mapToResponse(Subject s) {
         return SubjectResponseDTO.builder()
                 .id(s.getId())
@@ -314,6 +316,10 @@ public class SubjectServiceImpl implements SubjectService {
                 .subDomainName(s.getSubDomain() != null ? s.getSubDomain().getName() : null)
                 .category(s.getCategory())
                 .hoursPerWeek(s.getHoursPerWeek() != null ? s.getHoursPerWeek() : 0.0)
+                .levelId(s.getLevel() != null ? s.getLevel().getId() : null)
+                .levelName(s.getLevel() != null ? s.getLevel().getName() : null)
+                .sectionId(s.getSection() != null ? s.getSection().getId() : null)
+                .optionId(s.getOption() != null ? s.getOption().getId() : null)
                 .build();
     }
 }

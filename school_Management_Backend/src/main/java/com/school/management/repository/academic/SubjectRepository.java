@@ -9,13 +9,13 @@ import java.util.List;
 
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
-    // ADAPTATION MAJEURE : Remplacement de COALESCE par une logique JPQL standard et infaillible.
-    // Cette structure garantit que si sectionId est null (Ex: Cycle de Base),
-    // Hibernate cherchera précisément les cours où la section est également null.
+    // ADAPTATION MAJEURE : Remplacement de la contrainte stricte sur levelId par une logique optionnelle.
+    // Cette structure garantit que si levelId est null (Ex: Vue matricielle globale d'un cycle),
+    // le système renvoie les cours de tous les niveaux liés à cette section/option.
     @Query("SELECT s FROM Subject s " +
             "LEFT JOIN s.section sec " +
             "LEFT JOIN s.option opt " +
-            "WHERE s.level.id = :levelId " +
+            "WHERE (:levelId IS NULL OR s.level.id = :levelId) " +
             "AND ((:sectionId IS NULL AND sec IS NULL) OR (sec.id = :sectionId)) " +
             "AND ((:optionId IS NULL AND opt IS NULL) OR (opt.id = :optionId)) " +
             "AND s.academicYear.id = :yearId")

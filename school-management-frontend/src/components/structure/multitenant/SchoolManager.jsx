@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Building2, Plus, Search, CheckCircle2, XCircle, ShieldCheck, Mail, Key } from 'lucide-react';
+import Swal from 'sweetalert2'; // ✅ NÉCESSITE: npm install sweetalert2
 import api from '../../../services/api'; // Appel direct à votre intercepteur configuré
 
 const SchoolManager = () => {
@@ -32,10 +33,44 @@ const SchoolManager = () => {
       const response = await api.post('/system-admin/schools', formData);
       setSchools([...schools, response.data]);
       setShowForm(false);
-      // ✅ ADAPTATION : Réinitialisation incluant le champ email
+      
+      // ✅ ADAPTATION : Notification complète affichant les accès générés
+      const schoolCode = response.data.code.toLowerCase();
+      const defaultUsername = `admin_${schoolCode}`;
+      const defaultPassword = `Admin@${response.data.code.toUpperCase()}2026!`;
+
+      Swal.fire({
+        title: "Établissement Enregistré !",
+        html: `
+          <div class="text-left p-3">
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4 rounded">
+              <p class="text-sm text-blue-800 font-semibold mb-2">Un compte Administrateur a été généré automatiquement :</p>
+              <ul class="list-none space-y-1 text-sm text-blue-900">
+                <li><strong>Utilisateur :</strong> <span class="font-mono bg-white px-2 py-0.5 rounded border border-blue-200">${defaultUsername}</span></li>
+                <li><strong>Mot de passe :</strong> <span class="font-mono bg-white px-2 py-0.5 rounded border border-blue-200">${defaultPassword}</span></li>
+              </ul>
+            </div>
+            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 rounded">
+              <p class="text-sm text-amber-800 font-semibold">⚠️ Étape suivante requise :</p>
+              <p class="text-xs text-amber-700 mt-1">L'école est actuellement bloquée. Rendez-vous dans l'onglet <strong>Abonnements</strong> pour enregistrer le paiement initial et générer la clé de licence d'activation.</p>
+            </div>
+          </div>
+        `,
+        icon: "success",
+        confirmButtonText: "J'ai compris",
+        confirmButtonColor: "#059669",
+        width: '32em'
+      });
+
+      // Réinitialisation incluant le champ email
       setFormData({ name: "", code: "", province: "", city: "", contactEmail: "" });
     } catch (error) {
-      alert("Erreur lors de la création de l'école : " + (error.response?.data?.message || error.response?.data?.error || error.message));
+      Swal.fire({
+        title: "Erreur",
+        text: error.response?.data?.message || error.response?.data?.error || error.message,
+        icon: "error",
+        confirmButtonColor: "#ef4444"
+      });
     }
   };
 
@@ -77,7 +112,6 @@ const SchoolManager = () => {
           <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
             <ShieldCheck className="text-blue-500" size={20} /> Enregistrer un nouvel établissement
           </h3>
-          {/* ✅ ADAPTATION : Changement de la grille pour accueillir 5 champs (3 en haut, 2 en bas ou autre disposition) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Nom Complet</label>
@@ -87,7 +121,6 @@ const SchoolManager = () => {
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Code Court (10 max)</label>
               <input type="text" required maxLength={10} placeholder="Ex: CSM" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 text-slate-800 dark:text-white" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} />
             </div>
-            {/* ✅ NOUVEAU CHAMP : Email de contact admin */}
             <div>
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Email de l'Administrateur</label>
               <input type="email" required placeholder="Ex: admin@csmusafa.com" className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-blue-500 text-slate-800 dark:text-white" value={formData.contactEmail} onChange={e => setFormData({...formData, contactEmail: e.target.value})} />
@@ -124,7 +157,6 @@ const SchoolManager = () => {
             <thead>
               <tr className="bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">
                 <th className="p-4 font-bold">Nom & Code</th>
-                {/* ✅ ADAPTATION : Nouvelle colonne pour voir les accès */}
                 <th className="p-4 font-bold">Contact & Accès</th>
                 <th className="p-4 font-bold">Localisation</th>
                 <th className="p-4 font-bold text-center">Statut</th>
@@ -145,15 +177,19 @@ const SchoolManager = () => {
                         Code: {school.code}
                       </span>
                     </td>
-                    {/* ✅ ADAPTATION : Affichage de l'Email et du Code Secret d'Activation (uniquement visible par Super Admin) */}
                     <td className="p-4">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 text-xs">
                           <Mail size={12} /> {school.contactEmail || 'Non renseigné'}
                         </div>
-                        {school.activationCode && (
+                        {/* ✅ ADAPTATION : Le code d'activation n'est affiché QUE s'il a été généré via un paiement */}
+                        {school.activationCode ? (
                           <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-500 font-mono text-xs font-bold">
                             <Key size={12} /> Clé: {school.activationCode}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-slate-400 font-mono text-xs italic">
+                            <Key size={12} /> Paiement en attente
                           </div>
                         )}
                       </div>

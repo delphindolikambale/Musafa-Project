@@ -1,15 +1,15 @@
 import React, { useState } from "react";
-import AuthService from "../../services/auth.service";
+// ✅ CORRECTION : Appel de la méthode d'activation centralisée du bon service
+import SuperAdminSystemService from "../../services/multitenantService/SuperAdminSystemService"; 
 import { KeyRound, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
-// Dictionnaire de traduction intégré pour correspondre à la charte internationale de l'application
 const translations = {
   FR: {
     titleExpired: "Renouvellement de l'Abonnement",
     titleConfig: "Activation de l'Établissement",
     subtitleExpired: "Espace Administration — Saisissez le code d'activation annuel fourni par MyAcademia pour rétablir les accès de l'école.",
     subtitleConfig: "Espace Administration — Votre établissement requiert un code de licence initial pour débloquer sa configuration sur la plateforme.",
-    placeholder: "Code d'activation (ex: MUSAFA-XXXX-XXXX)",
+    placeholder: "Code d'activation (ex: ACT-XXXX-XXXX)",
     label: "Code Secret d'Activation (ROLE_ADMIN_SYSTEM)",
     submitBtn: "Valider l'activation",
     loadingBtn: "Vérification du code...",
@@ -24,7 +24,7 @@ const translations = {
     titleConfig: "Institution Activation",
     subtitleExpired: "Administration Panel — Enter the annual activation code provided by MyAcademia to restore school access.",
     subtitleConfig: "Administration Panel — Your institution requires an initial license code to unlock its configuration on the platform.",
-    placeholder: "Activation code (e.g., MUSAFA-XXXX-XXXX)",
+    placeholder: "Activation code (e.g., ACT-XXXX-XXXX)",
     label: "Secret Activation Code (ROLE_ADMIN_SYSTEM)",
     submitBtn: "Confirm Activation",
     loadingBtn: "Verifying code...",
@@ -36,7 +36,8 @@ const translations = {
   }
 };
 
-const ActivationForm = ({ type, schoolId, onCancel, onSuccess, darkMode = true, lang = "FR" }) => {
+// ✅ CORRECTION : Remplacement de la prop 'schoolId' par 'schoolCode' pour correspondre au Controller Backend
+const ActivationForm = ({ type, schoolCode, onCancel, onSuccess, darkMode = true, lang = "FR" }) => {
   const [activationCode, setActivationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, type: "", title: "", text: "" });
@@ -51,7 +52,8 @@ const ActivationForm = ({ type, schoolId, onCancel, onSuccess, darkMode = true, 
     setNotification({ show: false, type: "", title: "", text: "" });
 
     try {
-      await AuthService.activateSchool(schoolId, activationCode.trim());
+      // ✅ CORRECTION : Utilisation de SuperAdminSystemService avec les clés correctes attendues par Map<String, String>
+      await SuperAdminSystemService.activateSchool(schoolCode, activationCode.trim());
       
       setNotification({
         show: true,
@@ -66,7 +68,7 @@ const ActivationForm = ({ type, schoolId, onCancel, onSuccess, darkMode = true, 
       }, 2500);
 
     } catch (error) {
-      const serverMsg = error.response?.data?.message || t.errorText;
+      const serverMsg = error.response?.data?.message || error.response?.data?.error || error.error || t.errorText;
       setNotification({
         show: true,
         type: "error",
@@ -78,14 +80,14 @@ const ActivationForm = ({ type, schoolId, onCancel, onSuccess, darkMode = true, 
   };
 
   return (
-    <div className="relative z-10 w-full max-w-xl p-4 flex flex-col justify-center animate-fade-in">
+    <div className="relative z-10 w-full max-w-xl p-4 flex flex-col justify-center animate-fade-in mx-auto">
       <div className={`rounded-[2.5rem] shadow-2xl p-6 sm:p-10 border transition-all duration-300 ${darkMode ? "bg-slate-900/95 border-slate-800 text-white shadow-black/50" : "bg-white border-slate-200 text-slate-900"}`}>
         
-        <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mb-6 shadow-md shadow-blue-500/5">
+        <div className="w-16 h-16 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mb-6 shadow-md shadow-blue-500/5 mx-auto">
           <KeyRound size={32} className="text-blue-500 animate-pulse" />
         </div>
 
-        <div className="mb-6">
+        <div className="mb-6 text-center">
           <h2 className="text-2xl font-black tracking-tight mb-2">
             {type === "EXPIRED" ? t.titleExpired : t.titleConfig}
           </h2>
@@ -136,7 +138,6 @@ const ActivationForm = ({ type, schoolId, onCancel, onSuccess, darkMode = true, 
         </form>
       </div>
 
-      {/* Boîte de Notification Interne */}
       {notification.show && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm rounded-[2.5rem]">
           <div className={`max-w-sm w-full p-6 rounded-3xl border shadow-2xl text-center ${darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-100 text-slate-900"}`}>

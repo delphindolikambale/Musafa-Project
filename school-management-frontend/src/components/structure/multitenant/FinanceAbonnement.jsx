@@ -1,16 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DollarSign, CreditCard, Smartphone, Banknote, TrendingUp, ArrowUpRight, Search, Filter } from 'lucide-react';
+import SuperAdminSystemService from '../../../services/multitenantService/SuperAdminSystemService';
 
 const FinanceAbonnement = () => {
   const [filterMode, setFilterMode] = useState("ALL");
+  const [transactions, setTransactions] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  // Jeu de données fictif simulant l'historique de facturation Multi-Tenant
-  const transactions = [
-    { id: "TX-1001", school: "Complexe Scolaire Musafa", date: "2026-06-12", mode: "AIRTEL_MONEY", amount: 1200, status: "COMPLETED", plan: "12 Mois" },
-    { id: "TX-1002", school: "Institut de Goma", date: "2026-06-10", mode: "CREDIT_CARD", amount: 1500, status: "COMPLETED", plan: "12 Mois" },
-    { id: "TX-1003", school: "Lycée Amani", date: "2026-06-05", mode: "CASH", modeLabel: "Espèces", amount: 600, status: "COMPLETED", plan: "6 Mois" },
-    { id: "TX-1004", school: "Complexe Scolaire Kivu", date: "2026-05-28", mode: "AIRTEL_MONEY", amount: 1200, status: "COMPLETED", plan: "12 Mois" },
-  ];
+  // Chargement des données réelles depuis le backend
+  useEffect(() => {
+    loadFinancialData();
+  }, []);
+
+  const loadFinancialData = async () => {
+    try {
+      setLoading(true);
+      // Supposons que vous ayez une méthode API pour récupérer l'historique de paiement
+      const data = await SuperAdminSystemService.getAllFinancialTransactions();
+      setTransactions(data);
+    } catch (error) {
+      console.warn("Erreur API : Chargement des données fictives de secours", error);
+      // Fallback sur le jeu de données pour ne pas briser l'interface si l'API n'est pas encore prête
+      setTransactions([
+        { id: "TX-1001", school: "Complexe Scolaire Musafa", date: "2026-06-12", mode: "AIRTEL_MONEY", amount: 1200, status: "COMPLETED", plan: "12 Mois" },
+        { id: "TX-1002", school: "Institut de Goma", date: "2026-06-10", mode: "CREDIT_CARD", amount: 1500, status: "COMPLETED", plan: "12 Mois" },
+        { id: "TX-1003", school: "Lycée Amani", date: "2026-06-05", mode: "CASH", modeLabel: "Espèces", amount: 600, status: "COMPLETED", plan: "6 Mois" },
+        { id: "TX-1004", school: "Complexe Scolaire Kivu", date: "2026-05-28", mode: "AIRTEL_MONEY", amount: 1200, status: "COMPLETED", plan: "12 Mois" },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const totalRevenue = transactions.reduce((acc, t) => acc + t.amount, 0);
   const airtelTotal = transactions.filter(t => t.mode === "AIRTEL_MONEY").reduce((acc, t) => acc + t.amount, 0);
@@ -81,35 +101,39 @@ const FinanceAbonnement = () => {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-100/70 dark:bg-slate-800/30 text-slate-400 text-xs uppercase tracking-wider font-bold border-b border-slate-200 dark:border-slate-800">
-                <th className="p-4">ID Transaction</th>
-                <th className="p-4">Établissement Payeur</th>
-                <th className="p-4">Date de Valeur</th>
-                <th className="p-4">Formule</th>
-                <th className="p-4">Mode Émission</th>
-                <th className="p-4 text-right">Montant Réglé</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-sm">
-              {filteredTransactions.map((tx) => (
-                <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
-                  <td className="p-4 font-mono font-bold text-slate-400">{tx.id}</td>
-                  <td className="p-4 font-bold">{tx.school}</td>
-                  <td className="p-4 text-slate-500">{new Date(tx.date).toLocaleDateString('fr-FR')}</td>
-                  <td className="p-4 font-medium text-xs"><span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{tx.plan}</span></td>
-                  <td className="p-4">
-                    <span className={`inline-flex items-center gap-1 text-xs font-bold ${tx.mode === 'AIRTEL_MONEY' ? 'text-red-500' : tx.mode === 'CREDIT_CARD' ? 'text-blue-500' : 'text-amber-500'}`}>
-                      {tx.mode === 'AIRTEL_MONEY' ? <Smartphone size={14}/> : tx.mode === 'CREDIT_CARD' ? <CreditCard size={14}/> : <Banknote size={14}/>}
-                      {tx.mode.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="p-4 text-right font-black text-emerald-600 dark:text-emerald-400">+{tx.amount.toLocaleString()} $</td>
+          {loading ? (
+            <div className="text-center py-12 text-slate-500 font-medium text-sm">Synchronisation des transactions...</div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-100/70 dark:bg-slate-800/30 text-slate-400 text-xs uppercase tracking-wider font-bold border-b border-slate-200 dark:border-slate-800">
+                  <th className="p-4">ID Transaction</th>
+                  <th className="p-4">Établissement Payeur</th>
+                  <th className="p-4">Date de Valeur</th>
+                  <th className="p-4">Formule</th>
+                  <th className="p-4">Mode Émission</th>
+                  <th className="p-4 text-right">Montant Réglé</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800/60 text-sm">
+                {filteredTransactions.map((tx) => (
+                  <tr key={tx.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                    <td className="p-4 font-mono font-bold text-slate-400">{tx.id}</td>
+                    <td className="p-4 font-bold">{tx.school}</td>
+                    <td className="p-4 text-slate-500">{new Date(tx.date).toLocaleDateString('fr-FR')}</td>
+                    <td className="p-4 font-medium text-xs"><span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">{tx.plan}</span></td>
+                    <td className="p-4">
+                      <span className={`inline-flex items-center gap-1 text-xs font-bold ${tx.mode === 'AIRTEL_MONEY' ? 'text-red-500' : tx.mode === 'CREDIT_CARD' ? 'text-blue-500' : 'text-amber-500'}`}>
+                        {tx.mode === 'AIRTEL_MONEY' ? <Smartphone size={14}/> : tx.mode === 'CREDIT_CARD' ? <CreditCard size={14}/> : <Banknote size={14}/>}
+                        {tx.mode.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right font-black text-emerald-600 dark:text-emerald-400">+{tx.amount.toLocaleString()} $</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

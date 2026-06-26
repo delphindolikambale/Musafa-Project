@@ -7,7 +7,7 @@ import Welcome from "./views/Welcome";
 import Login from "./views/Login";
 import Register from "./views/Register";
 import ProtectedRoute from "./components/ProtectedRoute"; 
-import SaaSGuard from "./guards/SaaSGuard"; // ✅ INJECTÉ : Notre nouveau protecteur de licence multi-établissement
+import SaaSGuard from "./guards/SaaSGuard"; // ✅ NOTRE PROTECTEUR MULTI-TENANT
 
 // --- LAYOUTS ---
 import AdminLayout from "./components/layouts/AdminLayout";

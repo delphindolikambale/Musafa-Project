@@ -62,42 +62,37 @@ const GrilleHoraireCursus = ({ activeYearId, onBack }) => {
 
         setLoading(true);
         try {
-            // Filtrer les niveaux correspondant au cycle actif
-            const targetLevels = currentLevelsList.map(name => 
-                allLevels.find(l => l.name === name || l.name.includes(name))
-            ).filter(Boolean);
+            // ADAPTATION MAJEURE : Appel API unique pour charger toute la grille du cycle
+            const optId = activeCycle === "CEB" ? null : selectedOptionId;
+            // On envoie levelId à null pour charger tous les niveaux liés à l'option/cycle
+            const res = await courseAcademicConfigService.getSubjectsByClass(null, null, optId, activeYearId);
+            const subjects = res.data || [];
 
-            if (targetLevels.length === 0) {
-                setGridData([]);
-                setLoading(false);
-                return;
-            }
-
-            // Récupération parallèle des cours par niveau
-            const promises = targetLevels.map(level => {
-                const optId = activeCycle === "CEB" ? null : selectedOptionId;
-                return courseAcademicConfigService.getSubjectsByClass(level.id, null, optId, activeYearId);
-            });
-
-            const responses = await Promise.all(promises);
             const aggregatedCourses = {};
 
-            responses.forEach((res, index) => {
-                const subjects = res.data || [];
-                subjects.forEach(subject => {
-                    // Clé unique pour regrouper par nom et catégorie uniquement (sans domaine affiché)
-                    const key = `${subject.category}_${subject.name.trim().toLowerCase()}`;
+            subjects.forEach(subject => {
+                // Clé unique pour regrouper par nom et catégorie
+                const key = `${subject.category}_${subject.name.trim().toLowerCase()}`;
+                
+                if (!aggregatedCourses[key]) {
+                    aggregatedCourses[key] = {
+                        name: subject.name,
+                        category: subject.category || 'GENERAL',
+                        hours: new Array(currentLevelsList.length).fill(0)
+                    };
+                }
+
+                // Trouver l'index de la colonne correspondant au nom du niveau (ex: "7ème")
+                // Le Backend envoie maintenant levelName grâce à notre modification précédente
+                if (subject.levelName) {
+                    const colIndex = currentLevelsList.findIndex(
+                        levelName => subject.levelName.includes(levelName) || levelName.includes(subject.levelName)
+                    );
                     
-                    if (!aggregatedCourses[key]) {
-                        aggregatedCourses[key] = {
-                            name: subject.name,
-                            category: subject.category || 'GENERAL',
-                            hours: new Array(currentLevelsList.length).fill(0)
-                        };
+                    if (colIndex !== -1) {
+                        aggregatedCourses[key].hours[colIndex] = subject.hoursPerWeek || 0;
                     }
-                    // Assigne le volume horaire à l'index de la colonne correspondante
-                    aggregatedCourses[key].hours[index] = subject.hoursPerWeek || 0;
-                });
+                }
             });
 
             // Regroupement final par catégories stricte (Généraux vs Techniques)

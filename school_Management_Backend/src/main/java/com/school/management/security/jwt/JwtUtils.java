@@ -6,6 +6,7 @@ import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Component;
@@ -14,10 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 
-/**
- * Classe utilitaire pour la gestion des Tokens JWT.
- * Version adaptée pour accepter tout type de caractères dans la clé secrète.
- */
 @Component
 public class JwtUtils {
 
@@ -29,36 +26,35 @@ public class JwtUtils {
     @Value("${school.app.jwtExpirationMs}")
     private int jwtExpirationMs;
 
-    /**
-     * Crée la clé de signature à partir de la chaîne de texte brute.
-     * Cette version utilise UTF-8 au lieu de Base64 pour éviter les erreurs de décodage.
-     */
+    // ✅ NOUVEAU : Injection pour vérifier dynamiquement l'état d'onboarding de l'utilisateur
+    @Autowired
+    private com.school.management.repository.auth.UserRepository userRepository;
+
     private Key key() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8));
     }
 
-    /**
-     * Génère un token après authentification réussie.
-     */
     public String generateJwtToken(Authentication authentication) {
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
-        // ✅ ADAPTATION : Extraction de l'ID de l'école pour l'injecter dans le jeton
         Long schoolId = (userPrincipal.getSchool() != null) ? userPrincipal.getSchool().getId() : null;
+
+        // ✅ NOUVEAU : Récupération en BDD pour injecter la contrainte de changement de mot de passe dans le Token
+        boolean mustChangePassword = userRepository.findByUsername(userPrincipal.getUsername())
+                .map(com.school.management.model.auth.User::isMustChangePassword)
+                .orElse(false);
 
         return Jwts.builder()
                 .setSubject((userPrincipal.getUsername()))
-                // ✅ NOUVEAU : React lira directement "schoolId" depuis le Token !
                 .claim("schoolId", schoolId)
+                // ✅ NOUVEAU : Claim lu par le Guard de routage React
+                .claim("mustChangePassword", mustChangePassword)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
     }
 
-    /**
-     * Récupère le pseudo de l'utilisateur à partir du badge (Token).
-     */
     public String getUserNameFromJwtToken(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key())
@@ -68,9 +64,6 @@ public class JwtUtils {
                 .getSubject();
     }
 
-    /**
-     * Vérifie la validité du badge (Signature, expiration, intégrité).
-     */
     public boolean validateJwtToken(String authToken) {
         try {
             Jwts.parserBuilder().setSigningKey(key()).build().parseClaimsJws(authToken);

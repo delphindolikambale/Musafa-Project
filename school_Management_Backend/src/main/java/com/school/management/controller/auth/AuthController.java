@@ -27,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -47,7 +48,6 @@ public class AuthController {
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
 
-        // CAPTURE ET JOURNALISATION AVANCÉE POUR LA PRODUCTION
         userRepository.findByUsername(loginRequest.getUsername()).ifPresent(user -> {
             boolean matches = encoder.matches(loginRequest.getPassword(), user.getPassword());
             System.out.println("[DIAGNOSTIC AUTH] Utilisateur trouvé : " + user.getUsername());
@@ -65,9 +65,7 @@ public class AuthController {
         }
 
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
-
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         List<String> roles = userDetails.getAuthorities().stream()
@@ -77,11 +75,9 @@ public class AuthController {
         User userEntity = userRepository.findById(userDetails.getId())
                 .orElseThrow(() -> new RuntimeException("Erreur: Utilisateur non trouvé après authentification."));
 
-        // ✅ CORRECTION FLUX DE SÉCURITÉ : Validation de l'identité par le nom d'utilisateur de secours si la table de rôles de prod est altérée
         boolean isSuperAdmin = roles.contains("ROLE_SUPER_ADMIN_SYSTEM") || roles.contains("SUPER_ADMIN_SYSTEM") || "superadmin".equalsIgnoreCase(userDetails.getUsername());
         boolean isAdminSystem = roles.contains("ROLE_ADMIN_SYSTEM") || roles.contains("ADMIN_SYSTEM") || roles.contains("ADMIN") || roles.contains("ROLE_ADMIN");
 
-        // Assurer que le rôle est présent dans la réponse pour forcer la redirection React
         if (isSuperAdmin && !roles.contains("ROLE_SUPER_ADMIN_SYSTEM")) {
             roles.add("ROLE_SUPER_ADMIN_SYSTEM");
         }
@@ -91,7 +87,10 @@ public class AuthController {
                 return ResponseEntity.badRequest().body("{\"error\": \"Accès refusé : Votre compte n'est lié à aucun établissement enregistré sur la plateforme.\"}");
             }
             if (!userEntity.getSchool().isActive()) {
-                return ResponseEntity.badRequest().body("{\"error\": \"Accès refusé : L'établissement " + userEntity.getSchool().getName() + " est actuellement suspendu par la plateforme.\"}");
+                boolean isSchoolAdmin = roles.contains("ROLE_ADMIN") || roles.contains("ADMIN");
+                if (!isSchoolAdmin || (!userEntity.isMustChangePassword() && userEntity.getSchool().getActivationCode() == null)) {
+                    return ResponseEntity.badRequest().body("{\"error\": \"Accès refusé : L'établissement " + userEntity.getSchool().getName() + " est actuellement suspendu par la plateforme.\"}");
+                }
             }
         }
 
@@ -107,7 +106,6 @@ public class AuthController {
             isSubscriptionActive = schoolService.checkSchoolSubscription(school.getId());
             isSchoolConfigured = school.isSchoolConfigured();
         } else if (isSuperAdmin) {
-            // ADAPTATION CRUCIALE : Le Super Admin a tous les droits par défaut pour que l'interface front-end ne le bloque pas
             isSubscriptionActive = true;
             isSchoolConfigured = true;
         }
@@ -133,13 +131,50 @@ public class AuthController {
         ));
     }
 
+    @PostMapping("/change-credentials")
+    public ResponseEntity<?> changeCredentials(@RequestBody Map<String, String> request) {
+        String currentUsername = request.get("currentUsername");
+        String newUsername = request.get("newUsername");
+        String newPassword = request.get("newPassword");
+
+        if (currentUsername == null || newUsername == null || newPassword == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Tous les champs sont obligatoires."));
+        }
+
+        User user = userRepository.findByUsername(currentUsername)
+                .orElseThrow(() -> new RuntimeException("Erreur: Utilisateur introuvable."));
+
+        if (!user.isMustChangePassword()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Action non autorisée : Les identifiants initiaux ont déjà été modifiés."));
+        }
+
+        // ❌ SÉCURITÉ STRICTE : Interdiction absolue de réutiliser le username par défaut généré
+        if (newUsername.trim().equalsIgnoreCase(user.getDefaultUsername())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Erreur : Votre nouveau nom d'utilisateur doit être strictement différent du nom d'utilisateur par défaut !"));
+        }
+
+        // ❌ SÉCURITÉ STRICTE : Interdiction absolue de réutiliser le mot de passe initial
+        if (encoder.matches(newPassword, user.getDefaultPasswordHashed())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Erreur : Votre nouveau mot de passe doit être strictement différent du mot de passe temporaire fourni !"));
+        }
+
+        if (!currentUsername.equalsIgnoreCase(newUsername) && userRepository.existsByUsername(newUsername)) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Ce nouveau nom d'utilisateur est déjà utilisé par un autre compte."));
+        }
+
+        user.setUsername(newUsername.trim());
+        user.setPassword(encoder.encode(newPassword));
+        user.setMustChangePassword(false); // Validation de l'étape d'onboarding
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of("message", "Vos identifiants ont été mis à jour avec succès ! Veuillez vous reconnecter avec vos nouvelles informations."));
+    }
+
     @PostMapping("/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
-
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             return ResponseEntity.badRequest().body("{\"error\": \"Erreur: Le nom d'utilisateur est déjà pris !\"}");
         }
-
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
             return ResponseEntity.badRequest().body("{\"error\": \"Erreur: L'email est déjà utilisé !\"}");
         }
@@ -149,13 +184,11 @@ public class AuthController {
                 encoder.encode(signUpRequest.getPassword()));
 
         Set<Role> roles = new HashSet<>();
-
         Role userRole = roleRepository.findByName(AppRole.ROLE_ELEVE)
                 .orElseThrow(() -> new RuntimeException("Erreur: Le rôle ROLE_ELEVE n'est pas trouvé en base de données."));
 
         roles.add(userRole);
         user.setRoles(roles);
-
         userRepository.save(user);
 
         return ResponseEntity.ok("Utilisateur enregistré avec succès avec le rôle ÉLÈVE !");
@@ -163,7 +196,6 @@ public class AuthController {
 
     @PostMapping("/init-superadmin")
     public ResponseEntity<?> initSuperAdmin() {
-
         userRepository.findByUsername("superadmin").ifPresent(user -> {
             userRepository.delete(user);
             System.out.println("[PURGE SYSTEM] Ancien compte superadmin supprimé avec succès.");
@@ -172,7 +204,7 @@ public class AuthController {
         User superAdmin = new User();
         superAdmin.setUsername("superadmin");
         superAdmin.setEmail("admin@myacademia.com");
-        superAdmin.setPassword(encoder.encode("SuperAdmin2026!")); // Adaptation à votre mot de passe réel
+        superAdmin.setPassword(encoder.encode("SuperAdmin2026!"));
         superAdmin.setAccountNonLocked(true);
         superAdmin.setEnabled(true);
         superAdmin.setSchool(null);
@@ -183,7 +215,6 @@ public class AuthController {
 
         roles.add(adminRole);
         superAdmin.setRoles(roles);
-
         userRepository.save(superAdmin);
 
         return ResponseEntity.ok("Compte Super Admin réinitialisé à zéro avec succès ! (Utilisateur: superadmin | Mot de passe: SuperAdmin2026!)");

@@ -54,7 +54,18 @@ public class User {
     @Column(nullable = false)
     private boolean isEnabled = true;
 
-    // ✅ NOUVEAU : Rattachement de l'utilisateur à une école spécifique
+    // ✅ Drapeau d'onboarding pour forcer le changement d'identifiants par défaut
+    @Column(nullable = false)
+    private boolean mustChangePassword = false;
+
+    // ✅ NOUVEAU : Sauvegarde des identifiants par défaut pour interdire leur réutilisation lors de la configuration initiale
+    @Column(name = "default_username")
+    private String defaultUsername;
+
+    @Column(name = "default_password_hashed")
+    private String defaultPasswordHashed;
+
+    // ✅ Rattachement de l'utilisateur à une école spécifique
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "school_id", nullable = true)
     private School school;
@@ -73,5 +84,6 @@ public class User {
         this.password = password;
         this.isAccountNonLocked = true;
         this.isEnabled = true;
+        this.mustChangePassword = false;
     }
 }

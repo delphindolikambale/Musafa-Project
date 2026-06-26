@@ -39,7 +39,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
                 if (userDetails instanceof UserDetailsImpl userPrincipal) {
-                    // ✅ ADAPTATION : Vérification stricte du rôle Super Admin basée sur l'Enum
                     boolean isSuperAdmin = userPrincipal.getAuthorities().stream()
                             .anyMatch(grantedAuthority ->
                                     grantedAuthority.getAuthority().equals("ROLE_SUPER_ADMIN_SYSTEM") ||
@@ -57,20 +56,25 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                             return;
                         }
 
+                        String path = request.getRequestURI();
+                        // ✅ EXCEPTION : On identifie si la requête concerne l'authentification ou l'activation de licence
+                        boolean isAuthOrActivationRoute = path.contains("/api/auth/") || path.contains("/activate");
+                        boolean isSchoolAdmin = userPrincipal.getAuthorities().stream()
+                                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ADMIN"));
+
                         // 2. L'établissement doit être actif sur la plateforme
                         if (!userPrincipal.getSchool().isActive()) {
-                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                            response.setContentType("application/json;charset=UTF-8");
-                            response.getWriter().write("{\"error\": \"L'accès à l'application est suspendu pour votre établissement. Veuillez contacter le support de la plateforme.\"}");
-                            return;
+                            // Si ce n'est pas l'admin sur une route autorisée d'onboarding, on bloque l'accès
+                            if (!isAuthOrActivationRoute || !isSchoolAdmin) {
+                                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                                response.setContentType("application/json;charset=UTF-8");
+                                response.getWriter().write("{\"error\": \"L'accès à l'application est suspendu pour votre établissement. Veuillez contacter le support de la plateforme.\"}");
+                                return;
+                            }
                         }
 
                         // 3. Contrôle de l'Abonnement Expiré
-                        String path = request.getRequestURI();
-                        // Exception cruciale : on laisse passer les requêtes d'authentification et les routes d'activation de licence
-                        boolean isActivationRoute = path.contains("/api/auth/") || path.contains("/activate");
-
-                        if (!userPrincipal.getSchool().isSubscriptionActive() && !isActivationRoute) {
+                        if (!userPrincipal.getSchool().isSubscriptionActive() && !isAuthOrActivationRoute) {
                             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                             response.setContentType("application/json;charset=UTF-8");
                             response.getWriter().write("{\"error\": \"L'abonnement de votre établissement a expiré. Veuillez renouveler votre licence pour débloquer l'accès.\"}");
@@ -94,7 +98,6 @@ public class AuthTokenFilter extends OncePerRequestFilter {
 
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
-        // ADAPTATION : Rendre la vérification du "Bearer" insensible à la casse pour éviter les rejets en production par les proxys
         if (StringUtils.hasText(headerAuth) && headerAuth.toLowerCase().startsWith("bearer ")) {
             return headerAuth.substring(7);
         }

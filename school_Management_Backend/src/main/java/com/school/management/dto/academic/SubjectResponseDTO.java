@@ -38,4 +38,9 @@ public class SubjectResponseDTO {
     private double maxS1;
     private double maxS2;
     private double maxTotal;
+    // 🔴 AJOUTEZ CES LIGNES ICI :
+    private Long levelId;
+    private String levelName;
+    private Long sectionId;
+    private Long optionId;
 }

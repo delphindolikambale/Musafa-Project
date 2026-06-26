@@ -3,25 +3,41 @@ package com.school.management.controller.multitenant;
 import com.school.management.dto.multitenant.SchoolCreateDTO;
 import com.school.management.dto.multitenant.SchoolResponseDTO;
 import com.school.management.model.multitenant.SystemSettings;
-import com.school.management.service.multitenant.SchoolService;
+import com.school.management.service.multitenantImpl.SchoolServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/system-admin")
 @RequiredArgsConstructor
+@CrossOrigin(origins = "http://localhost:5173")
 public class SystemAdminController {
 
-    private final SchoolService schoolService;
+    private final SchoolServiceImpl schoolService;
 
     @PostMapping("/schools")
     public ResponseEntity<SchoolResponseDTO> createSchool(@Valid @RequestBody SchoolCreateDTO dto) {
         return ResponseEntity.ok(schoolService.registerNewSchool(dto));
+    }
+
+    // ✅ NOUVEAU : Endpoint appelé lors de l'enregistrement du paiement Cash dans l'interface Abonnement
+    @PostMapping("/schools/{id}/pay-subscription")
+    public ResponseEntity<SchoolResponseDTO> collectSubscriptionPayment(
+            @PathVariable Long id,
+            @RequestBody Map<String, Object> paymentPayload) {
+
+        LocalDate endDate = LocalDate.parse(paymentPayload.get("endDate").toString());
+        Double amount = Double.valueOf(paymentPayload.get("amount").toString());
+        String currency = paymentPayload.get("currency").toString(); // Ex: "USD" ou "CDF"
+
+        return ResponseEntity.ok(schoolService.recordSubscriptionPayment(id, endDate, amount, currency));
     }
 
     @GetMapping("/schools")

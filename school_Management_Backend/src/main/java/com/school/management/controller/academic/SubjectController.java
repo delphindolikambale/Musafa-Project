@@ -67,9 +67,10 @@ public class SubjectController {
         return ResponseEntity.ok().build();
     }
 
+    // ADAPTATION : levelId rendu optionnel au niveau de la capture de la requête pour éviter les erreurs HTTP 400
     @GetMapping("/filter")
     public ResponseEntity<List<SubjectResponseDTO>> getByClass(
-            @RequestParam Long levelId,
+            @RequestParam(required = false) Long levelId,
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) Long optionId,
             @RequestParam Long yearId) {
@@ -87,7 +88,7 @@ public class SubjectController {
      */
     @GetMapping("/lookup-by-class")
     public ResponseEntity<List<SubjectResponseDTO>> getSubjectsLookupForMaxima(
-            @RequestParam Long levelId,
+            @RequestParam(required = false) Long levelId,
             @RequestParam(required = false) Long sectionId,
             @RequestParam(required = false) Long optionId,
             @RequestParam Long yearId) {
