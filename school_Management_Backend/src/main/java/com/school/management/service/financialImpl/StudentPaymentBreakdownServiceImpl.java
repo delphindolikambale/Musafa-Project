@@ -13,14 +13,13 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-
 public class StudentPaymentBreakdownServiceImpl implements StudentPaymentBreakdownService {
 
     private final StudentPaymentBreakdownRepository repository;
 
     @Override
-    public List<StudentPaymentBreakdownResponseDTO> getByPaymentId(Long paymentId) {
-        return repository.findByPaymentId(paymentId).stream()
+    public List<StudentPaymentBreakdownResponseDTO> getByPaymentId(Long paymentId, Long schoolId) {
+        return repository.findByPaymentIdAndSchoolId(paymentId, schoolId).stream()
                 .map(this::mapToDTO)
                 .toList();
     }

@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.enums.CourseCategory;
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.ArrayList;
@@ -42,6 +43,11 @@ public class Subject {
     @ManyToOne(optional = false)
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
+
+    // ✅ MULTI-TENANT : Isolation directe au niveau de la matière
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     // --- AJOUTS POUR LA LOGIQUE GRILLE HORAIRE ---
     @Enumerated(EnumType.STRING)

@@ -9,33 +9,20 @@ import java.util.List;
 
 public interface StudentFinancialAccountRepository extends JpaRepository<StudentFinancialAccount, Long>{
 
-    /**
-     * Recherche le compte par l'ID technique de l'élève
-     */
-    Optional<StudentFinancialAccount> findByStudentId(Long studentId);
+    Optional<StudentFinancialAccount> findByIdAndSchoolId(Long id, Long schoolId);
 
-    /**
-     * Recherche par le numéro de compte généré (Matricule + NumPermanent)
-     * Cette méthode sera la clé pour votre recherche initiale côté React.
-     */
-    Optional<StudentFinancialAccount> findByAccountNumber(String accountNumber);
+    Optional<StudentFinancialAccount> findByStudentIdAndSchoolId(Long studentId, Long schoolId);
 
-    /**
-     * Recherche avancée : Récupère le compte et ses profils annuels en une seule fois.
-     * Utile pour le Frontend pour identifier immédiatement le profil de l'année en cours.
-     */
+    Optional<StudentFinancialAccount> findByAccountNumberAndSchoolId(String accountNumber, Long schoolId);
+
     @EntityGraph(attributePaths = {"annualProfiles", "student"})
-    Optional<StudentFinancialAccount> findWithProfilesByAccountNumber(String accountNumber);
+    Optional<StudentFinancialAccount> findWithProfilesByAccountNumberAndSchoolId(String accountNumber, Long schoolId);
 
-    /**
-     * Recherche par nom de l'élève (insensible à la casse) pour le dashboard caissier
-     */
-    List<StudentFinancialAccount> findByStudent_LastNameContainingIgnoreCase(String lastName);
+    List<StudentFinancialAccount> findByStudent_LastNameContainingIgnoreCaseAndSchoolId(String lastName, Long schoolId);
 
-    /**
-     * Recherche par numéro permanent (partiel ou complet)
-     */
-    List<StudentFinancialAccount> findByStudent_PermanentNumberContaining(String permanentNumber);
+    List<StudentFinancialAccount> findByStudent_PermanentNumberContainingAndSchoolId(String permanentNumber, Long schoolId);
 
-    Optional<StudentFinancialAccount> findByStudent_Matricule(String matricule);
+    Optional<StudentFinancialAccount> findByStudent_MatriculeAndSchoolId(String matricule, Long schoolId);
+
+    List<StudentFinancialAccount> findBySchoolId(Long schoolId);
 }

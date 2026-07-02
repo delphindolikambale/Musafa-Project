@@ -8,6 +8,7 @@ import java.util.Optional;
 
 @Repository
 public interface BulletinHeaderRepository extends JpaRepository<BulletinHeader, Long> {
-    // Utile pour toujours récupérer la première et unique configuration
-    Optional<BulletinHeader> findFirstByOrderByIdAsc();
+
+    // ✅ ADAPTATION MULTI-TENANT : Récupère la configuration spécifique de l'école courante
+    Optional<BulletinHeader> findBySchoolId(Long schoolId);
 }

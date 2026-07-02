@@ -4,16 +4,18 @@ import AuthService from "../services/auth.service";
 import { 
   User, Mail, Lock, Loader2, Home, 
   Eye, EyeOff, CheckCircle2, XCircle, 
-  Sun, Moon, Globe 
+  Sun, Moon, Globe, Building2
 } from "lucide-react";
 
-// Dictionnaire de traduction intégré
 const translations = {
   FR: {
     title: "Inscription",
     subtitle: "Configurez votre espace personnel Élève.",
     userLabel: "Nom d'utilisateur",
     emailLabel: "Adresse Email",
+    schoolLabel: "Établissement Scolaire",
+    schoolPlaceholder: "Sélectionnez votre établissement",
+    loadingSchools: "Chargement des établissements...",
     passLabel: "Mot de passe",
     confirmLabel: "Confirmation",
     submitBtn: "Valider l'inscription",
@@ -31,6 +33,9 @@ const translations = {
     subtitle: "Set up your personal Student space.",
     userLabel: "Username",
     emailLabel: "Email Address",
+    schoolLabel: "School Institution",
+    schoolPlaceholder: "Select your school",
+    loadingSchools: "Loading schools...",
     passLabel: "Password",
     confirmLabel: "Confirm Password",
     submitBtn: "Complete Registration",
@@ -51,6 +56,7 @@ const Register = () => {
     email: "",
     password: "",
     confirmPassword: "",
+    schoolId: "",
     role: "ELEVE"
   });
   
@@ -58,12 +64,13 @@ const Register = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // ✅ Utilisation unifiée des clés de stockage globales du système (app-lang et app-theme)
   const [lang, setLang] = useState(localStorage.getItem("app-lang") || "FR");
   const [darkMode, setDarkMode] = useState(localStorage.getItem("app-theme") === "dark");
-
-  // Fenêtres de notification modales unifiées
   const [notification, setNotification] = useState({ show: false, type: "", title: "", text: "" });
+
+  // ✅ ÉTATS POUR LA LISTE DES ÉCOLES
+  const [schools, setSchools] = useState([]);
+  const [loadingSchools, setLoadingSchools] = useState(true);
 
   const navigate = useNavigate();
   const t = translations[lang];
@@ -78,6 +85,21 @@ const Register = () => {
       root.classList.remove("dark");
     }
   }, [darkMode, lang]);
+
+  // ✅ CHARGEMENT DYNAMIQUE DES ÉCOLES
+  useEffect(() => {
+    const fetchSchools = async () => {
+      try {
+        const data = await AuthService.getPublicSchools();
+        setSchools(data);
+      } catch (error) {
+        console.error("Erreur lors du chargement des écoles:", error);
+      } finally {
+        setLoadingSchools(false);
+      }
+    };
+    fetchSchools();
+  }, []);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -97,12 +119,14 @@ const Register = () => {
       return;
     }
 
-    loading(true);
+    setLoading(true);
+    
     try {
       await AuthService.register(
         formData.username,
         formData.email,
         formData.password,
+        parseInt(formData.schoolId),
         formData.role
       );
 
@@ -135,7 +159,6 @@ const Register = () => {
     >
       <div className={`absolute inset-0 backdrop-blur-md ${darkMode ? "bg-slate-950/85" : "bg-slate-900/75"}`}></div>
 
-      {/* Barre d'utilitaires supérieure : Thème et Langue */}
       <div className="absolute top-6 right-6 z-20 flex items-center gap-4 bg-white/10 dark:bg-slate-900/40 backdrop-blur-md p-2 rounded-2xl border border-white/10">
         <button onClick={() => setDarkMode(!darkMode)} className="text-white hover:text-blue-400 transition-colors p-1">
           {darkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -146,7 +169,6 @@ const Register = () => {
         </button>
       </div>
 
-      {/* Conteneur principal adapté à la hauteur sans dépassement */}
       <div className="relative z-10 w-full max-w-xl p-4 flex flex-col justify-center h-full sm:h-auto">
         <div className={`rounded-[2.5rem] shadow-2xl p-6 sm:p-8 border transition-all duration-300 ${darkMode ? "bg-slate-900/95 border-slate-800 text-white shadow-black/50" : "bg-white border-white/20 text-slate-900"}`}>
           
@@ -187,6 +209,28 @@ const Register = () => {
                   className={`w-full pl-11 pr-4 py-3 border-2 rounded-xl outline-none transition-all font-semibold text-xs ${darkMode ? "bg-slate-950/50 border-slate-800 focus:border-blue-500 focus:bg-slate-950 text-white" : "bg-slate-50 border-slate-200 focus:border-blue-600 focus:bg-white text-slate-800"}`}
                   onChange={handleChange} value={formData.email} required
                 />
+              </div>
+            </div>
+
+            {/* ✅ NOUVEAU CHAMP : COMBO BOX DES ÉTABLISSEMENTS */}
+            <div className="sm:col-span-2">
+              <label className={`block text-[10px] font-bold uppercase tracking-widest mb-1.5 ml-1 ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{t.schoolLabel}</label>
+              <div className="relative group">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors z-10"><Building2 size={16} /></span>
+                <select 
+                  name="schoolId"
+                  className={`w-full pl-11 pr-10 py-3 border-2 rounded-xl outline-none transition-all font-semibold text-xs appearance-none cursor-pointer ${darkMode ? "bg-slate-950/50 border-slate-800 focus:border-blue-500 focus:bg-slate-950 text-white" : "bg-slate-50 border-slate-200 focus:border-blue-600 focus:bg-white text-slate-800"}`}
+                  onChange={handleChange} value={formData.schoolId} required
+                >
+                  <option value="" disabled>{loadingSchools ? t.loadingSchools : t.schoolPlaceholder}</option>
+                  {schools.map((school) => (
+                    <option key={school.id} value={school.id}>{school.name}</option>
+                  ))}
+                </select>
+                {/* Icône Chevron personnalisée pour le menu déroulant */}
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
               </div>
             </div>
 

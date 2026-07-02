@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.enums.EvaluationType;
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -8,7 +9,6 @@ import java.time.LocalDate;
 @Entity
 @Table(name = "evaluation_tasks")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
 public class EvaluationTask {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -35,4 +35,9 @@ public class EvaluationTask {
     @ManyToOne(optional = false)
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
+
+    // ✅ MULTI-TENANT : Isolation explicite de la tâche d'évaluation
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

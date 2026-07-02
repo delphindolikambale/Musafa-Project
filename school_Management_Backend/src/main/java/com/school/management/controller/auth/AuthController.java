@@ -10,6 +10,7 @@ import com.school.management.model.enums.AppRole;
 import com.school.management.repository.academic.TeacherRepository;
 import com.school.management.repository.auth.RoleRepository;
 import com.school.management.repository.auth.UserRepository;
+import com.school.management.repository.multitenant.SchoolRepository;
 import com.school.management.security.jwt.JwtUtils;
 import com.school.management.security.services.UserDetailsImpl;
 import com.school.management.service.multitenant.SchoolService;
@@ -44,6 +45,7 @@ public class AuthController {
     private final PasswordEncoder encoder;
     private final TeacherRepository teacherRepository;
     private final SchoolService schoolService;
+    private final SchoolRepository schoolRepository;
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
@@ -189,6 +191,16 @@ public class AuthController {
 
         roles.add(userRole);
         user.setRoles(roles);
+
+        // Liaison de l'utilisateur à son établissement scolaire choisi à l'inscription
+        if (signUpRequest.getSchoolId() != null) {
+            School school = schoolRepository.findById(signUpRequest.getSchoolId())
+                    .orElseThrow(() -> new RuntimeException("Erreur: Établissement scolaire introuvable."));
+            user.setSchool(school);
+        } else {
+            return ResponseEntity.badRequest().body("{\"error\": \"Erreur: Un établissement scolaire valide doit être sélectionné.\"}");
+        }
+
         userRepository.save(user);
 
         return ResponseEntity.ok("Utilisateur enregistré avec succès avec le rôle ÉLÈVE !");

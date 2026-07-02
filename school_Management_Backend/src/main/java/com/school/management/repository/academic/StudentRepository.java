@@ -17,8 +17,14 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     // Permet de récupérer un étudiant globalement par son matricule (indispensable pour le service d'archive)
     Optional<Student> findByMatricule(String matricule);
 
+    // ✅ FIX CORRECTION : Recherche globale par ID utilisateur (indispensable pour le chargement initial d'un compte non encore lié à une école)
+    Optional<Student> findByUserId(Long userId);
+
     // ✅ NOUVEAU & SÉCURISÉ : Récupère uniquement les élèves rattachés à une école spécifique
     List<Student> findBySchoolId(Long schoolId);
+
+    // ✅ ADAPTATION MULTI-TENANT : Ajout du prototype de comptage automatique par établissement
+    long countBySchoolId(Long schoolId);
 
     // ✅ OPTIMISÉ : Filtrage direct par la propriété school de l'élève
     @Query("SELECT COUNT(s) > 0 FROM Student s WHERE s.permanentNumber = :permanentNumber AND s.school.id = :schoolId")

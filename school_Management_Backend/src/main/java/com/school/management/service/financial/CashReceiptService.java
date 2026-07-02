@@ -5,5 +5,5 @@ import com.school.management.dto.financial.CashReceiptDashboardDTO;
 import java.time.LocalDate;
 
 public interface CashReceiptService {
-    CashReceiptDashboardDTO getDashboardData(String filterType, LocalDate date, Long classroomId);
+    CashReceiptDashboardDTO getDashboardData(String filterType, LocalDate date, Long classroomId, Long schoolId);
 }

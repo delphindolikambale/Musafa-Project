@@ -1,5 +1,6 @@
 package com.school.management.model.financial;
 
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -7,22 +8,22 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "transaction_history")
-@Getter @Setter
-@NoArgsConstructor @AllArgsConstructor
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
-
 public class TransactionHistory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // "IN" pour Entrée (Paiement), "OUT" pour Sortie (Dépense)
     @Column(nullable = false)
     private String type;
 
     @Column(nullable = false)
-    private String label; // Ex: "Paiement Frais Scolaires - KAVIRA MBALAN"
+    private String label;
 
     @Column(nullable = false, precision = 15, scale = 2)
     private BigDecimal amount;
@@ -34,10 +35,14 @@ public class TransactionHistory {
     private LocalDateTime transactionDate;
 
     @Column(unique = true)
-    private String referenceNumber; // Le numéro de reçu ou numéro de facture
+    private String referenceNumber;
 
-    private String performedBy; // Le nom du caissier
+    private String performedBy;
 
-    // ID de l'entité liée (pour pouvoir retrouver le paiement original)
     private Long sourceId;
+
+    // ✅ LIEN MULTI-TENANT DIRECT
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

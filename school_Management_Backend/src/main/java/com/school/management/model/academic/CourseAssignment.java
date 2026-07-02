@@ -1,12 +1,12 @@
 package com.school.management.model.academic;
 
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "course_assignments")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
 public class CourseAssignment {
 
     @Id
@@ -40,6 +40,11 @@ public class CourseAssignment {
     private double maxP3;
     private double maxP4;
     private double maxExam2;
+
+    // ✅ MULTI-TENANT : Isolation explicite de la configuration de cours
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     public double getMaxS1() { return maxP1 + maxP2 + maxExam1; }
     public double getMaxS2() { return maxP3 + maxP4 + maxExam2; }

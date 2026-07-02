@@ -5,6 +5,9 @@ import com.school.management.dto.academic.TeacherAssignmentResponseDTO;
 import com.school.management.model.academic.*;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.TeacherAssignmentService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,15 +26,33 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
     private final ClassroomRepository classroomRepository;
     private final AcademicYearRepository yearRepository;
 
-    // Nouveaux dépôts requis pour le calcul du taux de réussite
     private final EnrollmentRepository enrollmentRepository;
     private final EvaluationTaskRepository evaluationTaskRepository;
     private final StudentMarkRepository markRepository;
 
+    /**
+     * ✅ MÉTHODE UTILITAIRE MULTI-TENANT
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est rattaché à aucune école active.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
     @Override
     @Transactional
     public TeacherAssignmentResponseDTO assignTeacher(TeacherAssignmentRequestDTO dto) {
-        repository.findByCourseAssignmentIdAndClassroomId(dto.getCourseAssignmentId(), dto.getClassroomId())
+        // ✅ ISOLATION DES CLÉS UNIQUES PAR ÉCOLE
+        repository.findByCourseAssignmentIdAndClassroomIdAndSchoolId(dto.getCourseAssignmentId(), dto.getClassroomId(), getCurrentSchoolId())
                 .ifPresent(a -> { throw new RuntimeException("Ce cours est déjà attribué à un autre enseignant dans cette classe."); });
 
         Teacher teacher = teacherRepository.findById(dto.getTeacherId())
@@ -46,6 +67,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         AcademicYear year = yearRepository.findById(dto.getAcademicYearId())
                 .orElseThrow(() -> new RuntimeException("Année académique non trouvée"));
 
+        // ✅ SÉCURITÉ MULTI-TENANT : Vérification de la légitimité des liaisons soumises
+        if (!course.getSchool().getId().equals(getCurrentSchoolId()) || !year.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Opération refusée : Tentative de liaison avec des entités d'un autre établissement.");
+        }
+
         TeacherAssignment assignment = TeacherAssignment.builder()
                 .teacher(teacher)
                 .courseAssignment(course)
@@ -53,6 +79,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 .academicYear(year)
                 .weeklyHours(dto.getWeeklyHours())
                 .isClassMaster(dto.isClassMaster())
+                .school(getCurrentUser().getSchool()) // ✅ MULTI-TENANT : Injection automatique
                 .build();
 
         return mapToDTO(repository.save(assignment));
@@ -64,7 +91,12 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         AcademicYear targetYear = yearRepository.findById(targetYearId)
                 .orElseThrow(() -> new RuntimeException("Année cible non trouvée"));
 
-        List<TeacherAssignment> sourceAssignments = repository.findByAcademicYearId(sourceYearId);
+        if (!targetYear.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Opération refusée : L'année cible n'appartient pas à votre établissement.");
+        }
+
+        // ✅ RECHERCHE ISOLÉE DE L'ANCIENNE CONFIGURATION PAR SCHOOL_ID
+        List<TeacherAssignment> sourceAssignments = repository.findByAcademicYearIdAndSchoolId(sourceYearId, getCurrentSchoolId());
 
         for (TeacherAssignment source : sourceAssignments) {
             CourseAssignment srcConfig = source.getCourseAssignment();
@@ -74,15 +106,16 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
             String sectionName = srcConfig.getSection() != null ? srcConfig.getSection().getSectionName() : null;
             String optionName = srcConfig.getOption() != null ? srcConfig.getOption().getOptionName() : null;
 
+            // ✅ AJOUT PARAMÈTRE DU TENANT
             Optional<CourseAssignment> targetConfigOpt = courseRepository.findByLogicalKeyInYear(
-                    subjectName, levelName, sectionName, optionName, targetYearId
+                    subjectName, levelName, sectionName, optionName, targetYearId, getCurrentSchoolId()
             );
 
             if (targetConfigOpt.isPresent()) {
                 CourseAssignment targetConfig = targetConfigOpt.get();
 
-                boolean alreadyExists = repository.findByCourseAssignmentIdAndClassroomId(
-                        targetConfig.getId(), source.getClassroom().getId()).isPresent();
+                boolean alreadyExists = repository.findByCourseAssignmentIdAndClassroomIdAndSchoolId(
+                        targetConfig.getId(), source.getClassroom().getId(), getCurrentSchoolId()).isPresent();
 
                 if (!alreadyExists) {
                     TeacherAssignment newAssignment = TeacherAssignment.builder()
@@ -92,6 +125,7 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                             .academicYear(targetYear)
                             .weeklyHours(source.getWeeklyHours())
                             .isClassMaster(source.isClassMaster())
+                            .school(getCurrentUser().getSchool()) // ✅ MULTI-TENANT : Clonage sécurisé
                             .build();
 
                     repository.save(newAssignment);
@@ -106,6 +140,11 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         TeacherAssignment existingAssignment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Affectation introuvable avec l'ID : " + id));
 
+        // ✅ SÉCURITÉ MULTI-TENANT : Vérification avant mise à jour
+        if (!existingAssignment.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Modification refusée : Cette affectation n'appartient pas à votre école.");
+        }
+
         Teacher teacher = teacherRepository.findById(dto.getTeacherId())
                 .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
 
@@ -117,6 +156,10 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
 
         AcademicYear year = yearRepository.findById(dto.getAcademicYearId())
                 .orElseThrow(() -> new RuntimeException("Année académique non trouvée"));
+
+        if (!course.getSchool().getId().equals(getCurrentSchoolId()) || !year.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Modification refusée : Les nouvelles données cibles violent l'isolation multi-tenant.");
+        }
 
         existingAssignment.setTeacher(teacher);
         existingAssignment.setCourseAssignment(course);
@@ -130,26 +173,40 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
 
     @Override
     public List<TeacherAssignmentResponseDTO> getAssignmentsByClass(Long classroomId, Long yearId) {
-        return repository.findByClassroomIdAndAcademicYearId(classroomId, yearId)
+        // ✅ ISOLATION DU READ
+        return repository.findByClassroomIdAndAcademicYearIdAndSchoolId(classroomId, yearId, getCurrentSchoolId())
                 .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
     public List<TeacherAssignmentResponseDTO> getAssignmentsByTeacher(Long teacherId, Long yearId) {
-        return repository.findByTeacherIdAndAcademicYearId(teacherId, yearId)
+        // ✅ ISOLATION DU READ
+        return repository.findByTeacherIdAndAcademicYearIdAndSchoolId(teacherId, yearId, getCurrentSchoolId())
                 .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     public void deleteAssignment(Long id) {
-        repository.deleteById(id);
+        TeacherAssignment existingAssignment = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Affectation introuvable avec l'ID : " + id));
+
+        // ✅ SÉCURITÉ MULTI-TENANT : Vérification de la propriété avant suppression
+        if (!existingAssignment.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Suppression refusée : Cette affectation n'appartient pas à votre école.");
+        }
+        repository.delete(existingAssignment);
     }
 
     @Override
     public TeacherAssignmentResponseDTO getAssignmentById(Long id) {
         TeacherAssignment assignment = repository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Affectation introuvable avec l'ID : " + id));
+
+        // ✅ SÉCURITÉ MULTI-TENANT
+        if (!assignment.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Consultation refusée : Cette affectation n'appartient pas à votre école.");
+        }
         return mapToDTO(assignment);
     }
 
@@ -158,16 +215,23 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         TeacherAssignment ta = repository.findById(teacherAssignmentId)
                 .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
 
+        // ✅ VÉRIFICATION MULTI-TENANT STATISTIQUES
+        if (!ta.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Calcul du taux de réussite interdit : Données hors périmètre d'accès.");
+        }
+
         // 1. Récupérer tous les élèves actifs inscrits dans cette classe
-        List<Enrollment> enrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndActiveTrue(
-                ta.getClassroom().getId(), ta.getAcademicYear().getId());
+        // ✅ CORRECTION MULTI-TENANT : Adaptation du nom de la méthode et ajout du paramètre getCurrentSchoolId()
+        List<Enrollment> enrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(
+                ta.getClassroom().getId(), ta.getAcademicYear().getId(), getCurrentSchoolId());
 
         if (enrollments.isEmpty()) {
             return 0.0;
         }
 
         // 2. Récupérer toutes les évaluations créées pour cette affectation
-        List<EvaluationTask> tasks = evaluationTaskRepository.findByTeacherAssignmentId(teacherAssignmentId);
+        // ✅ CORRECTION MULTI-TENANT : Adaptation de la méthode pour respecter la signature sécurisée du repository
+        List<EvaluationTask> tasks = evaluationTaskRepository.findByTeacherAssignmentIdAndSchoolId(teacherAssignmentId, getCurrentSchoolId());
         if (tasks.isEmpty()) {
             return 0.0;
         }

@@ -2,26 +2,23 @@ package com.school.management.service.financial;
 
 import com.school.management.dto.financial.ScheduleFeesDTO;
 import com.school.management.dto.financial.ScheduleFeesResponseDTO;
-import com.school.management.model.financial.ScheduleFees;
 
 import java.util.List;
 
 public interface ScheduleFeesService {
 
-    // CREATE
-    ScheduleFeesResponseDTO create(ScheduleFeesDTO dto);
+    // ✅ Intégration du schoolId pour restreindre la manipulation des barèmes
+    ScheduleFeesResponseDTO create(ScheduleFeesDTO dto, Long schoolId);
 
-    // READ
-    ScheduleFeesResponseDTO getById(Long id);
+    ScheduleFeesResponseDTO getById(Long id, Long schoolId);
 
-    List<ScheduleFeesResponseDTO> getAll();
+    List<ScheduleFeesResponseDTO> getAll(Long schoolId);
 
-    List<ScheduleFeesResponseDTO> getByAcademicYear(Long academicYearId);
+    List<ScheduleFeesResponseDTO> getByAcademicYear(Long academicYearId, Long schoolId);
 
-    // UPDATE
-    ScheduleFeesResponseDTO update(Long id, ScheduleFeesDTO dto);
+    ScheduleFeesResponseDTO update(Long id, ScheduleFeesDTO dto, Long schoolId);
 
-    void delete(Long id);
+    void delete(Long id, Long schoolId);
 
-    void deactivate(Long id);
+    void deactivate(Long id, Long schoolId);
 }

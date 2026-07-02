@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom'; // ✅ AJOUT de useLocation
 import { studentService } from '../../services/studentService';
 import AddStudentForm from '../structure/AddStudentForm';
 import { ThemeContext } from '../../App'; // Import du contexte
@@ -10,6 +10,8 @@ const StudentManagement = () => {
     const isDark = theme === 'dark';
     
     const navigate = useNavigate();
+    const location = useLocation(); // ✅ Permet de connaître le chemin actuel (ex: /prefet/eleves)
+    
     const [students, setStudents] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [selectedStudent, setSelectedStudent] = useState(null); 
@@ -53,6 +55,15 @@ const StudentManagement = () => {
         printWindow.document.write(`<html><head><title>Registre Musafa</title><style>body{font-family:sans-serif;padding:30px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #e2e8f0;padding:12px;font-size:11px;}th{background:#1e3a8a;color:white;}.header{text-align:center;border-bottom:3px solid #1e3a8a;margin-bottom:20px;}</style></head><body><div class="header"><h1>COMPLEXE SCOLAIRE MUSAFA</h1><p>REGISTRE GÉNÉRAL</p></div>${printContent}</body></html>`);
         printWindow.document.close();
         printWindow.print();
+    };
+
+    // ✅ NOUVELLE FONCTION : Redirection intelligente vers le module Inscriptions selon le rôle (Admin vs Préfet)
+    const handleNavigateToEnrollment = () => {
+        if (location.pathname.startsWith('/prefet')) {
+            navigate('/prefet/inscriptions');
+        } else {
+            navigate('/inscriptions');
+        }
     };
 
     // Filtrage et tri intelligent : Les élèves ajoutés récemment apparaissent en premier lieu
@@ -133,8 +144,9 @@ const StudentManagement = () => {
                             <span>Imprimer</span>
                         </button>
                         
+                        {/* ✅ MODIFICATION ICI : Utilisation de la nouvelle fonction de redirection intelligente */}
                         <button 
-                            onClick={() => navigate('/inscriptions')} 
+                            onClick={handleNavigateToEnrollment} 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl shadow-md font-bold text-xs uppercase transition-all transform active:scale-95 flex items-center justify-center gap-2"
                         >
                             <GraduationCap size={14} />

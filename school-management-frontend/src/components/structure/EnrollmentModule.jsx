@@ -7,7 +7,7 @@ import { studentService } from '../../services/studentService';
 
 // --- IMPORTS DU THEME GLOBAL ET ICONES ---
 import { ThemeContext } from '../../App';
-import { Users, UserPlus, RefreshCw, PieChart, User } from 'lucide-react';
+import { Users, UserPlus, RefreshCw, User, Search, Plus, X, ChevronRight, FileText, Upload, Check } from 'lucide-react';
 
 // --- IMPORTS DES SOUS-MODULES ---
 import ReportExplorer from './ReportExplorer'; 
@@ -160,7 +160,7 @@ const EnrollmentModule = ({ students = [], onClose }) => {
             return {
                 ...en,
                 studentRaw: studentRef, 
-                displayMatricule: en.matricule || studentRef?.matricule || "SANS MAT.L",
+                displayMatricule: en.matricule || studentRef?.matricule || "SANS MAT.",
                 displayFullName: fullName,
                 displayGender: getGenderDisplay(rawGender),
                 displayClassname: en.classroomName || formatClassName(classrooms.find(c => String(c.id) === String(en.classroomId))),
@@ -169,7 +169,6 @@ const EnrollmentModule = ({ students = [], onClose }) => {
                 computedClassId: String(en.classroomId || en.classroom?.id || "")
             };
         })
-        // Tri intelligent : Les élèves inscrits récemment s'affichent en premier lieu
         .sort((a, b) => new Date(b.createdAt || b.displayDate) - new Date(a.createdAt || a.displayDate));
     }, [enrollments, students, localStudents, classrooms, formatClassName]);
 
@@ -301,17 +300,24 @@ const EnrollmentModule = ({ students = [], onClose }) => {
     };
 
     return (
-        <div className={`w-full h-full flex flex-col font-sans transition-colors duration-200 ${isDark ? 'bg-[#0F172A] text-white' : 'bg-[#F8FAFC] text-slate-900'}`}>
+        <div className={`w-full h-full flex flex-col font-sans transition-colors duration-200 ${isDark ? 'bg-slate-900 text-slate-100' : 'bg-[#F8FAFC] text-slate-800'}`}>
             
-            {/* Header épuré et aligné */}
-            <header className={`px-4 md:px-6 py-5 flex flex-col sm:flex-row justify-between items-center gap-4 border-b ${isDark ? 'bg-[#1E293B]/40 border-slate-800' : 'bg-white border-slate-200'} shrink-0`}>
+            {/* --- HEADER ÉPURÉ (Style Dashboard Moderne) --- */}
+            <header className={`px-6 py-5 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0 border-b ${isDark ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                 <div className="flex items-center gap-4 w-full sm:w-auto">
-                    <button onClick={onClose ? onClose : () => navigate(-1)} className={`w-10 h-10 flex items-center justify-center rounded-full transition-colors ${isDark ? 'hover:bg-slate-800 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>←</button>
+                    <button 
+                        onClick={onClose ? onClose : () => navigate(-1)} 
+                        className={`w-9 h-9 flex items-center justify-center rounded-xl transition-colors border ${isDark ? 'border-slate-700 hover:bg-slate-800 text-slate-300' : 'border-slate-200 hover:bg-slate-50 text-slate-600'}`}
+                    >
+                        ←
+                    </button>
                     <div>
-                        <h1 className="text-xl font-black tracking-tight uppercase italic flex items-center gap-2">
-                            <span className="text-[#38BDF8]">Gérer Les Inscription</span>
+                        <h1 className={`text-xl font-bold tracking-tight flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                            Gestion des Inscriptions
                         </h1>
-                        <p className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>Gestion & Pilotage des Effectifs</p>
+                        <p className={`text-xs font-medium mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            Pilotage des effectifs • Année {activeYear?.annee || 'En cours'}
+                        </p>
                     </div>
                 </div>
                 
@@ -325,43 +331,48 @@ const EnrollmentModule = ({ students = [], onClose }) => {
                             setSelectedStudent(null); 
                             setIsWizardOpen(true); 
                         }} 
-                        className="w-full sm:w-auto bg-gradient-to-r from-[#1E293B] to-[#10B981] hover:from-[#10B981] hover:to-[#059669] text-white px-6 py-3 rounded-xl font-black text-xs shadow-lg transition-all active:scale-95"
+                        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-semibold text-sm shadow-sm transition-all active:scale-95"
                     >
-                        + NOUVELLE INSCRIPTION
+                        <Plus size={16} />
+                        Nouvelle Inscription
                     </button>
                 </div>
             </header>
 
-            {/* Barre de navigation interne et filtres */}
-            <nav className={`border-b px-4 md:px-6 py-4 flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 ${isDark ? 'bg-[#1E293B] border-slate-800' : 'bg-white border-slate-200'}`}>
-                <div className={`flex p-1 rounded-2xl w-full lg:w-auto overflow-x-auto ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
-                    <button onClick={() => switchTab('list')} className={`flex-1 lg:flex-none px-5 py-2.5 rounded-xl text-[10px] md:text-xs font-black transition-all whitespace-nowrap ${viewMode === 'list' ? (isDark ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-900 shadow-md') : 'text-slate-500 hover:text-slate-700'}`}>LISTE GLOBALE</button>
-                    <button onClick={() => switchTab('grid')} className={`flex-1 lg:flex-none px-5 py-2.5 rounded-xl text-[10px] md:text-xs font-black transition-all whitespace-nowrap ${viewMode === 'grid' ? (isDark ? 'bg-slate-800 text-white shadow-md' : 'bg-white text-slate-900 shadow-md') : 'text-slate-500 hover:text-slate-700'}`}>EFFECTIFS CLASSES</button>
-                    <button onClick={() => switchTab('reports')} className={`flex-1 lg:flex-none px-5 py-2.5 rounded-xl text-[10px] md:text-xs font-black transition-all whitespace-nowrap ${viewMode === 'reports' ? 'bg-[#38BDF8] text-white shadow-xl' : 'text-slate-500 hover:text-slate-700'}`}>ARCHIVES RAPPORTS</button>
-                    <button onClick={() => switchTab('archives')} className={`flex-1 lg:flex-none px-5 py-2.5 rounded-xl text-[10px] md:text-xs font-black transition-all whitespace-nowrap ${viewMode === 'archives' ? 'bg-[#38BDF8] text-white shadow-xl' : 'text-[#38BDF8] hover:bg-blue-50'}`}>📁 DOSSIERS ÉLÈVES</button>
+            {/* --- BARRE DE NAVIGATION & FILTRES --- */}
+            <nav className={`px-6 py-4 flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 ${isDark ? 'bg-slate-900' : 'bg-transparent'}`}>
+                <div className={`flex p-1 rounded-xl w-full lg:w-auto overflow-x-auto border ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
+                    <button onClick={() => switchTab('list')} className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${viewMode === 'list' ? (isDark ? 'bg-slate-700 text-white shadow-sm' : 'bg-slate-100 text-slate-900') : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Liste Globale</button>
+                    <button onClick={() => switchTab('grid')} className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${viewMode === 'grid' ? (isDark ? 'bg-slate-700 text-white shadow-sm' : 'bg-slate-100 text-slate-900') : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Effectifs Classes</button>
+                    <button onClick={() => switchTab('reports')} className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${viewMode === 'reports' ? (isDark ? 'bg-blue-900/50 text-blue-400 shadow-sm' : 'bg-blue-50 text-blue-700') : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Archives Rapports</button>
+                    <button onClick={() => switchTab('archives')} className={`flex-1 lg:flex-none px-4 py-2 rounded-lg text-xs font-semibold transition-all whitespace-nowrap ${viewMode === 'archives' ? (isDark ? 'bg-blue-900/50 text-blue-400 shadow-sm' : 'bg-blue-50 text-blue-700') : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}>Dossiers Élèves</button>
                 </div>
                 
                 {viewMode !== 'reports' && viewMode !== 'archives' && (
                     <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
                         <div className="relative w-full sm:w-64">
-                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs">🔍</span>
+                            <Search size={16} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-400' : 'text-slate-400'}`} />
                             <input 
                                 type="text" 
-                                placeholder="Rechercher nom ou matricule..." 
-                                className={`w-full pl-9 pr-4 py-2.5 rounded-xl border outline-none font-bold text-[11px] transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-[#10B981]' : 'bg-slate-50 border-slate-200 focus:border-[#10B981]'}`}
+                                placeholder="Rechercher élève..." 
+                                className={`w-full pl-10 pr-4 py-2 rounded-xl border outline-none text-sm transition-all focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-white border-slate-200 focus:border-blue-500 shadow-sm'}`}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <select value={filterClass} onChange={(e) => setFilterClass(e.target.value)} className={`w-full sm:w-48 border rounded-xl px-3 py-2.5 text-[11px] font-bold outline-none cursor-pointer ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200'}`}>
-                            <option value="ALL">TOUTES LES CLASSES</option>
+                        <select 
+                            value={filterClass} 
+                            onChange={(e) => setFilterClass(e.target.value)} 
+                            className={`w-full sm:w-48 border rounded-xl px-3 py-2 text-sm font-medium outline-none cursor-pointer transition-all focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-white border-slate-200 focus:border-blue-500 shadow-sm'}`}
+                        >
+                            <option value="ALL">Toutes les classes</option>
                             {classrooms.map(c => <option key={c.id} value={c.id}>{formatClassName(c)}</option>)}
                         </select>
                     </div>
                 )}
             </nav>
 
-            {/* Zone de contenu principale fluide (totalement responsive sous sidebar) */}
+            {/* --- ZONE DE CONTENU PRINCIPALE --- */}
             <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 custom-scrollbar">
                 {viewMode === 'reports' ? (
                     <ReportExplorer onBack={() => setViewMode('list')} />
@@ -369,7 +380,7 @@ const EnrollmentModule = ({ students = [], onClose }) => {
                     <div className="space-y-4">
                         {selectedArchiveMatricule ? (
                             <div className="flex flex-col">
-                                <button onClick={() => setSelectedArchiveMatricule(null)} className="self-start bg-slate-800 text-white px-6 py-2 rounded-xl text-[10px] font-black mb-4">← RETOUR</button>
+                                <button onClick={() => setSelectedArchiveMatricule(null)} className="self-start bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-lg text-sm font-medium mb-4 transition-colors">← Retour</button>
                                 <StudentArchiveDetail matricule={selectedArchiveMatricule} isEmbedded={true} />
                             </div>
                         ) : (
@@ -378,106 +389,130 @@ const EnrollmentModule = ({ students = [], onClose }) => {
                     </div>
                 ) : (
                     <>
-                        {/* CARTES STATISTIQUES REVISITÉES PLUS PETITES ET NOUVELLES COULEURS */}
+                        {/* --- CARTES STATISTIQUES (Minimalistes & Claires) --- */}
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
                             <StatCard 
                                 label="Total Inscrits" 
                                 value={stats.total} 
-                                subValue={`Année Active : ${activeYear?.annee || 'En cours'}`} 
-                                color="bg-gradient-to-r from-[#0F172A] to-[#10B981]" 
-                                icon={<Users size={22} />} 
+                                isDark={isDark}
+                                colorTheme="blue"
+                                icon={<Users size={20} />} 
                             />
                             <StatCard 
                                 label="Nouveaux" 
                                 value={stats.nouveaux} 
-                                color="bg-gradient-to-r from-[#0F172A] to-[#EA580C]" 
-                                icon={<UserPlus size={22} />} 
+                                isDark={isDark}
+                                colorTheme="emerald"
+                                icon={<UserPlus size={20} />} 
                             />
                             <StatCard 
                                 label="Réinscriptions" 
                                 value={stats.reinscrits} 
-                                color="bg-gradient-to-r from-blue-600 to-[#38BDF8]" 
-                                icon={<RefreshCw size={22} />} 
+                                isDark={isDark}
+                                colorTheme="amber"
+                                icon={<RefreshCw size={20} />} 
                             />
                             <StatCard 
-                                label="Ratio Genre (M/F)" 
-                                value={`${stats.g} ♂ / ${stats.f} ♀`} 
-                                subValue="Filles & Garçons" 
-                                color="bg-gradient-to-r from-[#10B981] to-[#3B82F6]" 
-                                icon={<div className="flex -space-x-1.5"><User size={20} className="opacity-90" /><User size={20} className="opacity-60" /></div>} 
+                                label="Ratio F/G" 
+                                value={`${stats.f} ♀ / ${stats.g} ♂`} 
+                                isDark={isDark}
+                                colorTheme="purple"
+                                icon={<User size={20} />} 
                             />
                         </div>
 
-                        {/* TABLEAU AVEC BORDURE DÉGRADÉE VERT & BLEU DE NUIT */}
+                        {/* --- TABLEAU DE DONNÉES (Design SaaS) --- */}
                         {viewMode === 'list' ? (
-                            <div className={`rounded-2xl shadow-xl border overflow-hidden ${isDark ? 'bg-[#1E293B] border-slate-800' : 'bg-white border-slate-200'}`}>
+                            <div className={`rounded-2xl border shadow-sm overflow-hidden ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse min-w-[1000px]">
-                                        <thead className={`text-[10px] font-black uppercase sticky top-0 z-10 relative`}>
-                                            <tr className="border-b-4 border-transparent bg-gradient-to-r from-[#0F172A] to-[#10B981] text-white">
-                                                <th className="p-4 md:p-5">Matricule</th>
-                                                <th className="p-4 md:p-5">Nom Complet</th>
-                                                <th className="p-4 md:p-5 text-center">Genre</th>
-                                                <th className="p-4 md:p-5">Classe Affectée</th>
-                                                <th className="p-4 md:p-5">Type d'Inscription</th>
-                                                <th className="p-4 md:p-5">Date d'Inscription</th>
-                                                <th className="p-4 md:p-5 text-center">Actions</th>
+                                        <thead className={`text-xs font-semibold uppercase tracking-wider ${isDark ? 'bg-slate-900/50 text-slate-400 border-b border-slate-700' : 'bg-slate-50 text-slate-500 border-b border-slate-200'}`}>
+                                            <tr>
+                                                <th className="py-4 px-5">Matricule</th>
+                                                <th className="py-4 px-5">Nom Complet</th>
+                                                <th className="py-4 px-5">Genre</th>
+                                                <th className="py-4 px-5">Classe Affectée</th>
+                                                <th className="py-4 px-5">Type d'Inscription</th>
+                                                <th className="py-4 px-5">Date d'Inscription</th>
+                                                <th className="py-4 px-5 text-right">Actions</th>
                                             </tr>
                                         </thead>
-                                        <tbody className={`divide-y ${isDark ? 'divide-slate-800' : 'divide-slate-100'}`}>
+                                        <tbody className={`divide-y ${isDark ? 'divide-slate-700' : 'divide-slate-100'}`}>
                                             {filteredEnrollments.length > 0 ? (
                                                 filteredEnrollments.map(en => (
-                                                    <tr key={en.id} className={`transition-colors group ${isDark ? 'hover:bg-slate-800/60' : 'hover:bg-slate-50'}`}>
-                                                        <td className="p-4 md:p-5 font-black text-[#10B981]">{en.displayMatricule}</td>
-                                                        <td className={`p-4 md:p-5 font-bold uppercase text-xs ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{en.displayFullName}</td>
-                                                        <td className="p-4 md:p-5 text-center">
-                                                            <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${en.displayGender === 'F' ? 'bg-pink-100 text-pink-600' : 'bg-blue-100 text-blue-600'}`}>{en.displayGender}</span>
+                                                    <tr key={en.id} className={`transition-colors group ${isDark ? 'hover:bg-slate-700/50' : 'hover:bg-slate-50'}`}>
+                                                        <td className={`py-4 px-5 font-medium text-sm ${isDark ? 'text-blue-400' : 'text-blue-600'}`}>
+                                                            {en.displayMatricule}
                                                         </td>
-                                                        <td className={`p-4 md:p-5 font-bold text-[10px] italic ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{en.displayClassname}</td>
-                                                        <td className="p-4 md:p-5">
-                                                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black ${en.displayEnrollmentType === 'NOUVEAU' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                                {en.displayEnrollmentType}
+                                                        <td className={`py-4 px-5 font-medium text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                            {en.displayFullName}
+                                                        </td>
+                                                        <td className="py-4 px-5">
+                                                            <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${en.displayGender === 'F' ? (isDark ? 'bg-pink-500/10 text-pink-400' : 'bg-pink-50 text-pink-600') : (isDark ? 'bg-blue-500/10 text-blue-400' : 'bg-blue-50 text-blue-600')}`}>
+                                                                {en.displayGender}
                                                             </span>
                                                         </td>
-                                                        <td className={`p-4 md:p-5 font-bold text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{formatDate(en.displayDate)}</td>
-                                                        <td className="p-4 md:p-5">
-                                                            <div className="flex justify-center gap-2">
-                                                                <button onClick={() => openEditWizard(en)} className={`p-2 rounded-lg transition-colors shadow-sm ${isDark ? 'bg-slate-800 text-amber-400 hover:bg-slate-700' : 'bg-amber-50 text-amber-600 hover:bg-amber-100'}`}>✏️</button>
-                                                                <button onClick={() => handleDelete(en.id)} className={`p-2 rounded-lg transition-colors shadow-sm ${isDark ? 'bg-slate-800 text-red-400 hover:bg-red-950/40' : 'bg-red-50 text-red-600 hover:bg-red-100'}`}>🗑️</button>
+                                                        <td className={`py-4 px-5 text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                                                            {en.displayClassname}
+                                                        </td>
+                                                        <td className="py-4 px-5">
+                                                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${en.displayEnrollmentType === 'NOUVEAU' ? (isDark ? 'bg-emerald-500/10 text-emerald-400' : 'bg-emerald-50 text-emerald-700') : (isDark ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-700')}`}>
+                                                                <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${en.displayEnrollmentType === 'NOUVEAU' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+                                                                {en.displayEnrollmentType === 'NOUVEAU' ? 'Nouveau' : 'Réinscription'}
+                                                            </span>
+                                                        </td>
+                                                        <td className={`py-4 px-5 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                            {formatDate(en.displayDate)}
+                                                        </td>
+                                                        <td className="py-4 px-5">
+                                                            <div className="flex justify-end gap-2">
+                                                                <button onClick={() => openEditWizard(en)} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-slate-400 hover:bg-slate-700 hover:text-amber-400' : 'text-slate-400 hover:bg-slate-100 hover:text-amber-600'}`}>
+                                                                    ✏️
+                                                                </button>
+                                                                <button onClick={() => handleDelete(en.id)} className={`p-1.5 rounded-lg transition-colors ${isDark ? 'text-slate-400 hover:bg-slate-700 hover:text-red-400' : 'text-slate-400 hover:bg-slate-100 hover:text-red-600'}`}>
+                                                                    🗑️
+                                                                </button>
                                                             </div>
                                                         </td>
                                                     </tr>
                                                 ))
                                             ) : (
-                                                <tr><td colSpan="7" className="p-20 text-center font-bold text-slate-400 italic">Aucun élève enregistré pour le moment.</td></tr>
+                                                <tr>
+                                                    <td colSpan="7" className={`py-12 text-center text-sm font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                                        Aucun élève trouvé.
+                                                    </td>
+                                                </tr>
                                             )}
                                         </tbody>
                                     </table>
                                 </div>
                             </div>
                         ) : (
-                            /* EFFÉCTIFS PAR GRILLE DE CLASSE */
+                            /* --- VUE GRILLE : EFFECTIFS CLASSES --- */
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
                                 {classrooms.map(cls => {
                                     const realCount = allEnrichedEnrollments.filter(en => String(en.computedClassId) === String(cls.id)).length;
                                     const capacity = cls.capacity || 0;
                                     const percentage = capacity > 0 ? Math.min((realCount / capacity) * 100, 100) : 0;
+                                    
                                     return (
-                                        <div key={cls.id} className={`p-6 rounded-2xl shadow-xl border-t-4 border-[#10B981] flex flex-col justify-between hover:scale-[1.02] transition-transform border ${isDark ? 'bg-[#1E293B] border-slate-800' : 'bg-white border-slate-100'}`}>
-                                            <div>
-                                                <h3 className={`font-black text-xs md:text-sm uppercase leading-tight mb-1 ${isDark ? 'text-slate-200' : 'text-[#0F172A]'}`}>{formatClassName(cls)}</h3>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Local : {cls.roomName || 'N/A'}</p>
+                                        <div key={cls.id} className={`p-6 rounded-2xl border shadow-sm transition-transform hover:-translate-y-1 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <h3 className={`font-bold text-base mb-1 ${isDark ? 'text-white' : 'text-slate-900'}`}>{formatClassName(cls)}</h3>
+                                                    <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Local: {cls.roomName || 'N/A'}</p>
+                                                </div>
                                             </div>
                                             <div className="mt-6">
-                                                <div className="flex justify-between items-end mb-1.5">
-                                                    <div className="flex items-baseline gap-1">
-                                                        <span className={`text-2xl font-black ${isDark ? 'text-white' : 'text-slate-800'}`}>{realCount}</span>
-                                                        <span className="text-xs font-bold text-slate-400">/ {capacity} élèves</span>
+                                                <div className="flex justify-between items-end mb-2">
+                                                    <div className="flex items-baseline gap-1.5">
+                                                        <span className={`text-3xl font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{realCount}</span>
+                                                        <span className={`text-sm font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>/ {capacity}</span>
                                                     </div>
-                                                    <span className="text-[10px] font-black text-[#10B981]">{Math.round(percentage)}%</span>
+                                                    <span className={`text-xs font-bold ${percentage >= 100 ? 'text-red-500' : 'text-blue-500'}`}>{Math.round(percentage)}%</span>
                                                 </div>
-                                                <div className={`w-full h-1.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-900' : 'bg-slate-100'}`}>
-                                                    <div className={`h-full transition-all duration-500 ${percentage >= 100 ? 'bg-red-500' : 'bg-[#10B981]'}`} style={{ width: `${percentage}%` }} />
+                                                <div className={`w-full h-2 rounded-full overflow-hidden ${isDark ? 'bg-slate-700' : 'bg-slate-100'}`}>
+                                                    <div className={`h-full rounded-full transition-all duration-500 ${percentage >= 100 ? 'bg-red-500' : 'bg-blue-500'}`} style={{ width: `${percentage}%` }} />
                                                 </div>
                                             </div>
                                         </div>
@@ -489,61 +524,161 @@ const EnrollmentModule = ({ students = [], onClose }) => {
                 )}
             </main>
 
-            {/* WIZARD MODAL ASSOCIE */}
+            {/* --- WIZARD MODAL (Design Épuré) --- */}
             {isWizardOpen && (
-                <div className="fixed inset-0 bg-[#0F172A]/80 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
-                    <div className={`w-full max-w-lg rounded-2xl p-6 shadow-2xl relative border ${isDark ? 'bg-[#1E293B] border-slate-800 text-white' : 'bg-white text-slate-900'}`}>
-                        <div className={`flex justify-between items-center mb-6 border-b pb-4 ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
-                            <h2 className="font-black uppercase text-xs tracking-wider">
-                                {isEditMode ? "📝 Modifier Inscription" : (currentStep === 1 ? "Étape 1 : Sélection de l'Élève" : "Étape 2 : Configuration d'affectation")}
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[200] flex items-center justify-center p-4">
+                    <div className={`w-full max-w-lg rounded-2xl p-6 shadow-xl relative border ${isDark ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-100 text-slate-900'}`}>
+                        
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className={`font-bold text-lg ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                {isEditMode ? "Modifier l'inscription" : (currentStep === 1 ? "1. Sélection de l'Élève" : "2. Affectation de Classe")}
                             </h2>
-                            <button onClick={closeWizard} className="text-slate-400 hover:text-red-500 font-bold transition-colors">✕</button>
+                            <button onClick={closeWizard} className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}>
+                                <X size={20} />
+                            </button>
                         </div>
+
                         {currentStep === 1 ? (
                             <div className="space-y-4">
-                                <input type="text" placeholder="Saisir un nom de famille ou matricule..."
-                                    className={`w-full pl-4 pr-4 py-3 rounded-xl border outline-none font-bold text-[11px] transition-all ${isDark ? 'bg-slate-900 border-slate-700 text-white focus:border-[#10B981]' : 'bg-slate-50 border-slate-200 focus:border-[#10B981]'}`}
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                                <div className={`max-h-60 overflow-y-auto rounded-xl border p-1 ${isDark ? 'border-slate-800' : 'border-slate-200'}`}>
+                                <div className="relative">
+                                    <Search size={18} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Rechercher par nom ou matricule..."
+                                        className={`w-full pl-10 pr-4 py-3 rounded-xl border outline-none text-sm transition-all focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-white border-slate-200 focus:border-blue-500'}`}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                                
+                                <div className={`max-h-64 overflow-y-auto rounded-xl border ${isDark ? 'border-slate-700 divide-slate-700' : 'border-slate-200 divide-slate-100'} divide-y`}>
                                     {eligibleStudents.length > 0 ? (
                                         eligibleStudents.map(s => (
-                                            <div key={s.id} onClick={() => setSelectedStudent(s)} className={`p-3 mb-1 rounded-lg cursor-pointer transition-colors flex justify-between items-center ${selectedStudent?.id === s.id ? 'bg-[#10B981] text-white' : (isDark ? 'hover:bg-slate-800 text-slate-300' : 'hover:bg-slate-50 text-slate-700')}`}>
+                                            <div 
+                                                key={s.id} 
+                                                onClick={() => { setSelectedStudent(s); setCurrentStep(2); }}
+                                                className={`p-4 cursor-pointer flex justify-between items-center transition-colors group ${isDark ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}
+                                            >
                                                 <div>
-                                                    <div className="font-bold text-xs">{s.lastName} {s.postName} {s.firstName}</div>
-                                                    <div className={`text-[10px] ${selectedStudent?.id === s.id ? 'text-emerald-100' : 'text-slate-500'}`}>{s.matricule || 'N/A'} - {s.gender || s.sexe || 'N/A'}</div>
+                                                    <p className={`font-semibold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                                        {s.lastName} {s.postName} {s.firstName}
+                                                    </p>
+                                                    <p className={`text-xs mt-0.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                                        Matricule: {s.matricule || 'N/A'}
+                                                    </p>
                                                 </div>
+                                                <ChevronRight size={18} className={`transition-transform group-hover:translate-x-1 ${isDark ? 'text-blue-400' : 'text-blue-500'}`} />
                                             </div>
                                         ))
                                     ) : (
-                                        <div className="p-4 text-center text-[10px] font-bold text-slate-400">Aucun élève trouvé.</div>
+                                        <div className={`p-6 text-center text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                                            Aucun élève disponible trouvé.
+                                        </div>
                                     )}
-                                </div>
-                                <div className="flex justify-end pt-4">
-                                    <button disabled={!selectedStudent} onClick={() => setCurrentStep(2)} className="bg-gradient-to-r from-[#1E293B] to-[#10B981] disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-black text-xs transition-transform active:scale-95 shadow-lg">SUIVANT →</button>
                                 </div>
                             </div>
                         ) : (
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-[10px] font-black mb-1 opacity-70 uppercase tracking-widest">Classe d'Affectation</label>
-                                    <select value={enrollmentData.classroomId} onChange={(e) => setEnrollmentData({...enrollmentData, classroomId: e.target.value})} className={`w-full p-2.5 rounded-xl border outline-none font-bold text-[11px] ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}>
-                                        <option value="">-- Sélectionner une classe --</option>
-                                        {classrooms.map(c => <option key={c.id} value={c.id}>{formatClassName(c)}</option>)}
-                                    </select>
+                            <div className="space-y-5">
+                                {/* Résumé Élève sélectionné */}
+                                <div className={`p-4 rounded-xl border flex items-center gap-3 ${isDark ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${isDark ? 'bg-slate-700 text-slate-300' : 'bg-white text-slate-600 shadow-sm'}`}>
+                                        {selectedStudent?.lastName?.charAt(0) || 'E'}
+                                    </div>
+                                    <div>
+                                        <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Élève sélectionné</p>
+                                        <p className={`font-bold text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                            {selectedStudent?.lastName} {selectedStudent?.postName} {selectedStudent?.firstName}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <label className="block text-[10px] font-black mb-1 opacity-70 uppercase tracking-widest">Type d'Inscription</label>
-                                    <select value={enrollmentData.enrollmentType} onChange={(e) => setEnrollmentData({...enrollmentData, enrollmentType: e.target.value})} className={`w-full p-2.5 rounded-xl border outline-none font-bold text-[11px] ${isDark ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200'}`}>
-                                        <option value="NOUVEAU">NOUVEAU</option>
-                                        <option value="REINSCRIPTION">RÉINSCRIPTION</option>
-                                    </select>
+                                
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className={`block text-xs font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Classe d'affectation <span className="text-red-500">*</span></label>
+                                        <select 
+                                            value={enrollmentData.classroomId}
+                                            onChange={e => setEnrollmentData({...enrollmentData, classroomId: e.target.value})}
+                                            className={`w-full p-3 rounded-xl border outline-none text-sm transition-all focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-white border-slate-200 focus:border-blue-500'}`}
+                                        >
+                                            <option value="">-- Choisir une classe --</option>
+                                            {classrooms.map(c => (
+                                                <option key={c.id} value={c.id}>{formatClassName(c)}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    
+                                    <div>
+                                        <label className={`block text-xs font-semibold mb-1.5 ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Type d'inscription <span className="text-red-500">*</span></label>
+                                        <select 
+                                            value={enrollmentData.enrollmentType}
+                                            onChange={e => setEnrollmentData({...enrollmentData, enrollmentType: e.target.value})}
+                                            className={`w-full p-3 rounded-xl border outline-none text-sm transition-all focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'bg-slate-800 border-slate-700 text-white focus:border-blue-500' : 'bg-white border-slate-200 focus:border-blue-500'}`}
+                                        >
+                                            <option value="NOUVEAU">Nouveau</option>
+                                            <option value="REINSCRIPTION">Réinscription</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Documents Optionnels */}
+                                    <div>
+                                        <div className="flex justify-between items-center mb-1.5">
+                                            <label className={`text-xs font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Documents liés (Optionnel)</label>
+                                            <button type="button" onClick={() => setDynamicDocs([...dynamicDocs, {label:'', file:null}])} className="text-xs text-blue-600 dark:text-blue-400 font-medium hover:underline">
+                                                + Ajouter
+                                            </button>
+                                        </div>
+                                        <div className="space-y-2">
+                                            {dynamicDocs.map((doc, idx) => (
+                                                <div key={idx} className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <FileText size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`} />
+                                                        <input 
+                                                            type="text" 
+                                                            placeholder="Nom du document..."
+                                                            value={doc.label}
+                                                            onChange={(e) => {
+                                                                const newDocs = [...dynamicDocs];
+                                                                newDocs[idx].label = e.target.value;
+                                                                setDynamicDocs(newDocs);
+                                                            }}
+                                                            className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm outline-none transition-all focus:ring-2 focus:ring-blue-500/20 ${isDark ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200'}`}
+                                                        />
+                                                    </div>
+                                                    <input 
+                                                        type="file" 
+                                                        className="hidden" 
+                                                        id={`file-${idx}`} 
+                                                        onChange={(e) => {
+                                                            const newDocs = [...dynamicDocs];
+                                                            newDocs[idx].file = e.target.files[0];
+                                                            setDynamicDocs(newDocs);
+                                                        }}
+                                                    />
+                                                    <label 
+                                                        htmlFor={`file-${idx}`} 
+                                                        className={`px-4 rounded-xl border cursor-pointer flex items-center justify-center transition-colors ${doc.file ? (isDark ? 'bg-emerald-900/30 text-emerald-400 border-emerald-800' : 'bg-emerald-50 text-emerald-600 border-emerald-200') : (isDark ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100')}`}
+                                                        title={doc.file ? doc.file.name : "Joindre un fichier"}
+                                                    >
+                                                        {doc.file ? <Check size={16} /> : <Upload size={16} />}
+                                                    </label>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
                                 </div>
-                                <div className="flex justify-between pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
-                                    <button onClick={() => setCurrentStep(1)} className={`px-6 py-2.5 rounded-xl font-black text-xs transition-colors ${isDark ? 'bg-slate-800 text-slate-300 hover:bg-slate-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>← RETOUR</button>
-                                    <button onClick={handleEnrollment} disabled={loading || !enrollmentData.classroomId} className="bg-gradient-to-r from-[#10B981] to-[#059669] disabled:opacity-50 text-white px-6 py-2.5 rounded-xl font-black text-xs transition-transform active:scale-95 shadow-lg flex items-center gap-2">
-                                        {loading ? "TRAITEMENT..." : (isEditMode ? "METTRE À JOUR" : "VALIDER L'INSCRIPTION")}
+
+                                <div className={`flex justify-end gap-3 mt-8 pt-5 border-t ${isDark ? 'border-slate-800' : 'border-slate-100'}`}>
+                                    {!isEditMode && (
+                                        <button onClick={() => setCurrentStep(1)} className={`px-5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${isDark ? 'text-slate-300 hover:bg-slate-800' : 'text-slate-600 hover:bg-slate-100'}`}>
+                                            Précédent
+                                        </button>
+                                    )}
+                                    <button 
+                                        onClick={handleEnrollment} 
+                                        disabled={loading || !enrollmentData.classroomId} 
+                                        className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold shadow-sm disabled:opacity-50 flex items-center gap-2 transition-all active:scale-95"
+                                    >
+                                        {loading ? 'Traitement...' : (isEditMode ? 'Mettre à jour' : 'Valider l\'inscription')}
                                     </button>
                                 </div>
                             </div>
@@ -555,18 +690,43 @@ const EnrollmentModule = ({ students = [], onClose }) => {
     );
 };
 
-// COMPOSANT INTERNE : CARTES STATISTIQUES PLUS COMPACTES
-const StatCard = ({ label, value, subValue, color, icon }) => (
-    <div className={`${color} p-4 rounded-2xl text-white flex flex-col justify-between h-28 shadow-lg relative overflow-hidden transition-transform hover:scale-[1.02]`}>
-        <div className="flex justify-between items-start relative z-10">
-            <span className="opacity-80 text-[10px] font-black uppercase tracking-widest">{label}</span>
-            <span className="bg-white/20 w-8 h-8 flex items-center justify-center rounded-xl text-sm backdrop-blur-md">{icon}</span>
+// --- COMPOSANT INTERNE : CARTES STATISTIQUES (DESIGN SAAS) ---
+const StatCard = ({ label, value, icon, isDark, colorTheme }) => {
+    // Définition des couleurs douces selon le thème passé
+    const themes = {
+        blue: {
+            bgLight: 'bg-blue-50', textLight: 'text-blue-600',
+            bgDark: 'bg-blue-500/10', textDark: 'text-blue-400'
+        },
+        emerald: {
+            bgLight: 'bg-emerald-50', textLight: 'text-emerald-600',
+            bgDark: 'bg-emerald-500/10', textDark: 'text-emerald-400'
+        },
+        amber: {
+            bgLight: 'bg-amber-50', textLight: 'text-amber-600',
+            bgDark: 'bg-amber-500/10', textDark: 'text-amber-400'
+        },
+        purple: {
+            bgLight: 'bg-purple-50', textLight: 'text-purple-600',
+            bgDark: 'bg-purple-500/10', textDark: 'text-purple-400'
+        }
+    };
+    
+    const activeTheme = themes[colorTheme] || themes.blue;
+
+    return (
+        <div className={`p-5 rounded-2xl border flex flex-col justify-between shadow-sm transition-transform hover:-translate-y-0.5 ${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+            <div className="flex justify-between items-start mb-4">
+                <span className={`text-sm font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</span>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? `${activeTheme.bgDark} ${activeTheme.textDark}` : `${activeTheme.bgLight} ${activeTheme.textLight}`}`}>
+                    {icon}
+                </div>
+            </div>
+            <div>
+                <h3 className={`text-3xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{value}</h3>
+            </div>
         </div>
-        <div className="relative z-10 mt-2">
-            <div className="text-2xl font-black italic tracking-tighter">{value}</div>
-            {subValue && <div className="text-[9px] font-bold opacity-70 uppercase tracking-wide mt-0.5">{subValue}</div>}
-        </div>
-    </div>
-);
+    );
+};
 
 export default EnrollmentModule;

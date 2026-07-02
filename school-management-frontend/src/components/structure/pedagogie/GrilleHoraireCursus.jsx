@@ -13,10 +13,11 @@ const GrilleHoraireCursus = ({ activeYearId, onBack }) => {
     const [showAddModal, setShowAddModal] = useState(false);
     const [allLevels, setAllLevels] = useState([]);
 
-    // Configuration des colonnes selon le cycle actif
+    // Configuration des colonnes selon le cycle actif.
+    // Nous utilisons les noms comme identifiants visuels, mais le mapping se fera plus intelligemment.
     const cycleConfig = {
         CEB: {
-            levels: ["7ème", "8ème"],
+            levels: ["7ème", "8ème"], // Vous pouvez adapter ces libellés selon ceux stockés en base
             label: "Cycle d'Éducation de Base (CEB)"
         },
         HUMANITES: {
@@ -62,15 +63,31 @@ const GrilleHoraireCursus = ({ activeYearId, onBack }) => {
 
         setLoading(true);
         try {
-            // ADAPTATION MAJEURE : Appel API unique pour charger toute la grille du cycle
+            // Appel API : Si c'est le CEB, l'option est null. Si c'est Humanités, on passe selectedOptionId.
+            // On envoie le niveau à l'identifiant "vide" pour tout charger d'un coup.
             const optId = activeCycle === "CEB" ? null : selectedOptionId;
-            // On envoie levelId à null pour charger tous les niveaux liés à l'option/cycle
+            
+            // Le backend renvoie tous les cours du cycle / option
             const res = await courseAcademicConfigService.getSubjectsByClass(null, null, optId, activeYearId);
             const subjects = res.data || [];
 
             const aggregatedCourses = {};
 
-            subjects.forEach(subject => {
+            // ÉTAPE CLÉ : Filtrage strict par cycle avant agrégation
+            // On ne conserve que les cours dont le niveau correspond au cycle actif (CEB vs HUMANITES)
+            const filteredSubjects = subjects.filter(subject => {
+                if (!subject.levelName) return false;
+                const normalizedLvl = subject.levelName.toLowerCase();
+                
+                if (activeCycle === "CEB") {
+                    return normalizedLvl.includes("7") || normalizedLvl.includes("8");
+                } else {
+                    return normalizedLvl.includes("1") || normalizedLvl.includes("2") || 
+                           normalizedLvl.includes("3") || normalizedLvl.includes("4");
+                }
+            });
+
+            filteredSubjects.forEach(subject => {
                 // Clé unique pour regrouper par nom et catégorie
                 const key = `${subject.category}_${subject.name.trim().toLowerCase()}`;
                 
@@ -82,15 +99,23 @@ const GrilleHoraireCursus = ({ activeYearId, onBack }) => {
                     };
                 }
 
-                // Trouver l'index de la colonne correspondant au nom du niveau (ex: "7ème")
-                // Le Backend envoie maintenant levelName grâce à notre modification précédente
+                // Trouver l'index de la colonne correspondant au nom du niveau.
+                // Recherche tolérante pour pallier aux différences ("1ere" vs "1ère").
                 if (subject.levelName) {
-                    const colIndex = currentLevelsList.findIndex(
-                        levelName => subject.levelName.includes(levelName) || levelName.includes(subject.levelName)
-                    );
+                    const normalizedLevelName = subject.levelName.toLowerCase().replace(/è|é/g, 'e');
+                    
+                    const colIndex = currentLevelsList.findIndex(colName => {
+                        const normalizedCol = colName.toLowerCase().replace(/è|é/g, 'e');
+                        // Vérifie si le chiffre de base (ex: '7') correspond
+                        const baseNumber = normalizedCol.match(/\d+/);
+                        const subjectNumber = normalizedLevelName.match(/\d+/);
+                        
+                        return baseNumber && subjectNumber && baseNumber[0] === subjectNumber[0];
+                    });
                     
                     if (colIndex !== -1) {
-                        aggregatedCourses[key].hours[colIndex] = subject.hoursPerWeek || 0;
+                        // On additionne au cas où il y aurait plusieurs entrées (bien que peu probable)
+                        aggregatedCourses[key].hours[colIndex] += (subject.hoursPerWeek || 0);
                     }
                 }
             });

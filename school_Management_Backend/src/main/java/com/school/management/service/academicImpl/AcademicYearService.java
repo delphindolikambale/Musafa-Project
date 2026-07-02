@@ -1,6 +1,7 @@
 package com.school.management.service.academicImpl;
 
 import com.school.management.model.academic.AcademicYear;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.AcademicYearRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -10,7 +11,7 @@ import java.util.List;
 
 /**
  * Service métier pour la gestion des années scolaires.
- * Gère le calendrier académique et l'internationalisation des périodes.
+ * Gère le calendrier académique et applique l'isolation des données par école.
  */
 @Service
 @RequiredArgsConstructor
@@ -18,15 +19,21 @@ public class AcademicYearService {
     private final AcademicYearRepository academicYearRepository;
 
     /**
-     * Créer ou mettre à jour une année scolaire.
-     * Inclut la logique pour garantir qu'une seule année est active à la fois.
+     * Créer ou mettre à jour une année scolaire pour une école précise.
+     * Inclut la logique pour garantir qu'une seule année est active à la fois par établissement.
      */
     @Transactional
-    public AcademicYear save(AcademicYear academicYear) {
+    public AcademicYear save(AcademicYear academicYear, Long schoolId) {
+        if (schoolId == null) {
+            throw new IllegalArgumentException("Le contexte de l'établissement scolaire est manquant.");
+        }
 
-        // 1. Vérifier si l'année existe déjà (uniquement pour les nouvelles créations)
-        if (academicYear.getId() == null && academicYearRepository.existsByAnnee(academicYear.getAnnee())) {
-            throw new IllegalArgumentException("L'année scolaire " + academicYear.getAnnee() + " existe déjà.");
+        // Associer obligatoirement l'école courante à l'entité avant la sauvegarde via un objet School typé contenant l'ID
+        academicYear.setSchool(School.builder().id(schoolId).build());
+
+        // 1. Vérifier si l'année existe déjà (uniquement pour l'école concernée)
+        if (academicYear.getId() == null && academicYearRepository.existsByAnneeAndSchoolId(academicYear.getAnnee(), schoolId)) {
+            throw new IllegalArgumentException("L'année scolaire " + academicYear.getAnnee() + " existe déjà dans votre établissement.");
         }
 
         // 2. Validation des dates (Cohérence du calendrier)
@@ -34,60 +41,60 @@ public class AcademicYearService {
             throw new IllegalArgumentException("La date de début ne peut pas être après la date de fin.");
         }
 
-        // 3. Si cette année est définie comme active, on désactive d'abord toutes les autres
+        // 3. Si cette année est définie comme active, on désactive d'abord toutes les autres de CETTE école
         if (academicYear.isActive()) {
-            desactiverToutesLesAnnees();
+            desactiverToutesLesAnnees(schoolId);
         }
 
         return academicYearRepository.save(academicYear);
     }
 
     /**
-     * Active manuellement une année scolaire spécifique par son ID.
+     * Active manuellement une année scolaire spécifique appartenant à l'école.
      */
     @Transactional
-    public void activerAnnee(Long id) {
-        // Désactivation globale
-        desactiverToutesLesAnnees();
+    public void activerAnnee(Long id, Long schoolId) {
+        // Désactivation au sein de cette école uniquement
+        desactiverToutesLesAnnees(schoolId);
 
-        // Activation de l'année cible
-        AcademicYear year = academicYearRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Année académique introuvable avec l'ID : " + id));
+        // Récupération sécurisée de l'année cible
+        AcademicYear year = academicYearRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new RuntimeException("Année académique introuvable ou accès non autorisé pour cet établissement."));
 
         year.setActive(true);
         academicYearRepository.save(year);
     }
 
     /**
-     * Désactive le statut 'active' pour toutes les années en base de données.
-     * Méthode utilitaire interne pour maintenir l'unicité de l'année en cours.
+     * Désactive le statut 'active' pour toutes les années de l'école courante en base de données.
      */
-    private void desactiverToutesLesAnnees() {
-        List<AcademicYear> allYears = academicYearRepository.findAll();
-        allYears.forEach(y -> y.setActive(false));
-        academicYearRepository.saveAll(allYears);
+    private void desactiverToutesLesAnnees(Long schoolId) {
+        List<AcademicYear> schoolYears = academicYearRepository.findAllBySchoolId(schoolId);
+        schoolYears.forEach(y -> y.setActive(false));
+        academicYearRepository.saveAll(schoolYears);
     }
 
     /**
-     * Récupère l'année scolaire actuellement active.
-     * MODIFICATION : Ne lance plus d'exception pour éviter de bloquer le frontend.
+     * Récupère l'année scolaire actuellement active pour l'école connectée.
      */
-    public AcademicYear getAnneeActive() {
-        return academicYearRepository.findByActiveTrue().orElse(null);
+    public AcademicYear getAnneeActive(Long schoolId) {
+        return academicYearRepository.findByActiveTrueAndSchoolId(schoolId).orElse(null);
     }
 
     /**
-     * Liste toutes les années scolaires enregistrées.
+     * Liste toutes les années scolaires enregistrées de l'école connectée.
      */
-    public List<AcademicYear> findAll() {
-        return academicYearRepository.findAll();
+    public List<AcademicYear> findAll(Long schoolId) {
+        return academicYearRepository.findAllBySchoolId(schoolId);
     }
 
     /**
-     * Supprime une année scolaire.
+     * Supprime une année scolaire en validant l'appartenance à l'école.
      */
     @Transactional
-    public void delete(Long id) {
-        academicYearRepository.deleteById(id);
+    public void delete(Long id, Long schoolId) {
+        AcademicYear year = academicYearRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new RuntimeException("Année académique introuvable ou privilèges de suppression insuffisants."));
+        academicYearRepository.delete(year);
     }
 }

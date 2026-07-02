@@ -10,6 +10,9 @@ import com.school.management.model.academic.StudentDocument;
 import com.school.management.repository.academic.EnrollmentRepository;
 import com.school.management.repository.academic.StudentRepository;
 import com.school.management.service.academic.ArchiveService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,11 +22,28 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class ArchiveServiceImpl implements ArchiveService {
 
     private final EnrollmentRepository enrollmentRepository;
     private final StudentRepository studentRepository;
+
+    /**
+     * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SÉCURISÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est relié à aucun établissement.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
 
     @Override
     @Transactional(readOnly = true)
@@ -31,8 +51,13 @@ public class ArchiveServiceImpl implements ArchiveService {
         Student student = studentRepository.findByMatricule(matricule)
                 .orElseThrow(() -> new EntityNotFoundException("Élève avec le matricule " + matricule + " introuvable"));
 
-        // Récupère tout l'historique (Inscriptions passées et présente)
-        List<Enrollment> history = enrollmentRepository.findAllHistoryByMatricule(matricule);
+        // ✅ SÉCURITÉ MULTI-TENANT : Interdire la consultation d'un dossier élève externe
+        if (!student.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Accès refusé : Ce dossier élève appartient à un autre établissement.");
+        }
+
+        // ✅ CORRECTION : Utilisation de la méthode multi-tenant avec le matricule ET le schoolId
+        List<Enrollment> history = enrollmentRepository.findAllHistoryByMatriculeAndSchoolId(matricule, getCurrentSchoolId());
 
         List<YearlyArchiveDTO> academicHistory = history.stream()
                 .map(this::mapToYearlyDTO)
@@ -76,7 +101,7 @@ public class ArchiveServiceImpl implements ArchiveService {
                 .id(doc.getId())
                 .customName(doc.getCustomName()) // Le libellé saisi par l'utilisateur
                 .fileUrl(doc.getFileUrl())       // L'URL pour le bouton "Ouvrir"
-                .fileName(doc.getFileName())     // ✅ AJOUT : Transmet le nom réel du fichier physique avec son extension (.pdf, .png, etc.)
+                .fileName(doc.getFileName())     // Transmet le nom réel du fichier physique avec son extension (.pdf, .png, etc.)
                 .fileType(determineFileTypeLabel(doc.getFileName())) // Label pour l'icône
                 .build();
     }
@@ -95,7 +120,8 @@ public class ArchiveServiceImpl implements ArchiveService {
     @Override
     @Transactional(readOnly = true)
     public List<StudentSummaryDTO> getAllStudentsSummary() {
-        return studentRepository.findAll().stream()
+        // ✅ MULTI-TENANT : Filtrage impératif par école au lieu du .findAll() global
+        return studentRepository.findBySchoolId(getCurrentSchoolId()).stream()
                 .map(s -> StudentSummaryDTO.builder()
                         .matricule(s.getMatricule())
                         .fullName(s.getFirstName() + " " + s.getLastName())

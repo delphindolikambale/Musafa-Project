@@ -1,4 +1,4 @@
-import api, { BACKEND_BASE } from './api';
+import api, { BACKEND_BASE } from './api'; // ✅ Ajustement du chemin : api.js est dans le même dossier
 
 const API_URL = "/archives";
 const ENROLLMENT_URL = "/enrollments"; 

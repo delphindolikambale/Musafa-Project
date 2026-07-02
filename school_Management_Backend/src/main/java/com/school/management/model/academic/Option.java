@@ -1,11 +1,14 @@
 package com.school.management.model.academic;
+
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
+
 @Entity
 @Table(
         name = "options",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"option_name", "section_id"})
+                @UniqueConstraint(columnNames = {"school_id", "option_name", "section_id"})
         }
 )
 @Getter
@@ -37,4 +40,9 @@ public class Option {
      */
     @Column(nullable = false)
     private boolean active = true;
+
+    // ✅ LIEN MULTI-TENANT : Isolation par établissement
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

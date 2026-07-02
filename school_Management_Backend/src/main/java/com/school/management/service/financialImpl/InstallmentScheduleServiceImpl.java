@@ -1,10 +1,10 @@
 package com.school.management.service.financialImpl;
 
 import com.school.management.dto.financial.InstallmentScheduleDTO;
-import com.school.management.dto.financial.InstallmentScheduleResponseDTO;
 import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.financial.InstallmentSchedule;
 import com.school.management.model.financial.ScheduleFees;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.financial.InstallmentScheduleRepository;
 import com.school.management.repository.financial.ScheduleFeesRepository;
 import com.school.management.service.financial.InstallmentScheduleService;
@@ -17,10 +17,8 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-
 @Service
 @RequiredArgsConstructor
-
 public class InstallmentScheduleServiceImpl implements InstallmentScheduleService {
 
     private final InstallmentScheduleRepository repository;
@@ -28,9 +26,10 @@ public class InstallmentScheduleServiceImpl implements InstallmentScheduleServic
 
     @Override
     @Transactional
-    public InstallmentSchedule create(InstallmentScheduleDTO dto) {
-        ScheduleFees scheduleFees = scheduleFeesRepository.findById(dto.getScheduleFeesId())
-                .orElseThrow(() -> new ResourceNotFoundException("ScheduleFees introuvable"));
+    public InstallmentSchedule create(InstallmentScheduleDTO dto, Long schoolId) {
+        // Validation que le barème de tête appartient bien à l'école active
+        ScheduleFees scheduleFees = scheduleFeesRepository.findByIdAndSchoolId(dto.getScheduleFeesId(), schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("ScheduleFees introuvable dans votre établissement."));
 
         InstallmentSchedule installment = InstallmentSchedule.builder()
                 .installmentNumber(dto.getInstallmentNumber())
@@ -39,6 +38,7 @@ public class InstallmentScheduleServiceImpl implements InstallmentScheduleServic
                 .dueDate(dto.getDueDate())
                 .paid(false)
                 .scheduleFees(scheduleFees)
+                .school(School.builder().id(schoolId).build()) // ✅ Isolation Multi-Tenant
                 .level(scheduleFees.getLevel())
                 .option(scheduleFees.getOption())
                 .build();
@@ -79,6 +79,7 @@ public class InstallmentScheduleServiceImpl implements InstallmentScheduleServic
                     .dueDate(dueDate)
                     .paid(false)
                     .scheduleFees(scheduleFees)
+                    .school(scheduleFees.getSchool()) // ✅ Propagation automatique de l'école parente
                     .level(scheduleFees.getLevel())
                     .option(scheduleFees.getOption())
                     .build();
@@ -90,21 +91,21 @@ public class InstallmentScheduleServiceImpl implements InstallmentScheduleServic
 
     @Override
     @Transactional(readOnly = true)
-    public List<InstallmentSchedule> getByScheduleFees(Long scheduleFeesId) {
-        return repository.findByScheduleFeesId(scheduleFeesId);
+    public List<InstallmentSchedule> getByScheduleFees(Long scheduleFeesId, Long schoolId) {
+        return repository.findByScheduleFeesIdAndSchoolId(scheduleFeesId, schoolId);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public InstallmentSchedule getById(Long id) {
-        return repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Tranche introuvable"));
+    public InstallmentSchedule getById(Long id, Long schoolId) {
+        return repository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Tranche introuvable dans votre établissement."));
     }
 
     @Override
     @Transactional
-    public void markAsPaid(Long id) {
-        InstallmentSchedule inst = getById(id);
+    public void markAsPaid(Long id, Long schoolId) {
+        InstallmentSchedule inst = getById(id, schoolId);
         inst.setPaid(true);
         repository.save(inst);
     }

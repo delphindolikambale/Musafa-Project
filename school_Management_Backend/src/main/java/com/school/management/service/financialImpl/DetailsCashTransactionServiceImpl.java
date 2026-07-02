@@ -23,7 +23,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class DetailsCashTransactionServiceImpl implements DetailsCashTransactionService {
 
     private final DetailsCashTransactionRepository repository;
@@ -32,7 +31,13 @@ public class DetailsCashTransactionServiceImpl implements DetailsCashTransaction
 
     @Override
     @Transactional
-    public void record(DetailsCashTransactionCreateDTO dto) {
+    public void record(DetailsCashTransactionCreateDTO dto, Long schoolId) {
+        // Filtrage initial pour garantir que l'année textuelle appartient bien à l'école connectée
+        AcademicYear year = academicYearRepository.findAll().stream()
+                .filter(y -> y.getSchool() != null && y.getSchool().getId().equals(schoolId) && y.getAnnee() != null && y.getAnnee().equals(dto.getAcademicYear()))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Année académique non trouvée ou non autorisée pour cette école : " + dto.getAcademicYear()));
+
         DetailsCashTransaction tx = DetailsCashTransaction.builder()
                 .academicYear(dto.getAcademicYear())
                 .month(dto.getMonth())
@@ -43,24 +48,27 @@ public class DetailsCashTransactionServiceImpl implements DetailsCashTransaction
                 .amount(dto.getAmount())
                 .actor(dto.getActor())
                 .documentNumber(dto.getDocumentNumber())
+                .school(year.getSchool()) // ✅ Association obligatoire du tenant
                 .build();
         repository.save(tx);
 
-        updateDailySummary(tx);
+        updateDailySummary(tx, schoolId);
     }
 
-    private void updateDailySummary(DetailsCashTransaction detail) {
+    private void updateDailySummary(DetailsCashTransaction detail, Long schoolId) {
         LocalDate today = detail.getTransactionDate().toLocalDate();
 
         AcademicYear year = academicYearRepository.findAll().stream()
-                .filter(y -> y.getAnnee() != null && y.getAnnee().equals(detail.getAcademicYear()))
+                .filter(y -> y.getSchool() != null && y.getSchool().getId().equals(schoolId) && y.getAnnee() != null && y.getAnnee().equals(detail.getAcademicYear()))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Année académique non trouvée : " + detail.getAcademicYear()));
+                .orElseThrow(() -> new RuntimeException("Année académique non trouvée pour cette école : " + detail.getAcademicYear()));
 
-        CashTransaction summary = cashTransactionRepository.findByTransactionDateAndAcademicYearId(today, year.getId())
+        // ✅ CORRECTION : Utilisation de la méthode de repository multi-tenant pour éviter un "cannot find symbol"
+        CashTransaction summary = cashTransactionRepository.findByTransactionDateAndAcademicYearIdAndSchoolId(today, year.getId(), schoolId)
                 .orElse(CashTransaction.builder()
                         .transactionDate(today)
                         .academicYear(year)
+                        .school(year.getSchool()) // ✅ Sécurité tenant intégrée au builder
                         .description("Récapitulatif des opérations")
                         .type(detail.getType())
                         .totalEntryUSD(BigDecimal.ZERO)
@@ -90,8 +98,8 @@ public class DetailsCashTransactionServiceImpl implements DetailsCashTransaction
 
     @Override
     @Transactional(readOnly = true)
-    public List<DetailsCashTransactionResponseDTO> getJournalDetails(String academicYear) {
-        return repository.findByAcademicYearOrderByTransactionDateDesc(academicYear).stream()
+    public List<DetailsCashTransactionResponseDTO> getJournalDetails(String academicYear, Long schoolId) {
+        return repository.findByAcademicYearAndSchoolIdOrderByTransactionDateDesc(academicYear, schoolId).stream()
                 .map(tx -> DetailsCashTransactionResponseDTO.builder()
                         .id(tx.getId())
                         .academicYear(tx.getAcademicYear())
@@ -109,14 +117,21 @@ public class DetailsCashTransactionServiceImpl implements DetailsCashTransaction
 
     @Override
     @Transactional
-    public void migrateAll() {
-        cashTransactionRepository.deleteAll();
-        List<DetailsCashTransaction> allDetails = repository.findAll().stream()
+    public void migrateAll(Long schoolId) {
+        // 🛡️ Multi-tenant Safe: Supprime uniquement les résumés liés à l'école connectée
+        List<CashTransaction> schoolTxs = cashTransactionRepository.findAll().stream()
+                .filter(tx -> tx.getAcademicYear() != null && tx.getAcademicYear().getSchool() != null && tx.getAcademicYear().getSchool().getId().equals(schoolId))
+                .collect(Collectors.toList());
+        cashTransactionRepository.deleteAll(schoolTxs);
+
+        // 🛡️ Multi-tenant Safe: Récupère uniquement les détails appartenant à cette école
+        List<DetailsCashTransaction> schoolDetails = repository.findAll().stream()
+                .filter(d -> d.getSchool() != null && d.getSchool().getId().equals(schoolId))
                 .sorted((a, b) -> a.getTransactionDate().compareTo(b.getTransactionDate()))
                 .collect(Collectors.toList());
 
-        for (DetailsCashTransaction detail : allDetails) {
-            updateDailySummary(detail);
+        for (DetailsCashTransaction detail : schoolDetails) {
+            updateDailySummary(detail, schoolId);
         }
     }
 }

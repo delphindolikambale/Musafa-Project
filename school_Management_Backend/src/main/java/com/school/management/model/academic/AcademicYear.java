@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDate;
@@ -9,7 +10,7 @@ import java.time.LocalDate;
 @Table(
         name = "academic_years",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = "annee")
+                @UniqueConstraint(columnNames = {"school_id", "annee"})
         }
 )
 @Getter
@@ -22,7 +23,7 @@ public class AcademicYear {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 12)
+    @Column(nullable = false, length = 12)
     private String annee;
 
     // --- AJOUTS POUR LE CALENDRIER ---
@@ -37,9 +38,13 @@ public class AcademicYear {
     @Column(nullable = false)
     private boolean active;
 
+    // ✅ LIEN MULTI-TENANT : Chaque année académique appartient désormais à une école spécifique
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
     @Transient
     public String getName() {
         return annee;
     }
-
 }

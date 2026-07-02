@@ -7,18 +7,13 @@ import java.util.List;
 
 public interface StudentAnnualFinancialProfileService {
 
-    StudentAnnualFinancialProfileResponseDTO create(
-            StudentAnnualFinancialProfileCreateDTO dto);
+    StudentAnnualFinancialProfileResponseDTO create(StudentAnnualFinancialProfileCreateDTO dto, Long schoolId);
 
-    StudentAnnualFinancialProfileResponseDTO getById(Long id);
+    StudentAnnualFinancialProfileResponseDTO getById(Long id, Long schoolId);
 
-    List<StudentAnnualFinancialProfileResponseDTO> getAll();
+    List<StudentAnnualFinancialProfileResponseDTO> getAll(Long schoolId);
 
-    List<StudentAnnualFinancialProfileResponseDTO>
-    getByAccountNumber(String accountNumber);
+    List<StudentAnnualFinancialProfileResponseDTO> getByAccountNumber(String accountNumber, Long schoolId);
 
-    /**
-     * ✅ NOUVEAU : Récupère la situation financière de tous les élèves d'une classe.
-     */
-    List<StudentAnnualFinancialProfileResponseDTO> getByClassroom(Long classroomId);
+    List<StudentAnnualFinancialProfileResponseDTO> getByClassroom(Long classroomId, Long schoolId);
 }

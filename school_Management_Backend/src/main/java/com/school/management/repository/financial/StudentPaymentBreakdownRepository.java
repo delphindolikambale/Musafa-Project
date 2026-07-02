@@ -12,34 +12,38 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-
 public interface StudentPaymentBreakdownRepository extends JpaRepository<StudentPaymentBreakdown, Long> {
-    List<StudentPaymentBreakdown> findByPaymentId(Long paymentId);
 
-    List<StudentPaymentBreakdown> findByPayment_AnnualProfile_Id(Long profileId);
+    @Query("SELECT b FROM StudentPaymentBreakdown b WHERE b.payment.id = :paymentId AND b.payment.school.id = :schoolId")
+    List<StudentPaymentBreakdown> findByPaymentIdAndSchoolId(@Param("paymentId") Long paymentId, @Param("schoolId") Long schoolId);
+
+    @Query("SELECT b FROM StudentPaymentBreakdown b WHERE b.payment.annualProfile.id = :profileId AND b.payment.school.id = :schoolId")
+    List<StudentPaymentBreakdown> findByPayment_AnnualProfile_IdAndSchoolId(@Param("profileId") Long profileId, @Param("schoolId") Long schoolId);
 
     /**
-     * Calcule la somme ventilée par nom de groupe et par plage de dates (Toutes devises confondues).
-     * Conservée pour ne pas casser la logique existante.
+     * Calcule la somme ventilée par nom de groupe et par plage de dates pour une école spécifique.
      */
     @Query("SELECT SUM(b.amount) FROM StudentPaymentBreakdown b " +
             "WHERE b.feesGroupName = :groupName " +
-            "AND b.payment.paymentDate BETWEEN :start AND :end")
-    BigDecimal sumByGroupNameAndDate(@Param("groupName") String groupName,
-                                     @Param("start") LocalDateTime start,
-                                     @Param("end") LocalDateTime end);
+            "AND b.payment.paymentDate BETWEEN :start AND :end " +
+            "AND b.payment.school.id = :schoolId")
+    BigDecimal sumByGroupNameAndDateAndSchoolId(@Param("groupName") String groupName,
+                                                @Param("start") LocalDateTime start,
+                                                @Param("end") LocalDateTime end,
+                                                @Param("schoolId") Long schoolId);
 
     /**
-     * NOUVELLE MÉTHODE : Calcule la somme ventilée par nom de groupe, par devise précise
-     * et par plage de dates. Utilisée pour le Daily Cashier Report multidevise.
+     * Calcule la somme ventilée par nom de groupe, par devise précise,
+     * par plage de dates et restreinte à une seule école.
      */
     @Query("SELECT SUM(b.amount) FROM StudentPaymentBreakdown b " +
             "WHERE b.feesGroupName = :groupName " +
             "AND b.currency = :currency " +
-            "AND b.payment.paymentDate BETWEEN :start AND :end")
-    BigDecimal sumByGroupNameAndCurrencyAndDate(@Param("groupName") String groupName,
-                                                @Param("currency") Currency currency,
-                                                @Param("start") LocalDateTime start,
-                                                @Param("end") LocalDateTime end);
+            "AND b.payment.paymentDate BETWEEN :start AND :end " +
+            "AND b.payment.school.id = :schoolId")
+    BigDecimal sumByGroupNameAndCurrencyAndDateAndSchoolId(@Param("groupName") String groupName,
+                                                           @Param("currency") Currency currency,
+                                                           @Param("start") LocalDateTime start,
+                                                           @Param("end") LocalDateTime end,
+                                                           @Param("schoolId") Long schoolId);
 }
-

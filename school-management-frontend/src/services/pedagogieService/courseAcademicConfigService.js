@@ -1,12 +1,4 @@
-import axios from "axios";
-import { BACKEND_BASE } from '../api';
-
-const API_URL = `${BACKEND_BASE}/api`;
-
-const getHeader = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user && user.accessToken ? { Authorization: 'Bearer ' + user.accessToken } : {};
-};
+import api from "../api"; // ✅ Ajustement du chemin pour cibler src/services/api.js
 
 /**
  * Garantit que les paramètres sont propres (évite les chaînes "null" ou "undefined")
@@ -27,62 +19,62 @@ const buildClassParams = (levelId, sectionId, optionId, yearId) => {
 
 const courseAcademicConfigService = {
     // --- INFORMATIONS INSTITUTION ---
-    getInstitutionSettings: () => axios.get(`${API_URL}/v1/admin/school-config`, { headers: getHeader() }),
+    getInstitutionSettings: () => api.get("/v1/admin/school-config"),
 
     // --- STRUCTURE PEDAGOGIQUE (Niveaux, Sections, Options) ---
-    getAllLevels: () => axios.get(`${API_URL}/levels`, { headers: getHeader() }),
-    getSectionsByLevel: (levelId) => axios.get(`${API_URL}/sections/level/${levelId}`, { headers: getHeader() }),
-    getOptionsBySection: (sectionId) => axios.get(`${API_URL}/options/section/${sectionId}`, { headers: getHeader() }),
-    getAllOptions: () => axios.get(`${API_URL}/options`, { headers: getHeader() }), // AJOUT: Pour lister toutes les options
+    getAllLevels: () => api.get("/levels"),
+    getSectionsByLevel: (levelId) => api.get(`/sections/level/${levelId}`),
+    getOptionsBySection: (sectionId) => api.get(`/options/section/${sectionId}`),
+    getAllOptions: () => api.get("/options"),
 
     // --- RÉFÉRENTIEL DES SPÉCIALITÉS (Compétences des enseignants) ---
-    getAllSpecialities: () => axios.get(`${API_URL}/specialities`, { headers: getHeader() }),
-    createSpeciality: (data) => axios.post(`${API_URL}/specialities`, data, { headers: getHeader() }),
-    deleteSpeciality: (id) => axios.delete(`${API_URL}/specialities/${id}`, { headers: getHeader() }),
+    getAllSpecialities: () => api.get("/specialities"),
+    createSpeciality: (data) => api.post("/specialities", data),
+    deleteSpeciality: (id) => api.delete(`/specialities/${id}`),
 
     // --- DOMAINES ---
-    getAllDomains: () => axios.get(`${API_URL}/academic/domains`, { headers: getHeader() }),
+    getAllDomains: () => api.get("/academic/domains"),
     getDomainsByClass: (levelId, sectionId, optionId, yearId) => {
         const params = buildClassParams(levelId, sectionId, optionId, yearId);
-        return axios.get(`${API_URL}/academic/domains/filter?${params.toString()}`, { headers: getHeader() });
+        return api.get(`/academic/domains/filter?${params.toString()}`);
     },
-    createDomain: (data) => axios.post(`${API_URL}/academic/domains`, data, { headers: getHeader() }),
-    updateDomain: (id, data) => axios.put(`${API_URL}/academic/domains/${id}`, data, { headers: getHeader() }),
-    deleteDomain: (id) => axios.delete(`${API_URL}/academic/domains/${id}`, { headers: getHeader() }),
+    createDomain: (data) => api.post("/academic/domains", data),
+    updateDomain: (id, data) => api.put(`/academic/domains/${id}`, data),
+    deleteDomain: (id) => api.delete(`/academic/domains/${id}`),
 
     // --- SOUS-DOMAINES ---
-    getAllSubDomains: () => axios.get(`${API_URL}/academic/sub-domains`, { headers: getHeader() }),
+    getAllSubDomains: () => api.get("/academic/sub-domains"),
     getSubDomainsByClass: (levelId, sectionId, optionId, yearId) => {
         const params = buildClassParams(levelId, sectionId, optionId, yearId);
-        return axios.get(`${API_URL}/academic/sub-domains/filter?${params.toString()}`, { headers: getHeader() });
+        return api.get(`/academic/sub-domains/filter?${params.toString()}`);
     },
-    createSubDomain: (data) => axios.post(`${API_URL}/academic/sub-domains`, data, { headers: getHeader() }),
-    updateSubDomain: (id, data) => axios.put(`${API_URL}/academic/sub-domains/${id}`, data, { headers: getHeader() }),
-    deleteSubDomain: (id) => axios.delete(`${API_URL}/academic/sub-domains/${id}`, { headers: getHeader() }),
+    createSubDomain: (data) => api.post("/academic/sub-domains", data),
+    updateSubDomain: (id, data) => api.put(`/academic/sub-domains/${id}`, data),
+    deleteSubDomain: (id) => api.delete(`/academic/sub-domains/${id}`),
 
     // --- MATIÈRES (SUBJECTS) ---
-    getAllSubjects: () => axios.get(`${API_URL}/academic/subjects`, { headers: getHeader() }),
+    getAllSubjects: () => api.get("/academic/subjects"),
     getSubjectsByClass: (levelId, sectionId, optionId, yearId) => {
         const params = buildClassParams(levelId, sectionId, optionId, yearId);
-        return axios.get(`${API_URL}/academic/subjects/filter?${params.toString()}`, { headers: getHeader() });
+        return api.get(`/academic/subjects/filter?${params.toString()}`);
     },
-    createSubject: (data) => axios.post(`${API_URL}/academic/subjects`, data, { headers: getHeader() }),
-    updateSubject: (id, data) => axios.put(`${API_URL}/academic/subjects/${id}`, data, { headers: getHeader() }),
-    deleteSubject: (id) => axios.delete(`${API_URL}/academic/subjects/${id}`, { headers: getHeader() }),
+    createSubject: (data) => api.post("/academic/subjects", data),
+    updateSubject: (id, data) => api.put(`/academic/subjects/${id}`, data),
+    deleteSubject: (id) => api.delete(`/academic/subjects/${id}`),
 
-    // ✅ NOUVEAU : Sauvegarde matricielle en masse
-    saveBulkGrid: (data) => axios.post(`${API_URL}/academic/subjects/bulk-grid`, data, { headers: getHeader() }),
+    // Sauvegarde matricielle en masse
+    saveBulkGrid: (data) => api.post("/academic/subjects/bulk-grid", data),
 
     // --- CONFIGURATION DES MAXIMA & AFFECTATIONS ---
-    assignCourse: (data) => axios.post(`${API_URL}/config/courses/assign`, data, { headers: getHeader() }),
-    updateCourseAssignment: (id, data) => axios.put(`${API_URL}/config/courses/${id}`, data, { headers: getHeader() }),
-    deleteCourseAssignment: (id) => axios.delete(`${API_URL}/config/courses/${id}`, { headers: getHeader() }),
+    assignCourse: (data) => api.post("/config/courses/assign", data),
+    updateCourseAssignment: (id, data) => api.put(`/config/courses/${id}`, data),
+    deleteCourseAssignment: (id) => api.delete(`/config/courses/${id}`),
     getCourseConfigurationFilter: (levelId, sectionId, optionId, yearId) => {
         const params = buildClassParams(levelId, sectionId, optionId, yearId);
-        return axios.get(`${API_URL}/config/courses/filter?${params.toString()}`, { headers: getHeader() });
+        return api.get(`/config/courses/filter?${params.toString()}`);
     },
 
-    importPreviousYearConfig: (data) => axios.post(`${API_URL}/config/courses/import-previous-year`, data, { headers: getHeader() })
+    importPreviousYearConfig: (data) => api.post("/config/courses/import-previous-year", data)
 };
 
 export default courseAcademicConfigService;

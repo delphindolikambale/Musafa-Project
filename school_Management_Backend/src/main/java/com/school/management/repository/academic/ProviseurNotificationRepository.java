@@ -8,7 +8,11 @@ import java.util.List;
 
 @Repository
 public interface ProviseurNotificationRepository extends JpaRepository<ProviseurNotification, Long> {
-    List<ProviseurNotification> findByTargetRoleOrderByCreatedAtDesc(String targetRole);
-    List<ProviseurNotification> findByTargetRoleAndReadStatusFalseOrderByCreatedAtDesc(String targetRole);
-    long countByTargetRoleAndReadStatusFalse(String targetRole);
+
+    // ✅ ADAPTATION MULTI-TENANT : Filtrage systématique des flux de notifications par école
+    List<ProviseurNotification> findByTargetRoleAndSchoolIdOrderByCreatedAtDesc(String targetRole, Long schoolId);
+
+    List<ProviseurNotification> findByTargetRoleAndReadStatusFalseAndSchoolIdOrderByCreatedAtDesc(String targetRole, Long schoolId);
+
+    long countByTargetRoleAndReadStatusFalseAndSchoolId(String targetRole, Long schoolId);
 }

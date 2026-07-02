@@ -10,6 +10,9 @@ import com.school.management.model.enums.Gender;
 import com.school.management.repository.academic.AcademicYearRepository;
 import com.school.management.repository.academic.ClassroomRepository;
 import com.school.management.repository.academic.EnrollmentRepository;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,7 +20,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
-
 public class ReportService {
 
     private final AcademicYearRepository academicYearRepository;
@@ -33,18 +35,40 @@ public class ReportService {
     }
 
     /**
+     * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SÉCURISÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est relié à aucun établissement.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
+    /**
      * Structure globale des dossiers (Années -> Classes actives)
      */
     @Transactional(readOnly = true)
     public List<ReportStructureDTO> getReportsFolderStructure() {
-        List<AcademicYear> years = academicYearRepository.findAll();
-        List<Classroom> allClassrooms = classroomRepository.findAll();
+        Long schoolId = getCurrentSchoolId();
+
+        // ✅ CORRECTION MULTI-TENANT : Utilisation des méthodes de requêtage exactes des repositories
+        List<AcademicYear> years = academicYearRepository.findAllBySchoolId(schoolId);
+        List<Classroom> allClassrooms = classroomRepository.findAllBySchoolId(schoolId);
 
         return years.stream().map(year -> {
                     List<ReportStructureDTO.ClassroomReportSummary> classroomSummaries = allClassrooms.stream()
                             .map(classroom -> {
+                                // ✅ CORRECTION MULTI-TENANT : Ajout du paramètre schoolId requis par le repository
                                 List<Enrollment> activeEnrollments = enrollmentRepository
-                                        .findByClassroomIdAndAcademicYearIdAndActiveTrue(classroom.getId(), year.getId());
+                                        .findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(classroom.getId(), year.getId(), schoolId);
 
                                 long total = activeEnrollments.size();
 
@@ -89,13 +113,22 @@ public class ReportService {
      */
     @Transactional(readOnly = true)
     public ClassroomReportDetailDTO getClassroomReportDetail(Long classroomId, Long yearId) {
+        Long schoolId = getCurrentSchoolId();
+
         Classroom classroom = classroomRepository.findById(classroomId)
                 .orElseThrow(() -> new RuntimeException("Classe non trouvée"));
+
         AcademicYear year = academicYearRepository.findById(yearId)
                 .orElseThrow(() -> new RuntimeException("Année non trouvée"));
 
+        // ✅ MULTI-TENANT VERIFICATION : Interdiction d'accéder aux rapports d'autres entités
+        if (!classroom.getSchool().getId().equals(schoolId) || !year.getSchool().getId().equals(schoolId)) {
+            throw new AccessDeniedException("❌ Accès refusé : Tentative d'extraction de rapports hors périmètre d'accréditation.");
+        }
+
+        // ✅ CORRECTION MULTI-TENANT : Alignement sur la méthode sécurisée prenant le schoolId
         List<Enrollment> enrollments = enrollmentRepository
-                .findByClassroomIdAndAcademicYearIdAndActiveTrue(classroomId, yearId);
+                .findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(classroomId, yearId, schoolId);
 
         List<ClassroomReportDetailDTO.StudentRowDTO> studentRows = enrollments.stream()
                 .map(e -> {
@@ -116,7 +149,7 @@ public class ReportService {
         long boys = studentRows.stream().filter(r -> r.getGender().equals("MASCULIN")).count();
 
         return ClassroomReportDetailDTO.builder()
-                .schoolName("COMPLEXE SCOLAIRE MUSAFA")
+                .schoolName(getCurrentUser().getSchool().getName()) // ✅ DYNAMIQUE : Utilisation du nom réel de l'établissement du tenant au lieu de la constante codée en dur
                 .academicYearLabel(year.getAnnee())
                 .classroomName(classroom.getDisplayName())
                 .totalStudents(studentRows.size())

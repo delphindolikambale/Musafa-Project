@@ -1,6 +1,7 @@
 package com.school.management.security.services;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.school.management.controller.academic.AcademicYearController; // ✅ AJOUT : Importation de l'interface de marquage
 import com.school.management.model.auth.User;
 import com.school.management.model.multitenant.School; // ✅ AJOUT : Importation de l'entité School
 import lombok.AllArgsConstructor;
@@ -20,7 +21,7 @@ import java.util.stream.Stream;
  */
 @Getter
 @AllArgsConstructor
-public class UserDetailsImpl implements UserDetails {
+public class UserDetailsImpl implements UserDetails, AcademicYearController.SchoolContextDetails { // ✅ MODIFICATION : Implémentation du contrat d'extraction d'école
 
     private static final long serialVersionUID = 1L;
 

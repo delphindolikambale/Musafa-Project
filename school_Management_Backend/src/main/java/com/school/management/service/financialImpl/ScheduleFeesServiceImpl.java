@@ -5,14 +5,17 @@ import com.school.management.exception.BadRequestException;
 import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.enums.PaymentFrequency;
 import com.school.management.model.financial.*;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.AcademicYearRepository;
 import com.school.management.repository.academic.LevelRepository;
 import com.school.management.repository.academic.OptionRepository;
 import com.school.management.repository.financial.ScheduleFeesRepository;
 import com.school.management.repository.financial.StudentAnnualFinancialProfileRepository;
+import com.school.management.security.services.UserDetailsImpl;
 import com.school.management.service.financial.InstallmentScheduleService;
 import com.school.management.service.financial.ScheduleFeesService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +27,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class ScheduleFeesServiceImpl implements ScheduleFeesService {
 
     private final ScheduleFeesRepository repository;
@@ -35,17 +37,38 @@ public class ScheduleFeesServiceImpl implements ScheduleFeesService {
     private final StudentAnnualFinancialProfileRepository profileRepository;
     private final NotificationService notificationService;
 
+    /**
+     * Extrait l'ID de l'établissement lié à la session utilisateur courante
+     */
+    private Long getCurrentSchoolId() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+        boolean isSuperAdmin = userDetails.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("SUPER_ADMIN_SYSTEM") || a.getAuthority().equals("ROLE_SUPER_ADMIN_SYSTEM"));
+
+        if (isSuperAdmin) {
+            throw new IllegalStateException("Opération impossible : l'autorité globale SuperAdminSystem n'agit pas au sein d'une école locale.");
+        }
+
+        if (userDetails.getSchool() == null) {
+            throw new IllegalStateException("❌ Configuration requise : Votre compte n'est rattaché à aucun établissement.");
+        }
+
+        return userDetails.getSchool().getId();
+    }
+
     @Override
     @Transactional
-    public ScheduleFeesResponseDTO create(ScheduleFeesDTO dto) {
-        if (repository.existsByAcademicYearIdAndLevelIdAndOptionId(dto.getAcademicYearId(), dto.getLevelId(), dto.getOptionId())) {
-            throw new BadRequestException("Une configuration existe déjà pour ce niveau/option.");
+    public ScheduleFeesResponseDTO create(ScheduleFeesDTO dto, Long schoolId) {
+        if (repository.existsByAcademicYearIdAndLevelIdAndOptionIdAndSchoolId(dto.getAcademicYearId(), dto.getLevelId(), dto.getOptionId(), schoolId)) {
+            throw new BadRequestException("Une configuration existe déjà pour ce niveau/option dans votre établissement.");
         }
 
         ScheduleFees fees = ScheduleFees.builder()
                 .academicYear(academicYearRepository.findById(dto.getAcademicYearId()).orElseThrow(() -> new ResourceNotFoundException("Année introuvable")))
                 .level(levelRepository.findById(dto.getLevelId()).orElseThrow(() -> new ResourceNotFoundException("Niveau introuvable")))
                 .option(dto.getOptionId() != null ? optionRepository.findById(dto.getOptionId()).orElse(null) : null)
+                .school(School.builder().id(schoolId).build())
                 .currency(dto.getCurrency())
                 .totalAmount(dto.getTotalAmount())
                 .paymentFrequency(dto.getPaymentFrequency())
@@ -61,45 +84,37 @@ public class ScheduleFeesServiceImpl implements ScheduleFeesService {
 
     @Override
     @Transactional
-    public ScheduleFeesResponseDTO update(Long id, ScheduleFeesDTO dto) {
-        ScheduleFees fees = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Barème introuvable"));
+    public ScheduleFeesResponseDTO update(Long id, ScheduleFeesDTO dto, Long schoolId) {
+        ScheduleFees fees = repository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Barème introuvable dans votre établissement."));
 
-        // --- PRÉPARATION DE LA NOTIFICATION (CORRIGÉE) ---
         BigDecimal oldAmount = fees.getTotalAmount();
 
-        // Correction ici : getName() pour Level et getOptionName() pour Option
         String levelName = fees.getLevel().getName();
         String optionPart = (fees.getOption() != null) ? " " + fees.getOption().getOptionName() : "";
         String className = levelName + optionPart;
-
         String currencyLabel = fees.getCurrency().name();
-        // ----------------------------------------------------
 
-        // 1. Mise à jour des données de tête
         fees.setTotalAmount(dto.getTotalAmount());
         fees.setCurrency(dto.getCurrency());
         fees.setPaymentFrequency(dto.getPaymentFrequency());
         fees.setNumberOfInstallments(dto.getNumberOfInstallments());
         fees.setStartDate(dto.getStartDate());
 
-        // 2. MISE À JOUR INTELLIGENTE DES TRANCHES
         updateInstallmentsInPlace(fees);
 
-        // 3. Sauvegarde intermédiaire
         ScheduleFees updatedFees = repository.saveAndFlush(fees);
 
-        // --- ENVOI DE LA NOTIFICATION SI LE MONTANT A CHANGÉ ---
         if (oldAmount.compareTo(dto.getTotalAmount()) != 0) {
             notificationService.sendPricingUpdate(
                     className,
                     oldAmount,
                     dto.getTotalAmount(),
-                    currencyLabel
+                    currencyLabel,
+                    schoolId
             );
         }
 
-        // 4. Propagation vers les profils élèves
         if (updatedFees.getLinkedProfiles() != null) {
             for (StudentAnnualFinancialProfile profile : updatedFees.getLinkedProfiles()) {
                 profile.refreshFromSchedule();
@@ -161,8 +176,10 @@ public class ScheduleFeesServiceImpl implements ScheduleFeesService {
 
     @Override
     @Transactional
-    public void delete(Long id) {
-        ScheduleFees fees = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Barème introuvable"));
+    public void delete(Long id, Long schoolId) {
+        ScheduleFees fees = repository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Barème introuvable dans votre établissement."));
+
         boolean hasAnyPayment = fees.getInstallments().stream()
                 .anyMatch(i -> i.getPayments() != null && !i.getPayments().isEmpty());
 
@@ -174,29 +191,34 @@ public class ScheduleFeesServiceImpl implements ScheduleFeesService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<ScheduleFeesResponseDTO> getAll() {
-        return academicYearRepository.findByActiveTrue()
-                .map(year -> repository.findByAcademicYearIdAndActiveTrue(year.getId())
+    public List<ScheduleFeesResponseDTO> getAll(Long schoolId) {
+        // ✅ CORRECTION : Utilisation de la méthode sécurisée par ID établissement
+        return academicYearRepository.findByActiveTrueAndSchoolId(schoolId)
+                .map(year -> repository.findByAcademicYearIdAndSchoolIdAndActiveTrue(year.getId(), schoolId)
                         .stream().map(this::mapToResponseDTO).toList())
                 .orElse(new ArrayList<>());
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ScheduleFeesResponseDTO getById(Long id) {
-        return repository.findById(id).map(this::mapToResponseDTO).orElseThrow(() -> new ResourceNotFoundException("Configuration introuvable"));
+    public ScheduleFeesResponseDTO getById(Long id, Long schoolId) {
+        return repository.findByIdAndSchoolId(id, schoolId)
+                .map(this::mapToResponseDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Configuration introuvable dans votre établissement."));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ScheduleFeesResponseDTO> getByAcademicYear(Long academicYearId) {
-        return repository.findByAcademicYearIdAndActiveTrue(academicYearId).stream().map(this::mapToResponseDTO).toList();
+    public List<ScheduleFeesResponseDTO> getByAcademicYear(Long academicYearId, Long schoolId) {
+        return repository.findByAcademicYearIdAndSchoolIdAndActiveTrue(academicYearId, schoolId)
+                .stream().map(this::mapToResponseDTO).toList();
     }
 
     @Override
     @Transactional
-    public void deactivate(Long id) {
-        ScheduleFees fees = repository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Configuration introuvable"));
+    public void deactivate(Long id, Long schoolId) {
+        ScheduleFees fees = repository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Configuration introuvable dans votre établissement."));
         fees.setActive(false);
         repository.save(fees);
     }
@@ -230,4 +252,3 @@ public class ScheduleFeesServiceImpl implements ScheduleFeesService {
         return dto;
     }
 }
-

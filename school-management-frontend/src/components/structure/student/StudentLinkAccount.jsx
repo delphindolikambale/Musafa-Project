@@ -30,7 +30,7 @@ const StudentLinkAccount = () => {
 
     setLoading(true);
     try {
-      // Appel réel au service de liaison
+      // Appel réel au service de liaison avec l'identifiant, le matricule et le code/mot de passe
       const response = await studentService.linkAccount(currentUser.id, matricule, schoolPassword);
       
       if (response && response.isLinked) {
@@ -45,7 +45,7 @@ const StudentLinkAccount = () => {
         
         toast.success(language === "FR" ? "Compte lié avec succès !" : "Account linked successfully!");
         
-        // On utilise window.location.href pour forcer un rechargement complet du contexte et du layout
+        // Utilisation de window.location.href pour forcer un rechargement complet du contexte applicatif
         window.location.href = "/student/dashboard";
       }
     } catch (error) {
@@ -127,7 +127,7 @@ const StudentLinkAccount = () => {
               </div>
             </div>
 
-            {/* INPUT MOT DE PASSE SCOLAIRE */}
+            {/* INPUT MOT DE PASSE SCOLAIRE / CODE SECRET */}
             <div className="space-y-1.5">
               <label className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
                 {language === "FR" ? "Code secret d'activation" : "Activation Secret Code"}
@@ -165,8 +165,8 @@ const StudentLinkAccount = () => {
       </main>
 
       {/* FOOTER */}
-      <footer className="p-6 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-        © 2026 Complexe Scolaire Musafa • All rights reserved
+      <footer className="p-6 text-center text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-widest">
+        &copy; {new Date().getFullYear()} MyAcademia. All rights reserved.
       </footer>
     </div>
   );

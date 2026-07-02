@@ -3,6 +3,7 @@ package com.school.management.service.academicImpl;
 import com.school.management.dto.academic.ClassroomRequestDTO;
 import com.school.management.dto.academic.ClassroomResponseDTO;
 import com.school.management.model.academic.*;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.ClassroomService;
 
@@ -25,58 +26,58 @@ public class ClassroomServiceImpl implements ClassroomService {
     private final RoomRepository roomRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final AcademicYearRepository academicYearRepository;
-    private final TeacherRepository teacherRepository; // Injection du repository Enseignant
+    private final TeacherRepository teacherRepository;
 
+    // ✅ Adapté : Signature modifiée pour accepter Long schoolId
     @Override
-    public ClassroomResponseDTO create(ClassroomRequestDTO request) {
-        if (classroomRepository.existsByLevelIdAndSectionIdAndOptionIdAndDivision(
-                request.getLevelId(), request.getSectionId(), request.getOptionId(), request.getDivision())) {
-            throw new RuntimeException("Cette classe existe déjà avec cette division.");
+    public ClassroomResponseDTO create(ClassroomRequestDTO request, Long schoolId) {
+        if (classroomRepository.existsByLevelIdAndSectionIdAndOptionIdAndDivisionAndSchoolId(
+                request.getLevelId(), request.getSectionId(), request.getOptionId(), request.getDivision(), schoolId)) {
+            throw new RuntimeException("Cette classe existe déjà avec cette division dans votre établissement.");
         }
-        validateRoomAvailability(request.getRoomId(), null);
+        validateRoomAvailability(request.getRoomId(), null, schoolId);
 
         Classroom classroom = new Classroom();
-        updateEntityFromDTO(classroom, request);
+        // ✅ Association de l'école via son ID grâce au Builder Lombok
+        classroom.setSchool(School.builder().id(schoolId).build());
+        updateEntityFromDTO(classroom, request, schoolId);
         classroom.setActive(true);
 
-        return convertToDTO(classroomRepository.save(classroom), null);
+        return convertToDTO(classroomRepository.save(classroom), null, schoolId);
     }
 
     @Override
-    public ClassroomResponseDTO updateClassroom(Long id, ClassroomRequestDTO request) {
-        Classroom classroom = classroomRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Classe introuvable (ID: " + id + ")"));
+    public ClassroomResponseDTO updateClassroom(Long id, ClassroomRequestDTO request, Long schoolId) {
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable (ID: " + id + ") ou accès non autorisé."));
 
-        classroomRepository.findByLevelIdAndSectionIdAndOptionIdAndDivision(
-                        request.getLevelId(), request.getSectionId(), request.getOptionId(), request.getDivision())
+        classroomRepository.findByLevelIdAndSectionIdAndOptionIdAndDivisionAndSchoolId(
+                        request.getLevelId(), request.getSectionId(), request.getOptionId(), request.getDivision(), schoolId)
                 .ifPresent(existing -> {
                     if (!existing.getId().equals(id)) {
-                        throw new RuntimeException("Une autre classe avec ces caractéristiques existe déjà.");
+                        throw new RuntimeException("Une autre classe avec ces caractéristiques existe déjà dans votre établissement.");
                     }
                 });
 
-        validateRoomAvailability(request.getRoomId(), id);
-        updateEntityFromDTO(classroom, request);
+        validateRoomAvailability(request.getRoomId(), id, schoolId);
+        updateEntityFromDTO(classroom, request, schoolId);
 
-        return convertToDTO(classroomRepository.save(classroom), null);
+        return convertToDTO(classroomRepository.save(classroom), null, schoolId);
     }
 
-    // --- NOUVELLES MÉTHODES TITULAIRE ---
-
     @Override
-    public void assignTitulaire(Long classroomId, Long teacherId) {
-        Classroom classroom = classroomRepository.findById(classroomId)
-                .orElseThrow(() -> new RuntimeException("Classe introuvable"));
+    public void assignTitulaire(Long classroomId, Long teacherId, Long schoolId) {
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(classroomId, schoolId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable ou accès non autorisé."));
 
-        Teacher teacher = teacherRepository.findById(teacherId)
+        Teacher teacher = teacherRepository.findById(teacherId) // Note: Sera scopé lors du module RH
                 .orElseThrow(() -> new RuntimeException("Enseignant introuvable"));
 
         if (!teacher.isActive()) {
             throw new RuntimeException("Impossible d'affecter un enseignant inactif comme titulaire.");
         }
 
-        // Vérification stricte : L'enseignant est-il déjà titulaire d'une autre classe ?
-        classroomRepository.findByTitulaireId(teacherId).ifPresent(existingClass -> {
+        classroomRepository.findByTitulaireIdAndSchoolId(teacherId, schoolId).ifPresent(existingClass -> {
             if (!existingClass.getId().equals(classroomId)) {
                 throw new RuntimeException("L'enseignant " + teacher.getFullName() +
                         " est déjà titulaire de la classe : " + existingClass.getDisplayName());
@@ -88,70 +89,68 @@ public class ClassroomServiceImpl implements ClassroomService {
     }
 
     @Override
-    public void removeTitulaire(Long classroomId) {
-        Classroom classroom = classroomRepository.findById(classroomId)
-                .orElseThrow(() -> new RuntimeException("Classe introuvable"));
+    public void removeTitulaire(Long classroomId, Long schoolId) {
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(classroomId, schoolId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable ou accès non autorisé."));
 
         classroom.setTitulaire(null);
         classroomRepository.save(classroom);
     }
 
-    // --- MÉTHODES DE RÉCUPÉRATION AVEC FILTRAGE ---
-
     @Override
-    public List<ClassroomResponseDTO> getAll(Long academicYearId) {
-        return classroomRepository.findAll().stream()
-                .map(entity -> convertToDTO(entity, academicYearId))
+    public List<ClassroomResponseDTO> getAll(Long academicYearId, Long schoolId) {
+        return classroomRepository.findAllBySchoolId(schoolId).stream()
+                .map(entity -> convertToDTO(entity, academicYearId, schoolId))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public List<ClassroomResponseDTO> getAllActive(Long academicYearId) {
-        return classroomRepository.findByActiveTrue().stream()
-                .map(entity -> convertToDTO(entity, academicYearId))
+    public List<ClassroomResponseDTO> getAllActive(Long academicYearId, Long schoolId) {
+        return classroomRepository.findByActiveTrueAndSchoolId(schoolId).stream()
+                .map(entity -> convertToDTO(entity, academicYearId, schoolId))
                 .collect(Collectors.toList());
     }
 
     @Override
-    public ClassroomResponseDTO getById(Long id, Long academicYearId) {
-        Classroom classroom = classroomRepository.findById(id)
+    public ClassroomResponseDTO getById(Long id, Long academicYearId, Long schoolId) {
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(id, schoolId)
                 .orElseThrow(() -> new RuntimeException("Classe introuvable"));
-        return convertToDTO(classroom, academicYearId);
+        return convertToDTO(classroom, academicYearId, schoolId);
     }
 
     @Override
-    public List<ClassroomResponseDTO> getByLevel(Long levelId, Long academicYearId) {
-        return classroomRepository.findByLevelId(levelId).stream()
-                .map(entity -> convertToDTO(entity, academicYearId))
+    public List<ClassroomResponseDTO> getByLevel(Long levelId, Long academicYearId, Long schoolId) {
+        return classroomRepository.findByLevelIdAndSchoolId(levelId, schoolId).stream()
+                .map(entity -> convertToDTO(entity, academicYearId, schoolId))
                 .collect(Collectors.toList());
     }
 
-    // --- COMPATIBILITÉ ---
+    // --- COMPATIBILITÉ ET REDIRECTIONS MULTI-TENANT ---
+    @Override public List<ClassroomResponseDTO> getAll(Long schoolId) { return getAll(null, schoolId); }
+    @Override public List<ClassroomResponseDTO> getAllActive(Long schoolId) { return getAllActive(null, schoolId); }
+    @Override public ClassroomResponseDTO getById(Long id, Long schoolId) { return getById(id, null, schoolId); }
+    @Override public List<ClassroomResponseDTO> getByLevel(Long levelId, Long schoolId) { return getByLevel(levelId, null, schoolId); }
 
-    @Override public List<ClassroomResponseDTO> getAll() { return getAll(null); }
-    @Override public List<ClassroomResponseDTO> getAllActive() { return getAllActive(null); }
-    @Override public ClassroomResponseDTO getById(Long id) { return getById(id, null); }
-    @Override public List<ClassroomResponseDTO> getByLevel(Long levelId) { return getByLevel(levelId, null); }
-
-    // --- LOGIQUE INTERNE ---
-
-    private void validateRoomAvailability(Long roomId, Long currentClassroomId) {
-        classroomRepository.findByRoomId(roomId).ifPresent(existingClass -> {
+    // --- LOGIQUE INTERNE FILTRÉE ---
+    private void validateRoomAvailability(Long roomId, Long currentClassroomId, Long schoolId) {
+        classroomRepository.findByRoomIdAndSchoolId(roomId, schoolId).ifPresent(existingClass -> {
             if (currentClassroomId == null || !existingClass.getId().equals(currentClassroomId)) {
                 throw new RuntimeException("La salle " + existingClass.getRoom().getName() + " est déjà occupée par la classe " + existingClass.getDisplayName());
             }
         });
     }
 
-    private void updateEntityFromDTO(Classroom classroom, ClassroomRequestDTO request) {
-        classroom.setLevel(levelRepository.findById(request.getLevelId()).orElseThrow(() -> new RuntimeException("Niveau introuvable")));
-        classroom.setRoom(roomRepository.findById(request.getRoomId()).orElseThrow(() -> new RuntimeException("Salle physique introuvable")));
-        classroom.setSection(request.getSectionId() != null ? sectionRepository.findById(request.getSectionId()).orElse(null) : null);
-        classroom.setOption(request.getOptionId() != null ? optionRepository.findById(request.getOptionId()).orElse(null) : null);
+    private void updateEntityFromDTO(Classroom classroom, ClassroomRequestDTO request, Long schoolId) {
+        classroom.setLevel(levelRepository.findByIdAndSchoolId(request.getLevelId(), schoolId)
+                .orElseThrow(() -> new RuntimeException("Niveau introuvable dans votre établissement.")));
+        classroom.setRoom(roomRepository.findById(request.getRoomId()) // Scoping Room ultérieur
+                .orElseThrow(() -> new RuntimeException("Salle physique introuvable.")));
+        classroom.setSection(request.getSectionId() != null ? sectionRepository.findByIdAndSchoolId(request.getSectionId(), schoolId).orElse(null) : null);
+        classroom.setOption(request.getOptionId() != null ? optionRepository.findByIdAndSchoolId(request.getOptionId(), schoolId).orElse(null) : null);
         classroom.setDivision(request.getDivision() != null && !request.getDivision().trim().isEmpty() ? request.getDivision().trim().toUpperCase() : null);
     }
 
-    private ClassroomResponseDTO convertToDTO(Classroom entity, Long academicYearId) {
+    private ClassroomResponseDTO convertToDTO(Classroom entity, Long academicYearId, Long schoolId) {
         ClassroomResponseDTO dto = new ClassroomResponseDTO();
         dto.setId(entity.getId());
         dto.setLevelName(entity.getLevel().getName());
@@ -167,7 +166,6 @@ public class ClassroomServiceImpl implements ClassroomService {
         dto.setSectionId(entity.getSection() != null ? entity.getSection().getId() : null);
         dto.setOptionId(entity.getOption() != null ? entity.getOption().getId() : null);
 
-        // ✅ INTÉGRATION DU TITULAIRE DANS LE DTO
         if (entity.getTitulaire() != null) {
             dto.setTitulaireId(entity.getTitulaire().getId());
             dto.setTitulaireName(entity.getTitulaire().getFullName());
@@ -176,17 +174,16 @@ public class ClassroomServiceImpl implements ClassroomService {
             dto.setTitulaireName("Aucun titulaire assigné");
         }
 
-        // ✅ FILTRAGE ANNEE
         Long yearToFilter = academicYearId;
         if (yearToFilter == null) {
-            yearToFilter = academicYearRepository.findByActiveTrue()
+            yearToFilter = academicYearRepository.findByActiveTrueAndSchoolId(schoolId)
                     .map(AcademicYear::getId)
                     .orElse(null);
         }
 
-        // ✅ COMPTAGE RÉEL
         if (yearToFilter != null) {
-            long count = enrollmentRepository.countByClassroomIdAndAcademicYearId(entity.getId(), yearToFilter);
+            // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode contenant le paramètre schoolId
+            long count = enrollmentRepository.countByClassroomIdAndAcademicYearIdAndSchoolId(entity.getId(), yearToFilter, schoolId);
             dto.setCurrentStudents((int) count);
         } else {
             dto.setCurrentStudents(0);
@@ -196,14 +193,16 @@ public class ClassroomServiceImpl implements ClassroomService {
     }
 
     @Override
-    public void delete(Long id) {
-        if (!classroomRepository.existsById(id)) throw new RuntimeException("Impossible de supprimer : classe inexistante");
-        classroomRepository.deleteById(id);
+    public void delete(Long id, Long schoolId) {
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new RuntimeException("Impossible de supprimer : classe inexistante ou non autorisée."));
+        classroomRepository.delete(classroom);
     }
 
     @Override
-    public void toggleStatus(Long id) {
-        Classroom classroom = classroomRepository.findById(id).orElseThrow(() -> new RuntimeException("Classe introuvable"));
+    public void toggleStatus(Long id, Long schoolId) {
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable ou accès refusé."));
         classroom.setActive(!classroom.isActive());
         classroomRepository.save(classroom);
     }

@@ -1,5 +1,6 @@
 package com.school.management.model.academic;
 
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
@@ -36,13 +37,18 @@ public class ProviseurNotification {
     private String teacherName;
     private Long assignmentId;
 
+    // ✅ MULTI-TENANT : Chaque notification est cloisonnée par établissement
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
     public ProviseurNotification() {
         this.createdAt = LocalDateTime.now();
     }
 
     public ProviseurNotification(String type, String title, String message, String targetRole,
                                  String subjectName, String classroomName, String period,
-                                 String teacherName, Long assignmentId) {
+                                 String teacherName, Long assignmentId, School school) { // ✅ AJOUT CONSTRUCTEUR
         this.type = type;
         this.title = title;
         this.message = message;
@@ -54,6 +60,7 @@ public class ProviseurNotification {
         this.assignmentId = assignmentId;
         this.readStatus = false;
         this.createdAt = LocalDateTime.now();
+        this.school = school;
     }
 
     // Getters et Setters
@@ -92,4 +99,8 @@ public class ProviseurNotification {
 
     public Long getAssignmentId() { return assignmentId; }
     public void setAssignmentId(Long assignmentId) { this.assignmentId = assignmentId; }
+
+    // ✅ AJOUT SÉCURISÉ GETTER / SETTER POUR LE TENANT
+    public School getSchool() { return school; }
+    public void setSchool(School school) { this.school = school; }
 }

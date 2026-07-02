@@ -1,33 +1,24 @@
-import axios from "axios";
-import AuthService from "./auth.service";
-import { BACKEND_BASE } from '../api';
-
-const API_URL = `${BACKEND_BASE}/api/student/pedagogy/`;
-
-const authHeader = () => {
-  const user = AuthService.getCurrentUser();
-  return (user && user.token) ? { Authorization: `Bearer ${user.token}` } : {};
-};
+import api from "../api"; // ✅ Ajustement du chemin pour cibler src/services/api.js
 
 const StudentPedagogyService = {
   // Résultats & Bulletin
-  getResults: (type) => axios.get(`${API_URL}results?type=${type}`, { headers: authHeader() }), // type: 'periode'|'semestre'|'annuel'
+  getResults: (type) => api.get(`/student/pedagogy/results?type=${type}`), // type: 'periode'|'semestre'|'annuel'
   
   // Horaires
-  getCourseSchedule: () => axios.get(`${API_URL}schedule/courses`, { headers: authHeader() }),
-  getExamSchedule: () => axios.get(`${API_URL}schedule/exams`, { headers: authHeader() }),
+  getCourseSchedule: () => api.get("/student/pedagogy/schedule/courses"),
+  getExamSchedule: () => api.get("/student/pedagogy/schedule/exams"),
   
   // Ressources & Suivi
-  getCourseNotes: () => axios.get(`${API_URL}course-notes`, { headers: authHeader() }),
-  getAttendance: () => axios.get(`${API_URL}attendance`, { headers: authHeader() }),
+  getCourseNotes: () => api.get("/student/pedagogy/course-notes"),
+  getAttendance: () => api.get("/student/pedagogy/attendance"),
   
   // Travaux Pratiques (TP)
-  getAssignments: () => axios.get(`${API_URL}assignments`, { headers: authHeader() }),
+  getAssignments: () => api.get("/student/pedagogy/assignments"),
   submitAssignment: (assignmentId, file) => {
     const formData = new FormData();
     formData.append("file", file);
-    return axios.post(`${API_URL}assignments/${assignmentId}/submit`, formData, {
-      headers: { ...authHeader(), "Content-Type": "multipart/form-data" }
+    return api.post(`/student/pedagogy/assignments/${assignmentId}/submit`, formData, {
+      headers: { "Content-Type": "multipart/form-data" }
     });
   }
 };

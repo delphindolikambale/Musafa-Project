@@ -8,12 +8,12 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-
 public interface TeacherAssignmentRepository extends JpaRepository<TeacherAssignment, Long> {
-    List<TeacherAssignment> findByAcademicYearId(Long yearId);
-    List<TeacherAssignment> findByTeacherIdAndAcademicYearId(Long teacherId, Long yearId);
-    List<TeacherAssignment> findByClassroomIdAndAcademicYearId(Long classroomId, Long yearId);
+    // ✅ TOUTES LES MÉTHODES INCLUSENT DÉSORMAIS L'ISOLATION STRICTE DE L'ÉCOLE (schoolId)
+    List<TeacherAssignment> findByAcademicYearIdAndSchoolId(Long yearId, Long schoolId);
+    List<TeacherAssignment> findByTeacherIdAndAcademicYearIdAndSchoolId(Long teacherId, Long yearId, Long schoolId);
+    List<TeacherAssignment> findByClassroomIdAndAcademicYearIdAndSchoolId(Long classroomId, Long yearId, Long schoolId);
 
-    // Pour vérifier si un cours dans une classe a déjà un enseignant (Règle d'exclusivité)
-    Optional<TeacherAssignment> findByCourseAssignmentIdAndClassroomId(Long courseId, Long classroomId);
+    // Pour vérifier si un cours dans une classe a déjà un enseignant au sein de l'établissement
+    Optional<TeacherAssignment> findByCourseAssignmentIdAndClassroomIdAndSchoolId(Long courseId, Long classroomId, Long schoolId);
 }

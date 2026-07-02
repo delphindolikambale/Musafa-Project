@@ -2,6 +2,7 @@ package com.school.management.service.financialImpl;
 
 import com.school.management.dto.financial.TransactionHistoryDTO;
 import com.school.management.model.financial.TransactionHistory;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.financial.TransactionHistoryRepository;
 import com.school.management.service.financial.TransactionHistoryService;
 import lombok.RequiredArgsConstructor;
@@ -15,38 +16,45 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class TransactionHistoryServiceImpl implements TransactionHistoryService {
 
     private final TransactionHistoryRepository repository;
 
     @Override
-    public List<TransactionHistoryDTO> getAllHistory() {
-        return repository.findAllByOrderByTransactionDateDesc()
+    public List<TransactionHistoryDTO> getAllHistory(Long schoolId) {
+        return repository.findAllBySchoolIdOrderByTransactionDateDesc(schoolId)
                 .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
-    public List<TransactionHistoryDTO> getHistoryByType(String type) {
-        return repository.findByTypeOrderByTransactionDateDesc(type)
+    public List<TransactionHistoryDTO> getHistoryByType(String type, Long schoolId) {
+        return repository.findByTypeAndSchoolIdOrderByTransactionDateDesc(type, schoolId)
                 .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
-    public List<TransactionHistoryDTO> getTodayHistory() {
+    public List<TransactionHistoryDTO> getTodayHistory(Long schoolId) {
         LocalDateTime start = LocalDateTime.now().with(LocalTime.MIN);
         LocalDateTime end = LocalDateTime.now().with(LocalTime.MAX);
-        return repository.findByTransactionDateBetweenOrderByTransactionDateDesc(start, end)
+        return repository.findByTransactionDateBetweenAndSchoolIdOrderByTransactionDateDesc(start, end, schoolId)
                 .stream().map(this::mapToDTO).collect(Collectors.toList());
     }
 
     @Override
-    public void deleteHistory(Long id) {
-        repository.deleteById(id);
+    public void deleteHistory(Long id, Long schoolId) {
+        // ✅ Sécurité de suppression inter-tenant
+        TransactionHistory tx = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Historique introuvable"));
+
+        if (tx.getSchool() != null && tx.getSchool().getId().equals(schoolId)) {
+            repository.deleteById(id);
+        } else {
+            throw new RuntimeException("Action interdite : Cet historique n'appartient pas à votre établissement.");
+        }
     }
 
     @Override
-    public void logTransaction(String type, String label, BigDecimal amount, String currency, String ref, String user, Long sourceId) {
+    public void logTransaction(String type, String label, BigDecimal amount, String currency, String ref, String user, Long sourceId, Long schoolId) {
         TransactionHistory tx = TransactionHistory.builder()
                 .type(type)
                 .label(label)
@@ -56,19 +64,15 @@ public class TransactionHistoryServiceImpl implements TransactionHistoryService 
                 .referenceNumber(ref)
                 .performedBy(user)
                 .sourceId(sourceId)
+                .school(School.builder().id(schoolId).build()) // ✅ Renseignement automatique du tenant lors du log
                 .build();
         repository.save(tx);
     }
 
     private TransactionHistoryDTO mapToDTO(TransactionHistory entity) {
         TransactionHistoryDTO dto = new TransactionHistoryDTO();
-
-        // ID technique de la ligne d'historique (utilisé par le bouton supprimer du front)
         dto.setId(entity.getId());
-
-        // ID de la source originale (utilisé par le bouton reçu du front)
         dto.setSourceId(entity.getSourceId());
-
         dto.setType(entity.getType());
         dto.setLabel(entity.getLabel());
         dto.setAmount(entity.getAmount());
@@ -76,8 +80,6 @@ public class TransactionHistoryServiceImpl implements TransactionHistoryService 
         dto.setTransactionDate(entity.getTransactionDate());
         dto.setReferenceNumber(entity.getReferenceNumber());
         dto.setPerformedBy(entity.getPerformedBy());
-
         return dto;
     }
-
 }

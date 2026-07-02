@@ -1,13 +1,14 @@
 package com.school.management.controller.financial;
 
-import com.school.management.dto.financial.InstallmentScheduleDTO;
 import com.school.management.dto.financial.InstallmentScheduleResponseDTO;
 import com.school.management.model.financial.InstallmentSchedule;
+import com.school.management.model.multitenant.School;
 import com.school.management.service.financial.InstallmentScheduleService;
-import jakarta.validation.Valid;
+import com.school.management.controller.academic.AcademicYearController.SchoolContextDetails;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -15,14 +16,29 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/installments")
 @RequiredArgsConstructor
-
 public class InstallmentScheduleController {
+
     private final InstallmentScheduleService service;
+
+    /**
+     * Extraction sécurisée du contexte d'établissement actif (JWT)
+     */
+    private School getCurrentSchool() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() != null) {
+            Object principal = authentication.getPrincipal();
+            if (principal instanceof SchoolContextDetails) {
+                return ((SchoolContextDetails) principal).getSchool();
+            }
+        }
+        throw new RuntimeException("Aucune session ou contexte d'école valide détecté pour cette action.");
+    }
 
     @GetMapping("/schedule-fees/{scheduleFeesId}")
     public ResponseEntity<List<InstallmentScheduleResponseDTO>> getByScheduleFees(@PathVariable Long scheduleFeesId) {
+        School currentSchool = getCurrentSchool();
         return ResponseEntity.ok(
-                service.getByScheduleFees(scheduleFeesId)
+                service.getByScheduleFees(scheduleFeesId, currentSchool.getId())
                         .stream()
                         .map(this::mapToResponseDTO)
                         .toList()
@@ -31,12 +47,14 @@ public class InstallmentScheduleController {
 
     @GetMapping("/{id}")
     public ResponseEntity<InstallmentScheduleResponseDTO> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(mapToResponseDTO(service.getById(id)));
+        School currentSchool = getCurrentSchool();
+        return ResponseEntity.ok(mapToResponseDTO(service.getById(id, currentSchool.getId())));
     }
 
     @PutMapping("/{id}/pay")
     public ResponseEntity<Void> markAsPaid(@PathVariable Long id) {
-        service.markAsPaid(id);
+        School currentSchool = getCurrentSchool();
+        service.markAsPaid(id, currentSchool.getId());
         return ResponseEntity.noContent().build();
     }
 

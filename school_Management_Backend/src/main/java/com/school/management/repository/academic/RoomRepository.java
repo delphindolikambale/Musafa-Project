@@ -8,22 +8,23 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-
 public interface RoomRepository extends JpaRepository<Room, Long> {
 
-    // ✅ Vérification stricte sans tenir compte des majuscules/minuscules
-    boolean existsByNameIgnoreCase(String name);
+    // ✅ ADAPTATION MULTI-TENANT : Vérifications d'existences cloisonnées par école
+    boolean existsByNameIgnoreCaseAndSchoolId(String name, Long schoolId);
 
-    // ✅ Utile pour la modification : existe-t-il une AUTRE salle avec ce nom ?
-    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+    boolean existsByNameIgnoreCaseAndIdNotAndSchoolId(String name, Long id, Long schoolId);
 
-    List<Room> findByActiveTrue();
+    List<Room> findBySchoolId(Long schoolId);
 
-    List<Room> findByBuildingContainingIgnoreCase(String building);
+    List<Room> findByActiveTrueAndSchoolId(Long schoolId);
 
-    @Query("SELECT r FROM Room r WHERE r.id NOT IN (SELECT c.room.id FROM Classroom c WHERE c.room IS NOT NULL)")
-    List<Room> findAvailableRooms();
+    List<Room> findByBuildingContainingIgnoreCaseAndSchoolId(String building, Long schoolId);
 
-    @Query("SELECT r FROM Room r WHERE r.id NOT IN (SELECT c.room.id FROM Classroom c WHERE c.room IS NOT NULL AND c.id <> :classroomId)")
-    List<Room> findAvailableRoomsForEdit(@Param("classroomId") Long classroomId);
+    // ✅ SÉCURISATION DES REQUÊTES COMPOSÉES : Filtrage sur le scope de l'établissement courant
+    @Query("SELECT r FROM Room r WHERE r.school.id = :schoolId AND r.id NOT IN (SELECT c.room.id FROM Classroom c WHERE c.room IS NOT NULL AND c.school.id = :schoolId)")
+    List<Room> findAvailableRooms(@Param("schoolId") Long schoolId);
+
+    @Query("SELECT r FROM Room r WHERE r.school.id = :schoolId AND r.id NOT IN (SELECT c.room.id FROM Classroom c WHERE c.room IS NOT NULL AND c.id <> :classroomId AND c.school.id = :schoolId)")
+    List<Room> findAvailableRoomsForEdit(@Param("classroomId") Long classroomId, @Param("schoolId") Long schoolId);
 }

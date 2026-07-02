@@ -1,51 +1,35 @@
-import axios from 'axios';
-import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
-
-const API_BASE_URL = `${BACKEND_BASE}/api/v1/student-payments`; // ✅ Rendu dynamique
-
-const paymentApi = axios.create({
-    baseURL: API_BASE_URL,
-    headers: { 'Content-Type': 'application/json' }
-});
-
-paymentApi.interceptors.request.use((config) => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user && user.accessToken) {
-        config.headers.Authorization = `Bearer ${user.accessToken}`;
-    }
-    return config;
-});
+import api from './api'; // ✅ MODIFICATION : Nettoyage de l'instance locale redondante au profit de l'instance globale
 
 export const paymentService = {
     getDailyReport: async () => {
-        const response = await paymentApi.get("/daily-report");
+        const response = await api.get("/v1/student-payments/daily-report");
         return response.data;
     },
 
     getAllPayments: async () => {
-        const response = await paymentApi.get("");
+        const response = await api.get("/v1/student-payments");
         return response.data;
     },
 
     getStudentSummary: async (identifier) => {
         if (!identifier) throw new Error("Identifiant manquant");
-        const response = await paymentApi.get(`/summary/${identifier}`);
+        const response = await api.get(`/v1/student-payments/summary/${identifier}`);
         return response.data;
     },
 
     processPayment: async (paymentData) => {
-        const response = await paymentApi.post("", paymentData);
+        const response = await api.post("/v1/student-payments", paymentData);
         return response.data;
     },
 
     searchStudents: async (query) => {
         if (!query) return []; 
-        const response = await paymentApi.get(`/search-students?q=${query}`);
+        const response = await api.get(`/v1/student-payments/search-students?q=${query}`);
         return response.data; 
     },
 
     getPaymentByReceipt: async (receiptNumber) => {
-        const response = await paymentApi.get(`/receipt/${receiptNumber}`);
+        const response = await api.get(`/v1/student-payments/receipt/${receiptNumber}`);
         return response.data;
     }
 };

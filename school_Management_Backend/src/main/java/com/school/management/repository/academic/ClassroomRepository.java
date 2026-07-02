@@ -10,21 +10,22 @@ import java.util.Optional;
 @Repository
 public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
 
-    // Récupérer les classes par niveau
-    List<Classroom> findByLevelId(Long levelId);
+    List<Classroom> findByLevelIdAndSchoolId(Long levelId, Long schoolId);
 
-    // Vérification d'unicité lors de la CRÉATION
-    boolean existsByLevelIdAndSectionIdAndOptionIdAndDivision(Long levelId, Long sectionId, Long optionId, String division);
+    boolean existsByLevelIdAndSectionIdAndOptionIdAndDivisionAndSchoolId(Long levelId, Long sectionId, Long optionId, String division, Long schoolId);
 
-    // Recherche précise pour la validation lors de la MODIFICATION
-    Optional<Classroom> findByLevelIdAndSectionIdAndOptionIdAndDivision(Long levelId, Long sectionId, Long optionId, String division);
+    Optional<Classroom> findByLevelIdAndSectionIdAndOptionIdAndDivisionAndSchoolId(Long levelId, Long sectionId, Long optionId, String division, Long schoolId);
 
-    // Récupérer uniquement les classes actives
-    List<Classroom> findByActiveTrue();
+    List<Classroom> findByActiveTrueAndSchoolId(Long schoolId);
 
-    // Vérifier l'occupation d'une salle physique
-    Optional<Classroom> findByRoomId(Long roomId);
+    Optional<Classroom> findByRoomIdAndSchoolId(Long roomId, Long schoolId);
 
-    // Trouver si un enseignant est déjà titulaire d'une classe
-    Optional<Classroom> findByTitulaireId(Long titulaireId);
+    Optional<Classroom> findByTitulaireIdAndSchoolId(Long titulaireId, Long schoolId);
+
+    List<Classroom> findAllBySchoolId(Long schoolId);
+
+    Optional<Classroom> findByIdAndSchoolId(Long id, Long schoolId);
+
+    // ✅ ADAPTATION MULTI-TENANT : Ajout du prototype de comptage automatique pour le DashboardService
+    long countBySchoolId(Long schoolId);
 }

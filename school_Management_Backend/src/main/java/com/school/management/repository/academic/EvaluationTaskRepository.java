@@ -10,11 +10,11 @@ import java.util.List;
 @Repository
 public interface EvaluationTaskRepository extends JpaRepository<EvaluationTask, Long> {
 
-    // Nouvelle méthode ajoutée pour résoudre l'erreur "cannot find symbol"
-    List<EvaluationTask> findByTeacherAssignmentId(Long teacherAssignmentId);
+    // ✅ ADAPTATION MULTI-TENANT SUR LES SIGNATURES DE RECHERCHE
+    List<EvaluationTask> findByTeacherAssignmentIdAndSchoolId(Long teacherAssignmentId, Long schoolId);
 
-    List<EvaluationTask> findByTeacherAssignmentIdAndPeriod(Long teacherAssignmentId, int period);
+    List<EvaluationTask> findByTeacherAssignmentIdAndPeriodAndSchoolId(Long teacherAssignmentId, int period, Long schoolId);
 
-    @Query("SELECT SUM(e.maxPoints) FROM EvaluationTask e WHERE e.teacherAssignment.id = :taId AND e.period = :period")
-    Double sumMaxPointsByAssignmentAndPeriod(@Param("taId") Long taId, @Param("period") int period);
+    @Query("SELECT SUM(e.maxPoints) FROM EvaluationTask e WHERE e.teacherAssignment.id = :taId AND e.period = :period AND e.school.id = :schoolId")
+    Double sumMaxPointsByAssignmentAndPeriod(@Param("taId") Long taId, @Param("period") int period, @Param("schoolId") Long schoolId);
 }

@@ -8,16 +8,12 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Repository
-
 public interface TransactionHistoryRepository extends JpaRepository<TransactionHistory, Long>{
 
-    // Récupérer tout trié par date décroissante
-    List<TransactionHistory> findAllByOrderByTransactionDateDesc();
+    // ✅ Isolation multi-tenant sur toutes les requêtes de l'historique
+    List<TransactionHistory> findAllBySchoolIdOrderByTransactionDateDesc(Long schoolId);
 
-    // Filtrer par type (IN/OUT)
-    List<TransactionHistory> findByTypeOrderByTransactionDateDesc(String type);
+    List<TransactionHistory> findByTypeAndSchoolIdOrderByTransactionDateDesc(String type, Long schoolId);
 
-    // Filtrer par plage de dates (pour le filtre "Aujourd'hui")
-    List<TransactionHistory> findByTransactionDateBetweenOrderByTransactionDateDesc(LocalDateTime start, LocalDateTime end);
-
+    List<TransactionHistory> findByTransactionDateBetweenAndSchoolIdOrderByTransactionDateDesc(LocalDateTime start, LocalDateTime end, Long schoolId);
 }

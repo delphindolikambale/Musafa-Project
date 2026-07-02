@@ -4,6 +4,9 @@ import com.school.management.dto.academic.*;
 import com.school.management.model.academic.*;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.BulletinService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,18 +22,41 @@ public class BulletinServiceImpl implements BulletinService {
     private final EnrollmentRepository enrollmentRepository;
     private final StudentMarkRepository studentMarkRepository;
 
+    /**
+     * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SÉCURISÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est relié à aucun établissement.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
     @Override
     public BulletinDataResponseDTO generateBulletin(Long studentId, Long academicYearId) {
-        // 1. Récupérer inscription et classe avec orElseThrow pour gérer l'Optional
-        Enrollment enrollment = enrollmentRepository.findByStudentIdAndAcademicYearId(studentId, academicYearId)
+        // 1. ✅ CORRECTION : Utilisation de la méthode multi-tenant native de EnrollmentRepository avec le schoolId
+        Enrollment enrollment = enrollmentRepository.findByStudentIdAndAcademicYearIdAndSchoolId(studentId, academicYearId, getCurrentSchoolId())
                 .orElseThrow(() -> new RuntimeException("Inscription non trouvée pour cet élève et cette année"));
 
-        // 2. Récupérer toutes les assignations de la classe
-        List<CourseAssignment> assignments = assignmentRepository.findByLevelIdAndAcademicYearId(
-                enrollment.getClassroom().getLevel().getId(), academicYearId);
+        // ✅ SÉCURITÉ MULTI-TENANT : Validation de l'étanchéité du bulletin demandé
+        if (!enrollment.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action refusée : Cet élève n'appartient pas à votre structure.");
+        }
 
-        // 3. Récupérer toutes les notes de l'élève pour cette année
-        List<StudentMark> allMarks = studentMarkRepository.findAll();
+        // 2. ✅ CORRECTION : Appel de la méthode multi-tenant sécurisée avec injection du schoolId courant
+        List<CourseAssignment> assignments = assignmentRepository.findByLevelIdAndAcademicYearIdAndSchoolId(
+                enrollment.getClassroom().getLevel().getId(), academicYearId, getCurrentSchoolId());
+
+        // 3. ✅ SÉCURISATION & OPTIMISATION MULTI-TENANT : Remplacement du .findAll() global par une sélection exclusive par élève
+        List<StudentMark> studentMarks = studentMarkRepository.findByStudentId(studentId);
 
         // 4. Construction de l'arbre (Grouping par Domain -> SubDomain -> Subjects)
         List<DomainDTO> domains = assignments.stream()
@@ -45,10 +71,10 @@ public class BulletinServiceImpl implements BulletinService {
 
                                 List<SubjectGradeDTO> subjects = subEntry.getValue().stream().map(assign -> {
 
-                                    // Calcul des notes par période
-                                    double p1 = getMarkForTaskType(allMarks, assign.getId(), "P1");
-                                    double p2 = getMarkForTaskType(allMarks, assign.getId(), "P2");
-                                    double exam1 = getMarkForTaskType(allMarks, assign.getId(), "EXAMEN1");
+                                    // Calcul des notes par période sur la liste filtrée sécurisée
+                                    double p1 = getMarkForTaskType(studentMarks, assign.getId(), "P1");
+                                    double p2 = getMarkForTaskType(studentMarks, assign.getId(), "P2");
+                                    double exam1 = getMarkForTaskType(studentMarks, assign.getId(), "EXAMEN1");
 
                                     double totalSemestre1 = p1 + p2 + exam1;
                                     double maxSemestre1 = assign.getMaxP1() + assign.getMaxP2() + assign.getMaxExam1();
@@ -85,7 +111,7 @@ public class BulletinServiceImpl implements BulletinService {
 
     /**
      * Méthode utilitaire pour extraire la note selon le type de tâche.
-     * 🔥 CORRECTION : Passage par TeacherAssignment pour atteindre le CourseAssignment
+     * Passage par TeacherAssignment pour atteindre le CourseAssignment
      */
     private double getMarkForTaskType(List<StudentMark> marks, Long assignmentId, String type) {
         return marks.stream()

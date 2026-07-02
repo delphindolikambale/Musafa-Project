@@ -2,6 +2,7 @@ package com.school.management.model.financial;
 
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.school.management.model.academic.AcademicYear;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,7 +16,8 @@ import java.math.BigDecimal;
                         columnNames = {
                                 "academic_year_id",
                                 "fees_group_id",
-                                "name_fees_item"
+                                "name_fees_item",
+                                "school_id"
                         }
                 )
         }
@@ -25,8 +27,6 @@ import java.math.BigDecimal;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
-
 public class FeesItem {
 
     @Id
@@ -41,6 +41,10 @@ public class FeesItem {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "academic_year_id", nullable = false)
     private AcademicYear academicYear;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @Column(name = "name_fees_item", nullable = false, length = 100)
     private String nameFeesItem;
@@ -59,5 +63,4 @@ public class FeesItem {
 
     @Column(nullable = false)
     private boolean active = true;
-
 }

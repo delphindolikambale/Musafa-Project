@@ -1,5 +1,6 @@
 package com.school.management.model.academic;
 
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -9,7 +10,6 @@ import java.util.List;
 @Entity
 @Table(name = "domains")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
 public class Domain {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,6 +41,11 @@ public class Domain {
     @ManyToOne(optional = false)
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
+
+    // ✅ MULTI-TENANT : Isolation directe au niveau du domaine
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @OneToMany(mappedBy = "domain", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

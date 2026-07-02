@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface CashTransactionService {
 
-    CashTransactionResponseDTO recordTransaction(CashTransactionCreateDTO dto);
-    List<CashTransactionResponseDTO> getLivreDeCaisse(Long academicYearId);
-    CashBookDashboardDTO getDashboardData(Long academicYearId);
+    CashTransactionResponseDTO recordTransaction(CashTransactionCreateDTO dto, Long schoolId);
+    List<CashTransactionResponseDTO> getLivreDeCaisse(Long academicYearId, Long schoolId);
+    CashBookDashboardDTO getDashboardData(Long academicYearId, Long schoolId);
 }

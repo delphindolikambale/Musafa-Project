@@ -31,7 +31,7 @@ public class MyStudentFinanceServiceImpl implements MyStudentFinanceService {
     private final StudentRepository studentRepository;
     private final StudentFinancialAccountRepository accountRepository;
     private final StudentPaymentRepository paymentRepository;
-    private final InstallmentSchedulePaymentRepository installmentSchedulePaymentRepository; // Injection du repository de suivi
+    private final InstallmentSchedulePaymentRepository installmentSchedulePaymentRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -41,30 +41,32 @@ public class MyStudentFinanceServiceImpl implements MyStudentFinanceService {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new ResourceNotFoundException("Utilisateur introuvable avec ce pseudo : " + username));
 
-        // 2. Récupérer l'étudiant lié à cet ID utilisateur en sécurisant par son école (Multi-tenant)
-        // ✅ CORRECTION : Utilisation de la méthode native findByUserIdAndSchoolId
-        Student student = studentRepository.findByUserIdAndSchoolId(user.getId(), user.getSchool().getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Aucun profil étudiant n'est lié à cet utilisateur"));
+        Long currentSchoolId = user.getSchool().getId();
 
-        // 3. Récupérer le compte financier de l'étudiant
-        StudentFinancialAccount account = accountRepository.findByStudentId(student.getId())
+        // 2. Récupérer l'étudiant lié à cet ID utilisateur en sécurisant par son école (Multi-tenant)
+        Student student = studentRepository.findByUserIdAndSchoolId(user.getId(), currentSchoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Aucun profil étudiant n'est lié à cet utilisateur pour cet établissement"));
+
+        // 3. ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode filtrée par établissement
+        StudentFinancialAccount account = accountRepository.findByStudentIdAndSchoolId(student.getId(), currentSchoolId)
                 .orElseThrow(() -> new ResourceNotFoundException("Aucun compte financier associé à cet élève"));
 
-        // 4. Récupérer le profil financier ACTIF (année en cours)
-        StudentAnnualFinancialProfile activeProfile = accountRepository.findWithProfilesByAccountNumber(account.getAccountNumber())
+        // 4. ✅ CORRECTION MULTI-TENANT : Utilisation de findWithProfilesByAccountNumberAndSchoolId
+        StudentAnnualFinancialProfile activeProfile = accountRepository.findWithProfilesByAccountNumberAndSchoolId(account.getAccountNumber(), currentSchoolId)
                 .map(acc -> acc.getAnnualProfiles().stream()
-                        .filter(StudentAnnualFinancialProfile::isActive)
+                        .filter(p -> p.isActive() && p.getAcademicYear() != null
+                                && p.getAcademicYear().getSchool() != null
+                                && p.getAcademicYear().getSchool().getId().equals(currentSchoolId))
                         .findFirst()
-                        .orElseThrow(() -> new ResourceNotFoundException("Aucun profil financier actif pour l'année en cours")))
+                        .orElseThrow(() -> new ResourceNotFoundException("Aucun profil financier actif trouvé pour votre établissement")))
                 .orElseThrow(() -> new ResourceNotFoundException("Erreur lors de la lecture du profil financier"));
 
-        // 5. Récupérer l'historique des paiements (les reçus) pour ce profil
-        List<StudentPayment> payments = paymentRepository.findByAnnualProfileId(activeProfile.getId());
+        // 5. ✅ CORRECTION : Utilisation de la méthode sécurisée par établissement (Multi-Tenant)
+        List<StudentPayment> payments = paymentRepository.findByAnnualProfileIdAndSchoolId(activeProfile.getId(), currentSchoolId);
 
         // 6. Mapper les paiements en DTOs
         List<MyPaymentTransactionDTO> transactionDTOs = payments.stream().map(payment -> {
 
-            // Déterminer le motif principal pour l'affichage
             boolean hasScolarite = payment.getBreakdowns().stream()
                     .anyMatch(b -> "SCOLARITE".equalsIgnoreCase(b.getFeesGroupName()));
 
@@ -82,13 +84,13 @@ public class MyStudentFinanceServiceImpl implements MyStudentFinanceService {
                     .build();
         }).collect(Collectors.toList());
 
-        // 7. CALCUL ET MAPPING DE L'ÉVOLUTION DE CHAQUE TRANCHE (Sans supposition)
+        // 7. CALCUL ET MAPPING DE L'ÉVOLUTION DE CHAQUE TRANCHE
         List<MyInstallmentStatusDTO> installmentDTOs = activeProfile.getScheduleFees().getInstallments().stream()
                 .sorted((a, b) -> a.getInstallmentNumber().compareTo(b.getInstallmentNumber()))
                 .map(installment -> {
-                    // Utilisation de la méthode native et sécurisée par profil élève
+                    // ✅ CORRECTION : Appel de la fonction d'agrégation sécurisée avec currentSchoolId
                     BigDecimal amountPaidForThisInstallment = installmentSchedulePaymentRepository
-                            .sumAmountAppliedByInstallmentAndProfile(installment.getId(), activeProfile.getId());
+                            .sumAmountAppliedByInstallmentAndProfileAndSchoolId(installment.getId(), activeProfile.getId(), currentSchoolId);
 
                     BigDecimal remaining = installment.getAmount().subtract(amountPaidForThisInstallment);
                     if (remaining.compareTo(BigDecimal.ZERO) < 0) {

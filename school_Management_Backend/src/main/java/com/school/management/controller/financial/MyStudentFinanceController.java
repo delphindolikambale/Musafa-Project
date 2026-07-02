@@ -1,4 +1,4 @@
-package com.school.management.controller.student;
+package com.school.management.controller.financial;
 
 import com.school.management.dto.financial.MyFinancialStatusDTO;
 import com.school.management.service.financial.MyStudentFinanceService;
@@ -18,10 +18,10 @@ public class MyStudentFinanceController {
 
     @GetMapping("/status")
     public ResponseEntity<MyFinancialStatusDTO> getMyFinancialStatus(Authentication authentication) {
-        // L'authentification Spring Security nous donne l'identifiant (généralement l'email ou username) de l'utilisateur connecté
-        String studentEmail = authentication.getName();
+        // L'authentification Spring Security nous donne l'identifiant (username/email) de l'utilisateur connecté
+        String username = authentication.getName();
 
-        MyFinancialStatusDTO status = myStudentFinanceService.getMyCurrentFinancialStatus(studentEmail);
+        MyFinancialStatusDTO status = myStudentFinanceService.getMyCurrentFinancialStatus(username);
         return ResponseEntity.ok(status);
     }
 }

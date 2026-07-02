@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.enums.AcademicStatus;
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,7 +9,8 @@ import lombok.*;
 @Table(
         name = "student_academic_histories",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"student_id", "academic_year_id"})
+                // ✅ MULTI-TENANT : L'index unique d'historique annuel intègre désormais l'établissement
+                @UniqueConstraint(columnNames = {"student_id", "academic_year_id", "school_id"})
         }
 )
 @Getter
@@ -16,7 +18,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class StudentAcademicHistory {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,4 +42,8 @@ public class StudentAcademicHistory {
     @Column(length = 500)
     private String observation;
 
+    // ✅ MULTI-TENANT : Rattachement explicite de l'historique à l'école
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

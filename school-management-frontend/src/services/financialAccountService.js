@@ -1,22 +1,4 @@
-import axios from 'axios';
-import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
-
-const API_BASE_URL = `${BACKEND_BASE}/api/v1/financial-accounts`; // ✅ Rendu dynamique
-
-const apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': 'application/json'
-    }
-});
-
-apiClient.interceptors.request.use((config) => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user && user.accessToken) {
-        config.headers.Authorization = `Bearer ${user.accessToken}`;
-    }
-    return config;
-}, (error) => Promise.reject(error));
+import api from './api'; // ✅ MODIFICATION : Utilisation de l'instance centrale pour sécuriser le contexte d'école
 
 const formatAccountData = (acc) => {
     if (!acc) return null;
@@ -36,7 +18,7 @@ const formatAccountData = (acc) => {
 const financialAccountService = {
     getAllAccounts: async () => {
         try {
-            const response = await apiClient.get(""); 
+            const response = await api.get("/v1/financial-accounts"); 
             return (response.data || []).map(formatAccountData);
         } catch (error) {
             console.error("Erreur récupération comptes:", error);
@@ -46,7 +28,7 @@ const financialAccountService = {
 
     getFullDetailsByNumber: async (accountNumber) => {
         try {
-            const response = await apiClient.get(`/details/${accountNumber}`);
+            const response = await api.get(`/v1/financial-accounts/details/${accountNumber}`);
             return formatAccountData(response.data);
         } catch (error) {
             console.error("Erreur détails compte:", error);
@@ -56,7 +38,7 @@ const financialAccountService = {
 
     searchAccounts: async (keyword) => {
         try {
-            const response = await apiClient.get(`/search?keyword=${keyword}`);
+            const response = await api.get(`/v1/financial-accounts/search?keyword=${keyword}`);
             return (response.data || []).map(formatAccountData);
         } catch (error) {
             console.error("Erreur recherche:", error);
@@ -67,7 +49,7 @@ const financialAccountService = {
     getAnnualProfilesByAccountId: async (accountId) => {
         if (!accountId) return [];
         try {
-            const response = await apiClient.get(`/${accountId}/profiles`);
+            const response = await api.get(`/v1/financial-accounts/${accountId}/profiles`);
             const profiles = response.data || [];
             return profiles.map(p => ({
                 ...p,

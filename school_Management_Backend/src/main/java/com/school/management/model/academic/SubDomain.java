@@ -1,12 +1,12 @@
 package com.school.management.model.academic;
 
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "sub_domains")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
 public class SubDomain {
 
     @Id
@@ -38,4 +38,9 @@ public class SubDomain {
     @ManyToOne(optional = false)
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
+
+    // ✅ MULTI-TENANT : Isolation directe au niveau du sous-domaine
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

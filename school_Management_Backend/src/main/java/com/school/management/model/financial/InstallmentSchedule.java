@@ -3,6 +3,7 @@ package com.school.management.model.financial;
 import com.fasterxml.jackson.annotation.JsonBackReference;
 import com.school.management.model.academic.Level;
 import com.school.management.model.academic.Option;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -18,8 +19,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
-//cette classe gère la façon dont sont organiser les tranches
 public class InstallmentSchedule {
 
     @Id
@@ -46,7 +45,11 @@ public class InstallmentSchedule {
     @JsonBackReference
     private ScheduleFees scheduleFees;
 
-    // Ajouté pour la vérification d'intégrité avant modification
+    // ✅ COUPLAGE MULTI-TENANT : Isolation explicite de la tranche par école
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
     @OneToMany(mappedBy = "installmentSchedule")
     @Builder.Default
     private List<InstallmentSchedulePayment> payments = new ArrayList<>();

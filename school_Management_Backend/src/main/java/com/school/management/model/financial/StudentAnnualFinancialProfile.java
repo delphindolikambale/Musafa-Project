@@ -3,6 +3,7 @@ package com.school.management.model.financial;
 import com.school.management.model.academic.AcademicYear;
 import com.school.management.model.academic.Enrollment;
 import com.school.management.model.enums.Currency;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,7 +16,8 @@ import java.time.LocalDate;
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {
                         "financial_account_id",
-                        "academic_year_id"
+                        "academic_year_id",
+                        "school_id"
                 })
         }
 )
@@ -24,10 +26,10 @@ import java.time.LocalDate;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class StudentAnnualFinancialProfile {
 
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(optional = false)
@@ -37,6 +39,11 @@ public class StudentAnnualFinancialProfile {
     @ManyToOne(optional = false)
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
+
+    // ✅ COUPLAGE MULTI-TENANT : Isolation stricte du dossier de facturation annuel par école
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @OneToOne(optional = false)
     @JoinColumn(name = "enrollment_id")
@@ -70,7 +77,7 @@ public class StudentAnnualFinancialProfile {
     @PrePersist
     public void onPrePersist() {
         if (this.createdAt == null) this.createdAt = LocalDate.now();
-        refreshFromSchedule(); // On utilise la nouvelle méthode
+        refreshFromSchedule();
     }
 
     @PreUpdate
@@ -78,14 +85,6 @@ public class StudentAnnualFinancialProfile {
         syncBalance();
     }
 
-    /* =========================
-       LOGIQUE DE SYNCHRONISATION
-       ========================= */
-
-    /**
-     * Met à jour les montants du profil en fonction du barème actuel.
-     * Utile lors de la création ET lors d'une modification du barème global.
-     */
     public void refreshFromSchedule() {
         if (this.scheduleFees != null) {
             this.totalAmountDue = this.scheduleFees.getTotalAmount();

@@ -7,12 +7,11 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-
 public interface StudentDocumentRepository extends JpaRepository<StudentDocument, Long> {
 
-    // ✅ Récupérer tous les documents d'une inscription spécifique
-    List<StudentDocument> findByEnrollmentId(Long enrollmentId);
+    // ✅ ADAPTATION MULTI-TENANT : Récupération des documents sécurisée par école
+    List<StudentDocument> findByEnrollmentIdAndSchoolId(Long enrollmentId, Long schoolId);
 
-    // ✅ Optionnel : Utile pour vérifier si un fichier existe avant suppression physique
-    void deleteByFileName(String fileName);
+    // ✅ ADAPTATION MULTI-TENANT : Empêche la suppression d'un fichier appartenant à une autre école
+    void deleteByFileNameAndSchoolId(String fileName, Long schoolId);
 }

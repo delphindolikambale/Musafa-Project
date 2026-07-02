@@ -11,6 +11,9 @@ import com.school.management.model.enums.EvaluationType;
 import com.school.management.model.enums.VisaStatus;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.GradeSheetService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
@@ -31,16 +34,41 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     private final TeacherAssignmentRepository teacherAssignmentRepository;
     private final StudentMarkRepository markRepository;
     private final PeriodValidationRepository validationRepository;
-    // INJECTION DU TEMPLATE WEBSOCKET
     private final SimpMessagingTemplate messagingTemplate;
 
+    /**
+     * ✅ GESTION DU CONTEXTE MUTLI-TENANT SÉCURISÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est relié à aucun établissement.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
     @Override
+    @Transactional(readOnly = true)
     public GradeSheetResponseDTO generateStudentGradeSheet(Long studentId, Long yearId, int semester) {
-        Enrollment enrollment = enrollmentRepository.findByStudentIdAndAcademicYearId(studentId, yearId)
+        // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode sécurisée par établissement
+        Enrollment enrollment = enrollmentRepository.findByStudentIdAndAcademicYearIdAndSchoolId(studentId, yearId, getCurrentSchoolId())
                 .orElseThrow(() -> new RuntimeException("Inscription non trouvée"));
 
+        // ✅ SÉCURITÉ EXTENSION INTER-ÉCOLES
+        if (!enrollment.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Accès interdit aux bulletins de cet établissement.");
+        }
+
+        // ✅ INJECTION DU SÉPARATEUR MULTI-TENANT DANS LES REQUÊTES DERIVÉES
         List<TeacherAssignment> assignments = teacherAssignmentRepository
-                .findByClassroomIdAndAcademicYearId(enrollment.getClassroom().getId(), yearId);
+                .findByClassroomIdAndAcademicYearIdAndSchoolId(enrollment.getClassroom().getId(), yearId, getCurrentSchoolId());
 
         List<SubjectGradeDTO> grades = new ArrayList<>();
         double totalObtained = 0;
@@ -79,14 +107,21 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public ClassGradeSheetResponseDTO generateClassGradeSheet(Long taId) {
         TeacherAssignment ta = teacherAssignmentRepository.findById(taId)
                 .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
 
+        // ✅ VÉRIFICATION MULTI-TENANT AVANT ACCÈS AUX BULLETINS DE CLASSE
+        if (!ta.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Accès refusé : Cette classe appartient à un autre établissement.");
+        }
+
         CourseAssignment config = ta.getCourseAssignment();
 
-        List<Enrollment> enrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndActiveTrue(
-                ta.getClassroom().getId(), ta.getAcademicYear().getId());
+        // ✅ CORRECTION MULTI-TENANT : Filtrage local des inscriptions par établissement rattaché
+        List<Enrollment> enrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(
+                ta.getClassroom().getId(), ta.getAcademicYear().getId(), getCurrentSchoolId());
 
         List<StudentRowDTO> studentRows = new ArrayList<>();
 
@@ -128,7 +163,8 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     }
 
     private double sumMarks(Long studentId, Long taId, int period) {
-        return markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentId(studentId, taId)
+        // ✅ ADAPTATION AUX SÉPARATEURS PAR ÉCOLE MAINTENUE SÉCURISÉE
+        return markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentIdAndSchoolId(studentId, taId, getCurrentSchoolId())
                 .stream()
                 .filter(m -> m.getEvaluationTask().getPeriod() == period)
                 .filter(m -> m.getEvaluationTask().getType() != EvaluationType.EXAMEN)
@@ -137,7 +173,8 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     }
 
     private double sumMarksByType(Long studentId, Long taId, EvaluationType type, int semester) {
-        return markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentId(studentId, taId)
+        // ✅ ADAPTATION AUX SÉPARATEURS PAR ÉCOLE MAINTENUE SÉCURISÉE
+        return markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentIdAndSchoolId(studentId, taId, getCurrentSchoolId())
                 .stream()
                 .filter(m -> m.getEvaluationTask().getType() == type)
                 .filter(m -> {
@@ -153,23 +190,29 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     @Override
     @Transactional
     public void submitPeriodGradeSheetForVisa(Long taId, int period) {
-        // 1. Récupération ou création de la validation
-        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
-                .orElseGet(() -> {
-                    TeacherAssignment ta = teacherAssignmentRepository.findById(taId)
-                            .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
-                    return PeriodValidation.builder()
-                            .teacherAssignment(ta)
-                            .period(period)
-                            .build();
-                });
+        Long schoolId = getCurrentSchoolId();
+        TeacherAssignment ta = teacherAssignmentRepository.findById(taId)
+                .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
+
+        // ✅ SÉCURITÉ DE VÉRIFICATION DU TENANT ACTIF
+        if (!ta.getSchool().getId().equals(schoolId)) {
+            throw new AccessDeniedException("❌ Soumission impossible : Ressources non associées à votre école.");
+        }
+
+        // 1. ✅ CORRECTION MULTI-TENANT : Recherche du visa avec cloisonnement par établissement
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, schoolId)
+                .orElseGet(() -> PeriodValidation.builder()
+                        .teacherAssignment(ta)
+                        .period(period)
+                        .school(ta.getSchool()) // Lien d'école propagé
+                        .build());
 
         // 2. Mise à jour de l'état
         validation.setStatus(VisaStatus.SUBMITTED_TO_PROVISEUR);
         validation.setSubmissionDate(LocalDateTime.now());
         validationRepository.save(validation);
 
-        // 3. DIFFUSION DE LA NOTIFICATION TEMPS RÉEL VIA WEBSOCKET
+        // 3. DIFFUSION DE LA NOTIFICATION TEMPS RÉEL VIA WEBSOCKET (Canal Sécurisé Multi-tenant)
         try {
             Map<String, Object> notificationPayload = new HashMap<>();
             notificationPayload.put("type", "NEW_GRADE_SHEET");
@@ -179,11 +222,11 @@ public class GradeSheetServiceImpl implements GradeSheetService {
             notificationPayload.put("teacherName", validation.getTeacherAssignment().getTeacher().getFullName());
             notificationPayload.put("period", period);
             notificationPayload.put("academicYearId", validation.getTeacherAssignment().getAcademicYear().getId());
+            notificationPayload.put("schoolId", schoolId); // Marquage tenant sur le payload
 
-            // Envoi sur le canal dédié aux Proviseurs
-            messagingTemplate.convertAndSend("/topic/proviseur-notifications", notificationPayload);
+            // Envoi sur le canal filtré de l'établissement
+            messagingTemplate.convertAndSend("/topic/proviseur-notifications/" + schoolId, notificationPayload);
         } catch (Exception e) {
-            // On ne bloque pas la transaction de soumission si la notification échoue
             System.err.println("Erreur lors de l'envoi de la notification WebSocket : " + e.getMessage());
         }
     }
@@ -191,7 +234,15 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     @Override
     @Transactional(readOnly = true)
     public VisaStatusResponseDTO getPeriodGradeSheetVisaStatus(Long taId, int period) {
-        return validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
+        TeacherAssignment ta = teacherAssignmentRepository.findById(taId)
+                .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
+
+        if (!ta.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Consultation interdite : Accès hors périmètre.");
+        }
+
+        // ✅ CORRECTION MULTI-TENANT : Recherche ciblée par scope d'établissement
+        return validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, getCurrentSchoolId())
                 .map(v -> VisaStatusResponseDTO.builder()
                         .status(v.getStatus())
                         .rejectComment(v.getRejectComment())
@@ -205,7 +256,8 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     @Override
     @Transactional(readOnly = true)
     public List<PendingGradeSheetDTO> getPendingGradeSheetsForProviseur(Long academicYearId) {
-        List<PeriodValidation> pendingValidations = validationRepository.findByStatus(VisaStatus.SUBMITTED_TO_PROVISEUR);
+        // ✅ CORRECTION MULTI-TENANT & OPTIMISATION : Sélection directe en base uniquement pour l'école courante
+        List<PeriodValidation> pendingValidations = validationRepository.findByStatusAndSchoolId(VisaStatus.SUBMITTED_TO_PROVISEUR, getCurrentSchoolId());
 
         return pendingValidations.stream()
                 .filter(v -> v.getTeacherAssignment().getAcademicYear().getId().equals(academicYearId))
@@ -223,8 +275,14 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     @Override
     @Transactional
     public void validatePeriodGradeSheet(Long taId, int period) {
-        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
+        // ✅ CORRECTION MULTI-TENANT : Récupération sécurisée par école pour empêcher l'exécution de requêtes croisées
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, getCurrentSchoolId())
                 .orElseThrow(() -> new RuntimeException("Fiche de notes introuvable pour cette période."));
+
+        // PROTECTION MULTI-TENANT
+        if (!validation.getTeacherAssignment().getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Validation refusée : Cette ressource n'appartient pas à votre école.");
+        }
 
         validation.setStatus(VisaStatus.VALIDATED_BY_PROVISEUR);
         validation.setValidationDate(LocalDateTime.now());
@@ -235,8 +293,14 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     @Override
     @Transactional
     public void rejectPeriodGradeSheet(Long taId, int period, String comment) {
-        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period)
+        // ✅ CORRECTION MULTI-TENANT : Récupération sécurisée par école
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, getCurrentSchoolId())
                 .orElseThrow(() -> new RuntimeException("Fiche de notes introuvable pour cette période."));
+
+        // PROTECTION MULTI-TENANT
+        if (!validation.getTeacherAssignment().getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Rejet refusé : Cette ressource n'appartient pas à votre école.");
+        }
 
         validation.setStatus(VisaStatus.REJECTED_BY_PROVISEUR);
         validation.setRejectComment(comment);

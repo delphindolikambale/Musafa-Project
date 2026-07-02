@@ -1,4 +1,5 @@
 package com.school.management.service.academicImpl;
+
 import com.school.management.dto.academic.DomainRequestDTO;
 import com.school.management.dto.academic.DomainResponseDTO;
 import com.school.management.model.academic.AcademicYear;
@@ -6,6 +7,9 @@ import com.school.management.model.academic.Domain;
 import com.school.management.model.academic.Level;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.DomainService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,7 +19,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class DomainServiceImpl implements DomainService {
 
     private final DomainRepository domainRepository;
@@ -23,7 +26,28 @@ public class DomainServiceImpl implements DomainService {
     private final SectionRepository sectionRepository;
     private final OptionRepository optionRepository;
     private final AcademicYearRepository academicYearRepository;
-    private final DomainSpecialityRepository specialityRepository; // Injection nécessaire
+    private final DomainSpecialityRepository specialityRepository;
+
+    /**
+     * ✅ MÉTHODE UTILITAIRE PRIVÉE SÉCURISÉE
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session utilisateur invalide ou expirée. Veuillez vous reconnecter.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    /**
+     * ✅ MÉTHODE UTILITAIRE PRIVÉE
+     */
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("Action impossible : Votre compte utilisateur n'est rattaché à aucune école.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
 
     @Override
     @Transactional
@@ -41,6 +65,11 @@ public class DomainServiceImpl implements DomainService {
         AcademicYear year = academicYearRepository.findById(dto.getAcademicYearId())
                 .orElseThrow(() -> new RuntimeException("Année non trouvée"));
 
+        // ✅ CONTRÔLE DE SÉCURITÉ : L'année doit appartenir à la même école
+        if (!year.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : L'année académique spécifiée n'appartient pas à votre établissement.");
+        }
+
         Domain domain = Domain.builder()
                 .name(dto.getName())
                 .orderIndex(dto.getOrderIndex() != null ? dto.getOrderIndex() : 0)
@@ -48,9 +77,9 @@ public class DomainServiceImpl implements DomainService {
                 .academicYear(year)
                 .section(dto.getSectionId() != null ? sectionRepository.findById(dto.getSectionId()).orElse(null) : null)
                 .option(dto.getOptionId() != null ? optionRepository.findById(dto.getOptionId()).orElse(null) : null)
+                .school(getCurrentUser().getSchool()) // ✅ MULTI-TENANT : Injection de l'école courante
                 .build();
 
-        // Liaison de la spécialité si l'ID est fourni
         if (dto.getRequiredSpecialityId() != null) {
             domain.setRequiredSpeciality(specialityRepository.findById(dto.getRequiredSpecialityId())
                     .orElseThrow(() -> new RuntimeException("Spécialité requise non trouvée")));
@@ -62,7 +91,8 @@ public class DomainServiceImpl implements DomainService {
     @Override
     @Transactional(readOnly = true)
     public List<DomainResponseDTO> getDomainsByClass(Long levelId, Long sectionId, Long optionId, Long yearId) {
-        return domainRepository.findByClassContext(levelId, sectionId, optionId, yearId).stream()
+        // ✅ MULTI-TENANT : Filtrage sécurisé par l'école connectée
+        return domainRepository.findByClassContext(levelId, sectionId, optionId, yearId, getCurrentSchoolId()).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -72,6 +102,11 @@ public class DomainServiceImpl implements DomainService {
     public DomainResponseDTO updateDomain(Long id, DomainRequestDTO dto) {
         Domain domain = domainRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Domaine non trouvé"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ : Vérification multi-tenant
+        if (!domain.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Ce domaine n'appartient pas à votre établissement.");
+        }
 
         domain.setName(dto.getName());
         if (dto.getOrderIndex() != null) {
@@ -91,16 +126,21 @@ public class DomainServiceImpl implements DomainService {
     @Override
     @Transactional
     public void deleteDomain(Long id) {
-        if (!domainRepository.existsById(id)) {
-            throw new RuntimeException("Domaine introuvable");
+        Domain domain = domainRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Domaine introuvable"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ : Empêche la suppression transversale
+        if (!domain.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Ce domaine n'appartient pas à votre établissement.");
         }
-        domainRepository.deleteById(id);
+        domainRepository.delete(domain);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DomainResponseDTO> getAllDomains() {
-        return domainRepository.findAll().stream()
+        // ✅ MULTI-TENANT : Liste restreinte à l'école de la session
+        return domainRepository.findAllBySchoolId(getCurrentSchoolId()).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

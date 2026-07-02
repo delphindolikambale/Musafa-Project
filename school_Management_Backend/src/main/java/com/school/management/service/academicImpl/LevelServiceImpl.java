@@ -3,6 +3,7 @@ package com.school.management.service.academicImpl;
 import com.school.management.dto.academic.LevelCreateDTO;
 import com.school.management.dto.academic.LevelDTO;
 import com.school.management.model.academic.Level;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.LevelRepository;
 import com.school.management.service.academic.LevelService;
 import lombok.RequiredArgsConstructor;
@@ -13,18 +14,28 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-
 public class LevelServiceImpl implements LevelService {
 
     private final LevelRepository levelRepository;
 
     @Override
     @Transactional
-    public LevelDTO create(LevelCreateDTO dto) {
+    public LevelDTO create(LevelCreateDTO dto, Long schoolId) {
+        // ✅ ADAPTATION MULTI-TENANT : Utilisation directe du schoolId pour la vérification d'existence
+        if (levelRepository.existsByNameAndSchoolId(dto.getName(), schoolId)) {
+            throw new IllegalArgumentException("Ce niveau d'enseignement existe déjà dans votre établissement.");
+        }
+
+        // ✅ ASTUCE JPA : Reconstruction d'une référence d'école superficielle (shallow) avec l'ID pour la clé étrangère
+        School currentSchool = School.builder()
+                .id(schoolId)
+                .build();
+
         Level level = Level.builder()
                 .name(dto.getName())
                 .type(dto.getType())
-                .active(dto.isActive()) // Utilise la valeur du DTO (true par défaut au front)
+                .active(dto.isActive())
+                .school(currentSchool)
                 .build();
 
         level = levelRepository.save(level);
@@ -32,32 +43,33 @@ public class LevelServiceImpl implements LevelService {
     }
 
     @Override
-    public List<LevelDTO> getAll() {
-        return levelRepository.findAll()
+    public List<LevelDTO> getAll(Long schoolId) {
+        return levelRepository.findAllBySchoolId(schoolId)
                 .stream()
                 .map(this::toDTO)
                 .toList();
     }
 
     @Override
-    public LevelDTO getById(Long id) {
-        Level level = levelRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Niveau introuvable"));
+    public LevelDTO getById(Long id, Long schoolId) {
+        Level level = levelRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new RuntimeException("Niveau introuvable ou accès non autorisé."));
         return toDTO(level);
     }
 
     @Override
     @Transactional
-    public LevelDTO update(Long id, LevelCreateDTO dto) {
-        Level level = levelRepository.findById(id)
+    public LevelDTO update(Long id, LevelCreateDTO dto, Long schoolId) {
+        Level level = levelRepository.findByIdAndSchoolId(id, schoolId)
                 .orElseThrow(() -> new RuntimeException("Niveau introuvable avec l'ID: " + id));
 
-        // Mise à jour des informations
+        if (!level.getName().equalsIgnoreCase(dto.getName()) &&
+                levelRepository.existsByNameAndSchoolId(dto.getName(), schoolId)) {
+            throw new IllegalArgumentException("Un autre niveau porte déjà ce nom dans votre établissement.");
+        }
+
         level.setName(dto.getName());
         level.setType(dto.getType());
-
-        // --- LA CORRECTION EST ICI ---
-        // On récupère enfin la valeur "active" envoyée par le bouton du Frontend
         level.setActive(dto.isActive());
 
         level = levelRepository.save(level);
@@ -66,11 +78,10 @@ public class LevelServiceImpl implements LevelService {
 
     @Override
     @Transactional
-    public void delete(Long id) {
-        if (!levelRepository.existsById(id)) {
-            throw new RuntimeException("Impossible de supprimer : Niveau introuvable");
-        }
-        levelRepository.deleteById(id);
+    public void delete(Long id, Long schoolId) {
+        Level level = levelRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new RuntimeException("Impossible de supprimer : Niveau introuvable ou accès refusé."));
+        levelRepository.delete(level);
     }
 
     private LevelDTO toDTO(Level level) {

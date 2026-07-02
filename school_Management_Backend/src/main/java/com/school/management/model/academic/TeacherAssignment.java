@@ -1,5 +1,6 @@
 package com.school.management.model.academic;
 
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -32,4 +33,9 @@ public class TeacherAssignment {
     @ManyToOne(optional = false)
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
+
+    // ✅ MULTI-TENANT : Chaque affectation d'enseignant est rattachée à son école
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

@@ -27,7 +27,6 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-
 public class CashTransactionServiceImpl implements CashTransactionService {
 
     private final CashTransactionRepository repository;
@@ -37,12 +36,17 @@ public class CashTransactionServiceImpl implements CashTransactionService {
 
     @Override
     @Transactional
-    public CashTransactionResponseDTO recordTransaction(CashTransactionCreateDTO dto) {
+    public CashTransactionResponseDTO recordTransaction(CashTransactionCreateDTO dto, Long schoolId) {
         FeesGroup group = dto.getFeesGroupId() != null ? feesGroupRepository.findById(dto.getFeesGroupId()).orElse(null) : null;
         FeesItem item = dto.getFeesItemId() != null ? feesItemRepository.findById(dto.getFeesItemId()).orElse(null) : null;
 
         AcademicYear year = academicYearRepository.findById(dto.getAcademicYearId())
                 .orElseThrow(() -> new RuntimeException("Année académique non trouvée"));
+
+        // 🛡️ Vérification stricte de l'isolation multi-tenant
+        if (!year.getSchool().getId().equals(schoolId)) {
+            throw new RuntimeException("Accès non autorisé à cette année académique.");
+        }
 
         BigDecimal entUSD = BigDecimal.ZERO, sorUSD = BigDecimal.ZERO;
         BigDecimal entCDF = BigDecimal.ZERO, sorCDF = BigDecimal.ZERO;
@@ -73,8 +77,17 @@ public class CashTransactionServiceImpl implements CashTransactionService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CashTransactionResponseDTO> getLivreDeCaisse(Long academicYearId) {
-        List<CashTransaction> txs = repository.findByAcademicYearIdOrderByTransactionDateAsc(academicYearId);
+    public List<CashTransactionResponseDTO> getLivreDeCaisse(Long academicYearId, Long schoolId) {
+        AcademicYear year = academicYearRepository.findById(academicYearId)
+                .orElseThrow(() -> new RuntimeException("Année académique non trouvée"));
+
+        // 🛡️ Vérification stricte de l'isolation multi-tenant
+        if (!year.getSchool().getId().equals(schoolId)) {
+            throw new RuntimeException("Accès non autorisé à cette année académique.");
+        }
+
+        // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode sécurisée prenant l'ID de l'établissement
+        List<CashTransaction> txs = repository.findByAcademicYearIdAndSchoolIdOrderByTransactionDateAsc(academicYearId, schoolId);
         List<CashTransactionResponseDTO> response = new ArrayList<>();
 
         BigDecimal balanceUSD = BigDecimal.ZERO;
@@ -127,8 +140,17 @@ public class CashTransactionServiceImpl implements CashTransactionService {
 
     @Override
     @Transactional(readOnly = true)
-    public CashBookDashboardDTO getDashboardData(Long academicYearId) {
-        List<CashTransaction> txs = repository.findByAcademicYearIdOrderByTransactionDateAsc(academicYearId);
+    public CashBookDashboardDTO getDashboardData(Long academicYearId, Long schoolId) {
+        AcademicYear year = academicYearRepository.findById(academicYearId)
+                .orElseThrow(() -> new RuntimeException("Année académique non trouvée"));
+
+        // 🛡️ Vérification stricte de l'isolation multi-tenant
+        if (!year.getSchool().getId().equals(schoolId)) {
+            throw new RuntimeException("Accès non autorisé à cette année académique.");
+        }
+
+        // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode sécurisée prenant l'ID de l'établissement
+        List<CashTransaction> txs = repository.findByAcademicYearIdAndSchoolIdOrderByTransactionDateAsc(academicYearId, schoolId);
 
         BigDecimal entUSD = BigDecimal.ZERO, entCDF = BigDecimal.ZERO;
         BigDecimal sorUSD = BigDecimal.ZERO, sorCDF = BigDecimal.ZERO;

@@ -3,6 +3,7 @@ package com.school.management.model.financial;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 import com.school.management.model.academic.AcademicYear;
 import com.school.management.model.enums.FeesGroupType;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -14,7 +15,7 @@ import java.util.List;
 @Table(
         name = "fees_group",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"academic_year_id", "type"})
+                @UniqueConstraint(columnNames = {"academic_year_id", "type", "school_id"})
         }
 )
 @Getter
@@ -22,7 +23,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class FeesGroup {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,6 +38,10 @@ public class FeesGroup {
 
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal percentage;
+
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     /* --- NOUVEAUX CHAMPS : SOLDES RÉELS DU GROUPE --- */
     @Column(nullable = false, precision = 15, scale = 2)
@@ -60,5 +64,4 @@ public class FeesGroup {
     @Column(nullable = false)
     @Builder.Default
     private boolean active = true;
-
 }

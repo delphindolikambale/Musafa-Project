@@ -1,24 +1,21 @@
-import axios from 'axios';
-import { BACKEND_BASE } from '../api';
-
-const API_URL = `${BACKEND_BASE}/api/pedagogie`;
+import api from "../api"; // ✅ Ajustement du chemin pour cibler src/services/api.js
 
 const pedagogieService = {
   // Enseignants
-  getTeachers: () => axios.get(`${API_URL}/teachers`),
-  addTeacher: (data) => axios.post(`${API_URL}/teachers`, data),
+  getTeachers: () => api.get("/pedagogie/teachers"),
+  addTeacher: (data) => api.post("/pedagogie/teachers", data),
   
   // Cours
-  getCourses: () => axios.get(`${API_URL}/courses`),
-  assignTeacherToCourse: (data) => axios.post(`${API_URL}/assignments`, data),
+  getCourses: () => api.get("/pedagogie/courses"),
+  assignTeacherToCourse: (data) => api.post("/pedagogie/assignments", data),
   
   // Horaires
-  getSchedule: (classId) => axios.get(`${API_URL}/schedule/${classId}`),
-  saveSchedule: (schedule) => axios.post(`${API_URL}/schedule`, schedule),
+  getSchedule: (classId) => api.get(`/pedagogie/schedule/${classId}`),
+  saveSchedule: (schedule) => api.post("/pedagogie/schedule", schedule),
   
   // Présences
-  getTeacherAttendance: () => axios.get(`${API_URL}/attendance`),
-  markTeacherAttendance: (scanData) => axios.post(`${API_URL}/attendance/scan`, scanData)
+  getTeacherAttendance: () => api.get("/pedagogie/attendance"),
+  markTeacherAttendance: (scanData) => api.post("/pedagogie/attendance/scan", scanData)
 };
 
 export default pedagogieService;

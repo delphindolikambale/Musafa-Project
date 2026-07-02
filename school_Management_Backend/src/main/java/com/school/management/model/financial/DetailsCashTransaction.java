@@ -2,6 +2,7 @@ package com.school.management.model.financial;
 
 import com.school.management.model.enums.Currency;
 import com.school.management.model.enums.TransactionType;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,7 +16,6 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class DetailsCashTransaction {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -49,4 +49,9 @@ public class DetailsCashTransaction {
 
     @Column(nullable = false)
     private String documentNumber; // Numéro de Reçu ou de Bon de Sortie
+
+    // ✅ Isolation Multi-tenant obligatoire pour cloisonner les données textuelles inter-écoles
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

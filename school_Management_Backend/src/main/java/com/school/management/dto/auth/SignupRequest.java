@@ -2,13 +2,13 @@ package com.school.management.dto.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
-
 public class SignupRequest {
 
     @NotBlank(message = "Le nom d'utilisateur est obligatoire")
@@ -23,4 +23,9 @@ public class SignupRequest {
     @NotBlank(message = "Le mot de passe est obligatoire")
     @Size(min = 6, max = 40, message = "Le mot de passe doit avoir au moins 6 caractères")
     private String password;
+
+    @NotNull(message = "L'établissement scolaire est obligatoire")
+    private Long schoolId;
+
+    private String role;
 }

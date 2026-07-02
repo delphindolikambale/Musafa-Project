@@ -1,5 +1,6 @@
 package com.school.management.model.multitenant;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties; // ✅ AJOUT : Importation pour ignorer les métadonnées de proxy Hibernate
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -10,6 +11,8 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// ✅ AJOUT : Empêche Jackson de planter en ignorant les propriétés techniques injectées par les Proxies Hibernate Lazy
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class School {
 
     @Id

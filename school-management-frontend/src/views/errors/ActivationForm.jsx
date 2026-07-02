@@ -1,43 +1,47 @@
 import React, { useState } from "react";
-// ✅ CORRECTION : Appel de la méthode d'activation centralisée du bon service
 import SuperAdminSystemService from "../../services/multitenantService/SuperAdminSystemService"; 
-import { KeyRound, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { KeyRound, Building2, Loader2, CheckCircle2, XCircle } from "lucide-react";
 
 const translations = {
   FR: {
     titleExpired: "Renouvellement de l'Abonnement",
     titleConfig: "Activation de l'Établissement",
-    subtitleExpired: "Espace Administration — Saisissez le code d'activation annuel fourni par MyAcademia pour rétablir les accès de l'école.",
-    subtitleConfig: "Espace Administration — Votre établissement requiert un code de licence initial pour débloquer sa configuration sur la plateforme.",
-    placeholder: "Code d'activation (ex: ACT-XXXX-XXXX)",
-    label: "Code Secret d'Activation (ROLE_ADMIN_SYSTEM)",
+    subtitleExpired: "Espace Administration — Saisissez le code de votre établissement et le code d'activation annuel fourni par MyAcademia pour rétablir les accès.",
+    subtitleConfig: "Espace Administration — Saisissez le code de votre établissement et le code de licence initial pour débloquer sa configuration sur la plateforme.",
+    schoolCodePlaceholder: "Code de l'établissement (ex: CSM)",
+    schoolCodeLabel: "Identifiant de l'École",
+    activationPlaceholder: "Code d'activation (ex: ACT-XXXX-XXXX)",
+    activationLabel: "Code Secret d'Activation",
     submitBtn: "Valider l'activation",
-    loadingBtn: "Vérification du code...",
+    loadingBtn: "Vérification en cours...",
     cancelBtn: "Déconnexion / Annuler",
     successTitle: "Activation Réussie !",
     successText: "Le code secret est valide. Les accès de l'établissement ont été configurés et restaurés avec succès.",
     errorTitle: "Échec de l'activation",
-    errorText: "Code secret invalide, expiré ou déjà utilisé. Saisie refusée."
+    errorText: "Informations invalides, expirées ou déjà utilisées. Saisie refusée."
   },
   EN: {
     titleExpired: "Subscription Renewal",
     titleConfig: "Institution Activation",
-    subtitleExpired: "Administration Panel — Enter the annual activation code provided by MyAcademia to restore school access.",
-    subtitleConfig: "Administration Panel — Your institution requires an initial license code to unlock its configuration on the platform.",
-    placeholder: "Activation code (e.g., ACT-XXXX-XXXX)",
-    label: "Secret Activation Code (ROLE_ADMIN_SYSTEM)",
+    subtitleExpired: "Administration Panel — Enter your institution code and the annual activation code provided by MyAcademia to restore access.",
+    subtitleConfig: "Administration Panel — Enter your institution code and the initial license code to unlock its configuration on the platform.",
+    schoolCodePlaceholder: "Institution code (e.g., CSM)",
+    schoolCodeLabel: "School Identifier",
+    activationPlaceholder: "Activation code (e.g., ACT-XXXX-XXXX)",
+    activationLabel: "Secret Activation Code",
     submitBtn: "Confirm Activation",
-    loadingBtn: "Verifying code...",
+    loadingBtn: "Verifying...",
     cancelBtn: "Log Out / Cancel",
     successTitle: "Activation Successful!",
     successText: "The secret code is valid. Institution access has been successfully configured and restored.",
     errorTitle: "Activation Failed",
-    errorText: "Invalid, expired, or already used secret code. Action denied."
+    errorText: "Invalid, expired, or already used information. Action denied."
   }
 };
 
-// ✅ CORRECTION : Remplacement de la prop 'schoolId' par 'schoolCode' pour correspondre au Controller Backend
-const ActivationForm = ({ type, schoolCode, onCancel, onSuccess, darkMode = true, lang = "FR" }) => {
+const ActivationForm = ({ type, onCancel, onSuccess, darkMode = true, lang = "FR" }) => {
+  // ✅ NOUVEAU : Ajout de l'état pour capturer le code de l'école directement via le formulaire
+  const [schoolCode, setSchoolCode] = useState("");
   const [activationCode, setActivationCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, type: "", title: "", text: "" });
@@ -46,14 +50,14 @@ const ActivationForm = ({ type, schoolCode, onCancel, onSuccess, darkMode = true
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!activationCode.trim()) return;
+    if (!activationCode.trim() || !schoolCode.trim()) return;
 
     setLoading(true);
     setNotification({ show: false, type: "", title: "", text: "" });
 
     try {
-      // ✅ CORRECTION : Utilisation de SuperAdminSystemService avec les clés correctes attendues par Map<String, String>
-      await SuperAdminSystemService.activateSchool(schoolCode, activationCode.trim());
+      // Appel du service en utilisant les valeurs saisies dans le formulaire
+      await SuperAdminSystemService.activateSchool(schoolCode.trim(), activationCode.trim());
       
       setNotification({
         show: true,
@@ -97,9 +101,32 @@ const ActivationForm = ({ type, schoolCode, onCancel, onSuccess, darkMode = true
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* ✅ NOUVEAU : Champ pour le Code de l'établissement */}
           <div>
             <label className={`block text-[10px] font-bold uppercase tracking-widest mb-1.5 ml-1 ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
-              {t.label}
+              {t.schoolCodeLabel}
+            </label>
+            <div className="relative group">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
+                <Building2 size={16} />
+              </span>
+              <input 
+                type="text"
+                placeholder={t.schoolCodePlaceholder}
+                className={`w-full pl-11 pr-4 py-3.5 border-2 rounded-xl outline-none transition-all font-semibold text-xs tracking-wider uppercase ${darkMode ? "bg-slate-950/50 border-slate-800 focus:border-blue-500 focus:bg-slate-950 text-white" : "bg-slate-50 border-slate-200 focus:border-blue-600 focus:bg-white text-slate-800"}`}
+                value={schoolCode}
+                onChange={(e) => setSchoolCode(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          {/* Champ pour le Code d'Activation */}
+          <div>
+            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-1.5 ml-1 ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+              {t.activationLabel}
             </label>
             <div className="relative group">
               <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-blue-500 transition-colors">
@@ -107,7 +134,7 @@ const ActivationForm = ({ type, schoolCode, onCancel, onSuccess, darkMode = true
               </span>
               <input 
                 type="text"
-                placeholder={t.placeholder}
+                placeholder={t.activationPlaceholder}
                 className={`w-full pl-11 pr-4 py-3.5 border-2 rounded-xl outline-none transition-all font-semibold text-xs tracking-wider uppercase ${darkMode ? "bg-slate-950/50 border-slate-800 focus:border-blue-500 focus:bg-slate-950 text-white" : "bg-slate-50 border-slate-200 focus:border-blue-600 focus:bg-white text-slate-800"}`}
                 value={activationCode}
                 onChange={(e) => setActivationCode(e.target.value)}

@@ -8,13 +8,14 @@ import java.util.List;
 
 public interface InstallmentScheduleService {
 
-    InstallmentSchedule create(InstallmentScheduleDTO dto);
+    // ✅ Signatures adaptées pour intégrer le cloisonnement contextuel
+    InstallmentSchedule create(InstallmentScheduleDTO dto, Long schoolId);
 
-    List<InstallmentSchedule> getByScheduleFees(Long scheduleFeesId);
+    List<InstallmentSchedule> getByScheduleFees(Long scheduleFeesId, Long schoolId);
 
-    InstallmentSchedule getById(Long id);
+    InstallmentSchedule getById(Long id, Long schoolId);
 
-    void markAsPaid(Long id);
+    void markAsPaid(Long id, Long schoolId);
 
     void generateInstallments(ScheduleFees scheduleFees);
 }

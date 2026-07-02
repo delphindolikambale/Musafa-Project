@@ -1,17 +1,14 @@
-import axios from "axios";
-
-// ✅ Détection automatique de l'environnement (Render ou Localhost)
-const API_URL = window.location.hostname.includes('onrender.com')
-  ? "https://musafa-projectbackend.onrender.com/api/sections"
-  : "http://localhost:8080/api/sections";
+import api from "./api"; // ✅ MODIFICATION : Utilisation de l'instance centralisée avec l'intercepteur JWT
 
 const sectionService = {
-    getAll: () => axios.get(API_URL),
+    getAll: () => api.get("/sections"), // ✅ MODIFICATION : Utilisation de l'instance sécurisée avec route relative
+    
     // Le 'data' ici correspond au SectionRequestDTO du Backend
-    create: (data) => axios.post(API_URL, data),
+    create: (data) => api.post("/sections", data),
+    
     // L'ID est passé en PathVariable comme dans votre Controller
-    update: (id, data) => axios.put(`${API_URL}/${id}`, data),
-    delete: (id) => axios.delete(`${API_URL}/${id}`)
+    update: (id, data) => api.put(`/sections/${id}`, data),
+    delete: (id) => api.delete(`/sections/${id}`)
 };
 
 export default sectionService;

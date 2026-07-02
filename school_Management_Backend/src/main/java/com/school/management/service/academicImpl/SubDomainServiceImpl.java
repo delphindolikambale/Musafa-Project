@@ -1,4 +1,5 @@
 package com.school.management.service.academicImpl;
+
 import com.school.management.dto.academic.SubDomainRequestDTO;
 import com.school.management.dto.academic.SubDomainResponseDTO;
 import com.school.management.model.academic.AcademicYear;
@@ -7,6 +8,9 @@ import com.school.management.model.academic.Level;
 import com.school.management.model.academic.SubDomain;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.SubDomainService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,7 +20,6 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-
 public class SubDomainServiceImpl implements SubDomainService {
 
     private final SubDomainRepository subDomainRepository;
@@ -25,6 +28,27 @@ public class SubDomainServiceImpl implements SubDomainService {
     private final SectionRepository sectionRepository;
     private final OptionRepository optionRepository;
     private final AcademicYearRepository academicYearRepository;
+
+    /**
+     * ✅ MÉTHODE UTILITAIRE PRIVÉE SÉCURISÉE
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session utilisateur invalide ou expirée. Veuillez vous reconnecter.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    /**
+     * ✅ MÉTHODE UTILITAIRE PRIVÉE
+     */
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("Action impossible : Votre compte utilisateur n'est rattaché à aucune école.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
 
     @Override
     @Transactional
@@ -42,6 +66,14 @@ public class SubDomainServiceImpl implements SubDomainService {
         AcademicYear year = academicYearRepository.findById(dto.getAcademicYearId())
                 .orElseThrow(() -> new RuntimeException("Année non trouvée"));
 
+        // ✅ CONTRÔLE DE SÉCURITÉ : Interdiction d'affecter des structures d'un autre établissement
+        if (!domain.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Le domaine parent sélectionné n'appartient pas à votre établissement.");
+        }
+        if (!year.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : L'année académique n'appartient pas à votre établissement.");
+        }
+
         SubDomain subDomain = SubDomain.builder()
                 .name(dto.getName())
                 .domain(domain)
@@ -50,6 +82,7 @@ public class SubDomainServiceImpl implements SubDomainService {
                 .academicYear(year)
                 .section(dto.getSectionId() != null ? sectionRepository.findById(dto.getSectionId()).orElse(null) : null)
                 .option(dto.getOptionId() != null ? optionRepository.findById(dto.getOptionId()).orElse(null) : null)
+                .school(getCurrentUser().getSchool()) // ✅ MULTI-TENANT : Enregistrement de l'école
                 .build();
 
         return mapToResponse(subDomainRepository.save(subDomain));
@@ -63,14 +96,28 @@ public class SubDomainServiceImpl implements SubDomainService {
         SubDomain subDomain = subDomainRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Sous-domaine non trouvé"));
 
+        // ✅ CONTRÔLE DE SÉCURITÉ : Propriété du sous-domaine courant
+        if (!subDomain.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Ce sous-domaine n'appartient pas à votre établissement.");
+        }
+
         Domain domain = domainRepository.findById(dto.getDomainId())
                 .orElseThrow(() -> new RuntimeException("Domaine Parent non trouvé"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ : Propriété du nouveau domaine ciblé
+        if (!domain.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Le domaine cible n'appartient pas à votre établissement.");
+        }
 
         Level level = levelRepository.findById(dto.getLevelId())
                 .orElseThrow(() -> new RuntimeException("Niveau non trouvé"));
 
         AcademicYear year = academicYearRepository.findById(dto.getAcademicYearId())
                 .orElseThrow(() -> new RuntimeException("Année non trouvée"));
+
+        if (!year.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : L'année académique n'appartient pas à votre établissement.");
+        }
 
         subDomain.setName(dto.getName());
         subDomain.setDomain(domain);
@@ -86,16 +133,21 @@ public class SubDomainServiceImpl implements SubDomainService {
     @Override
     @Transactional
     public void deleteSubDomain(Long id) {
-        if (id == null || !subDomainRepository.existsById(id)) {
-            throw new RuntimeException("Sous-domaine non trouvé");
+        SubDomain subDomain = subDomainRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Sous-domaine non trouvé"));
+
+        // ✅ CONTRÔLE DE SÉCURITÉ
+        if (!subDomain.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Action interdite : Ce sous-domaine n'appartient pas à votre établissement.");
         }
-        subDomainRepository.deleteById(id);
+        subDomainRepository.delete(subDomain);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<SubDomainResponseDTO> getSubDomainsByClass(Long levelId, Long sectionId, Long optionId, Long yearId) {
-        return subDomainRepository.findByClassContext(levelId, sectionId, optionId, yearId).stream()
+        // ✅ MULTI-TENANT : Filtrage strict par l'école connectée
+        return subDomainRepository.findByClassContext(levelId, sectionId, optionId, yearId, getCurrentSchoolId()).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
@@ -103,7 +155,8 @@ public class SubDomainServiceImpl implements SubDomainService {
     @Override
     @Transactional(readOnly = true)
     public List<SubDomainResponseDTO> getByDomain(Long domainId) {
-        return subDomainRepository.findAll().stream()
+        // ✅ MULTI-TENANT + PERFORMANCE : Sécurisé en limitant le flux global aux données de l'école
+        return subDomainRepository.findAllBySchoolId(getCurrentSchoolId()).stream()
                 .filter(sd -> sd.getDomain() != null && sd.getDomain().getId().equals(domainId))
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -112,7 +165,8 @@ public class SubDomainServiceImpl implements SubDomainService {
     @Override
     @Transactional(readOnly = true)
     public List<SubDomainResponseDTO> getAllSubDomains() {
-        return subDomainRepository.findAll().stream()
+        // ✅ MULTI-TENANT : Liste restreinte à l'école de la session
+        return subDomainRepository.findAllBySchoolId(getCurrentSchoolId()).stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }

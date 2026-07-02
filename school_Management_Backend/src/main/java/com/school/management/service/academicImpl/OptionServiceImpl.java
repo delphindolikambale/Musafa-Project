@@ -4,7 +4,6 @@ import com.school.management.dto.academic.OptionDTO;
 import com.school.management.dto.academic.OptionRequestDTO;
 import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.academic.Option;
-
 import com.school.management.model.academic.Section;
 import com.school.management.repository.academic.OptionRepository;
 import com.school.management.repository.academic.SectionRepository;
@@ -17,83 +16,79 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-
 public class OptionServiceImpl implements OptionService {
     private final OptionRepository optionRepository;
     private final SectionRepository sectionRepository;
 
     @Override
     @Transactional
-    public Option create(OptionRequestDTO dto) {
-        Section section = sectionRepository.findById(dto.getSectionId())
-                .orElseThrow(() -> new ResourceNotFoundException("Section introuvable"));
+    public Option create(OptionRequestDTO dto, Long schoolId) {
+        // Validation et récupération de la section dans le périmètre multi-tenant de l'école
+        Section section = sectionRepository.findByIdAndSchoolId(dto.getSectionId(), schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Section parente introuvable dans votre établissement."));
 
-        if (optionRepository.existsByOptionNameAndSection(dto.getOptionName(), section)) {
-            throw new IllegalArgumentException("Cette option existe déjà dans cette section");
+        if (optionRepository.existsByOptionNameAndSectionAndSchoolId(dto.getOptionName(), section, schoolId)) {
+            throw new IllegalArgumentException("Cette option existe déjà dans cette section au sein de votre école.");
         }
 
+        // ✅ LOGIQUE ALIGNÉE : On construit l'entité en récupérant l'objet School depuis la section parente valide
         Option option = Option.builder()
                 .optionName(dto.getOptionName())
                 .section(section)
                 .active(true)
+                .school(section.getSchool())
                 .build();
 
         return optionRepository.save(option);
     }
 
     @Override
-    public List<Option> getAll() {
-        return optionRepository.findAll();
+    public List<Option> getAll(Long schoolId) {
+        return optionRepository.findAllBySchoolId(schoolId);
     }
 
     @Override
-    public Option getById(Long id) {
-        return optionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Option introuvable"));
+    public Option getById(Long id, Long schoolId) {
+        return optionRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Option introuvable ou accès restreint."));
     }
 
     @Override
-    public List<Option> getBySection(Long sectionId) {
-        // On appelle directement la méthode que vous avez créée dans OptionRepository
-        return optionRepository.findBySectionId(sectionId);
+    public List<Option> getBySection(Long sectionId, Long schoolId) {
+        return optionRepository.findBySectionIdAndSchoolId(sectionId, schoolId);
     }
 
-    // NOUVELLE MÉTHODE : UPDATE (Règle l'erreur du Controller)
     @Override
     @Transactional
-    public OptionDTO update(Long id, OptionRequestDTO dto) {
-        Option option = optionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Option introuvable"));
+    public OptionDTO update(Long id, OptionRequestDTO dto, Long schoolId) {
+        Option option = optionRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Option introuvable ou non autorisée."));
 
-        Section section = sectionRepository.findById(dto.getSectionId())
-                .orElseThrow(() -> new ResourceNotFoundException("Section parente introuvable"));
+        Section section = sectionRepository.findByIdAndSchoolId(dto.getSectionId(), schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Section parente introuvable dans votre établissement."));
 
-        // Mise à jour des champs
         option.setOptionName(dto.getOptionName());
         option.setSection(section);
-        option.setActive(dto.isActive()); // isActive() ne sera plus rouge si @Data est sur le DTO
+        option.setActive(dto.isActive());
 
         Option updatedOption = optionRepository.save(option);
-        return toDTO(updatedOption); // On retourne un DTO pour le Controller
+        return toDTO(updatedOption);
     }
 
-    // ✅ NOUVELLE MÉTHODE : DELETE
     @Override
     @Transactional
-    public void delete(Long id) {
-        if (!optionRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Impossible de supprimer : Option introuvable");
-        }
-        optionRepository.deleteById(id);
+    public void delete(Long id, Long schoolId) {
+        Option option = optionRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Impossible de supprimer : Option introuvable ou accès refusé."));
+        optionRepository.delete(option);
     }
 
-    // 🔄 MÉTHODE UTILITAIRE : Convertir Entité vers DTO
     private OptionDTO toDTO(Option option) {
         return OptionDTO.builder()
                 .id(option.getId())
                 .optionName(option.getOptionName())
                 .sectionId(option.getSection().getId())
-                .sectionName(option.getSection().getSectionName()) // Pour l'affichage Front
+                .sectionName(option.getSection().getSectionName())
                 .active(option.isActive())
                 .build();
     }

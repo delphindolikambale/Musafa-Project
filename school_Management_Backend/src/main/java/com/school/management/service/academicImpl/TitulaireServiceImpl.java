@@ -10,6 +10,9 @@ import com.school.management.repository.academic.ClassroomRepository;
 import com.school.management.repository.academic.PeriodValidationRepository;
 import com.school.management.repository.academic.TeacherAssignmentRepository;
 import com.school.management.service.academic.TitulaireService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,28 +32,49 @@ public class TitulaireServiceImpl implements TitulaireService {
     private final TeacherAssignmentRepository teacherAssignmentRepository;
     private final PeriodValidationRepository periodValidationRepository;
 
+    /**
+     * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SÉCURISÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est rattaché à aucun établissement scolaire actif.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
     @Override
     public List<ClassroomResponseDTO> getMyClassrooms(Long teacherId, Long academicYearId) {
-        // Récupère la ou les classes gérées par ce titulaire
-        return classroomRepository.findByTitulaireId(teacherId).stream()
+        // ✅ CORRECTION MULTI-TENANT : Passage du schoolId pour correspondre à la signature du ClassroomRepository
+        return classroomRepository.findByTitulaireIdAndSchoolId(teacherId, getCurrentSchoolId()).stream()
                 .map(this::mapClassroomToResponseDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
     public TitulaireMonitoringResponseDTO getMonitoringForClassroomAndPeriod(Long classroomId, int period, Long academicYearId) {
-        Classroom classroom = classroomRepository.findById(classroomId)
-                .orElseThrow(() -> new RuntimeException("Classe introuvable"));
+        // ✅ CORRECTION MULTI-TENANT : Utilisation du findById sécurisé par école active
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(classroomId, getCurrentSchoolId())
+                .orElseThrow(() -> new RuntimeException("Classe introuvable ou accès non autorisé"));
 
         // 1. Récupérer toutes les affectations de cours pour cette classe et cette année
-        List<TeacherAssignment> assignments = teacherAssignmentRepository.findByClassroomIdAndAcademicYearId(classroomId, academicYearId);
+        // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode filtrée par schoolId du TeacherAssignmentRepository
+        List<TeacherAssignment> assignments = teacherAssignmentRepository.findByClassroomIdAndAcademicYearIdAndSchoolId(classroomId, academicYearId, getCurrentSchoolId());
 
         List<SubjectValidationStatusDTO> subjectStatuses = new ArrayList<>();
         boolean allValidated = true;
 
         // 2. Pour chaque cours, chercher le statut de validation de la période
         for (TeacherAssignment assignment : assignments) {
-            Optional<PeriodValidation> validationOpt = periodValidationRepository.findByTeacherAssignmentIdAndPeriod(assignment.getId(), period);
+            // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode filtrée par schoolId du PeriodValidationRepository
+            Optional<PeriodValidation> validationOpt = periodValidationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(assignment.getId(), period, getCurrentSchoolId());
 
             String currentStatus = validationOpt.map(v -> v.getStatus().name()).orElse("DRAFT");
 

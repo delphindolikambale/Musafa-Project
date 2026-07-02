@@ -6,9 +6,8 @@ import org.springframework.stereotype.Repository;
 import java.util.Optional;
 
 @Repository
-// Vérifiez bien que vous avez écrit <SchoolConfiguration, Long>
 public interface SchoolConfigurationRepository extends JpaRepository<SchoolConfiguration, Long> {
 
-    /// Récupère la configuration unique du système
-    Optional<SchoolConfiguration> findFirstByOrderByIdAsc();
+    // ✅ ADAPTATION MULTI-TENANT : Isolation des requêtes par identifiant d'école
+    Optional<SchoolConfiguration> findBySchoolId(Long schoolId);
 }

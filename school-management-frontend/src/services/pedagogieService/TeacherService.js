@@ -1,20 +1,6 @@
-import axios from 'axios';
-import { BACKEND_BASE } from '../api';
+import api, { BACKEND_BASE } from '../api'; // ✅ MODIFICATION : Import de l'instance centrale et de la base URL
 
 export const API_BASE_URL = BACKEND_BASE;
-const API_URL = `${API_BASE_URL}/api/teachers`;
-
-const getHeader = () => {
-    const userStr = localStorage.getItem('user');
-    if (!userStr) return {};
-    try {
-        const user = JSON.parse(userStr);
-        const token = user?.accessToken || user?.token;
-        return token ? { Authorization: 'Bearer ' + token } : {};
-    } catch (e) {
-        return {};
-    }
-};
 
 export const getFileUrl = (path) => {
     if (!path) return null; 
@@ -26,8 +12,6 @@ export const getFileUrl = (path) => {
         
         // 2. CORRECTION CRITIQUE (Mixed Content)
         // Remplace l'URL localhost enregistrée en DB par le BACKEND_BASE dynamique.
-        // En local, BACKEND_BASE = localhost, donc pas de problème.
-        // Sur Render, BACKEND_BASE = ton URL https, réglant l'erreur Mixed Content.
         if (cleanPath.includes('http://localhost:8080')) {
             cleanPath = cleanPath.replace('http://localhost:8080', BACKEND_BASE);
         }
@@ -47,55 +31,52 @@ export const getFileUrl = (path) => {
 
 const TeacherService = {
     getAllTeachers: async () => {
-        const response = await axios.get(API_URL, { headers: getHeader() });
+        const response = await api.get('/teachers');
         return response.data;
     },
 
     getActiveTeachers: async () => {
-        const response = await axios.get(`${API_URL}/active`, { headers: getHeader() });
+        const response = await api.get('/teachers/active');
         return response.data;
     },
 
     searchTeachers: async (query) => {
-        const response = await axios.get(`${API_URL}/search`, { 
-            params: { query },
-            headers: getHeader() 
+        const response = await api.get('/teachers/search', { 
+            params: { query }
         });
         return response.data;
     },
 
     createTeacher: async (formData) => {
-        const response = await axios.post(API_URL, formData, {
+        const response = await api.post('/teachers', formData, {
             headers: { 
-                ...getHeader(),
-                'Content-Type': 'multipart/form-data' 
+                'Content-Type': 'multipart/form-data' // ✅ L'intercepteur injecte automatiquement le Bearer Token
             }
         });
         return response.data;
     },
 
     getTeacherById: async (id) => {
-        const response = await axios.get(`${API_URL}/${id}`, { headers: getHeader() });
+        const response = await api.get(`/teachers/${id}`);
         return response.data;
     },
 
     updateTeacher: async (id, formData) => {
-        const response = await axios.put(`${API_URL}/${id}`, formData, {
+        const response = await api.put(`/teachers/${id}`, formData, {
             headers: { 
-                ...getHeader(),
-                'Content-Type': 'multipart/form-data' 
+                'Content-Type': 'multipart/form-data' // ✅ L'intercepteur injecte automatiquement le Bearer Token
             }
         });
         return response.data;
     },
 
     toggleActiveStatus: async (id) => {
-        const response = await axios.patch(`${API_URL}/${id}/toggle-status`, {}, { headers: getHeader() });
+        const response = await api.patch(`/teachers/${id}/toggle-status`, {});
         return response.data;
     },
 
     deleteTeacher: async (id) => {
-        await axios.delete(`${API_URL}/${id}`, { headers: getHeader() });
+        await api.delete(`/teachers/${id}`);
     }
 };
 

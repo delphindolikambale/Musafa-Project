@@ -1,19 +1,11 @@
-import axios from 'axios';
-import { BACKEND_BASE } from '../api';
-
-const API_URL = `${BACKEND_BASE}/api/specialities`;
-
-const getHeader = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user && user.accessToken ? { Authorization: 'Bearer ' + user.accessToken } : {};
-};
+import api from '../api'; // ✅ MODIFICATION : Utilisation de l'instance centralisée
 
 const domainSpecialityService = {
     /**
      * Récupère la liste complète des spécialités (ex: MATHÉMATIQUES, PHYSIQUE, BIOLOGIE...)
      */
     getAllSpecialities: async () => {
-        const response = await axios.get(API_URL, { headers: getHeader() });
+        const response = await api.get('/specialities');
         return response.data;
     },
 
@@ -21,7 +13,7 @@ const domainSpecialityService = {
      * Récupère le détail d'une spécialité par son ID
      */
     getSpecialityById: async (id) => {
-        const response = await axios.get(`${API_URL}/${id}`, { headers: getHeader() });
+        const response = await api.get(`/specialities/${id}`);
         return response.data;
     },
 
@@ -29,7 +21,7 @@ const domainSpecialityService = {
      * Crée une nouvelle spécialité dans le référentiel
      */
     createSpeciality: async (data) => {
-        const response = await axios.post(API_URL, data, { headers: getHeader() });
+        const response = await api.post('/specialities', data);
         return response.data;
     },
 
@@ -37,7 +29,7 @@ const domainSpecialityService = {
      * Supprime une spécialité du référentiel
      */
     deleteSpeciality: async (id) => {
-        await axios.delete(`${API_URL}/${id}`, { headers: getHeader() });
+        await api.delete(`/specialities/${id}`);
     }
 };
 

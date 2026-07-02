@@ -8,10 +8,10 @@ import java.util.List;
 
 public interface StudentFinancialAccountService {
 
-    StudentFinancialAccountResponseDTO create(StudentFinancialAccountCreateDTO dto);
-    StudentFinancialAccountResponseDTO getById(Long id);
-    StudentFinancialAccountResponseDTO getByAccountNumber(String accountNumber);
-    List<StudentFinancialAccountResponseDTO> search(String keyword);
-    List<StudentFinancialAccountListDTO> getAll();
-    StudentFinancialAccountResponseDTO getDetailsByAccountNumber(String accountNumber);
+    StudentFinancialAccountResponseDTO create(StudentFinancialAccountCreateDTO dto, Long schoolId);
+    StudentFinancialAccountResponseDTO getById(Long id, Long schoolId);
+    StudentFinancialAccountResponseDTO getByAccountNumber(String accountNumber, Long schoolId);
+    List<StudentFinancialAccountResponseDTO> search(String keyword, Long schoolId);
+    List<StudentFinancialAccountListDTO> getAll(Long schoolId);
+    StudentFinancialAccountResponseDTO getDetailsByAccountNumber(String accountNumber, Long schoolId);
 }

@@ -4,19 +4,17 @@ import com.school.management.model.financial.InstallmentSchedule;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface InstallmentScheduleRepository extends JpaRepository<InstallmentSchedule, Long>{
 
-    List<InstallmentSchedule>
-    findByScheduleFeesIdAndPaidFalseOrderByInstallmentNumberAsc(Long scheduleFeesId);
+    Optional<InstallmentSchedule> findByIdAndSchoolId(Long id, Long schoolId);
 
-    List<InstallmentSchedule> findByScheduleFeesId(Long scheduleFeesId);
+    List<InstallmentSchedule> findByScheduleFeesIdAndSchoolIdAndPaidFalseOrderByInstallmentNumberAsc(Long scheduleFeesId, Long schoolId);
 
-    List<InstallmentSchedule>
-    findByScheduleFeesIdOrderByInstallmentNumberAsc(Long scheduleFeesId);
+    List<InstallmentSchedule> findByScheduleFeesIdAndSchoolId(Long scheduleFeesId, Long schoolId);
 
-    boolean existsByScheduleFeesIdAndInstallmentNumber(
-            Long scheduleFeesId,
-            Integer installmentNumber
-    );
+    List<InstallmentSchedule> findByScheduleFeesIdAndSchoolIdOrderByInstallmentNumberAsc(Long scheduleFeesId, Long schoolId);
+
+    boolean existsByScheduleFeesIdAndInstallmentNumberAndSchoolId(Long scheduleFeesId, Integer installmentNumber, Long schoolId);
 }

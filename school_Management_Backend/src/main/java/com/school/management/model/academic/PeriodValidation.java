@@ -1,13 +1,15 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.enums.VisaStatus;
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "period_validations", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"teacher_assignment_id", "period"})
+        // ✅ MULTI-TENANT : L'unicité est maintenant isolée par établissement
+        @UniqueConstraint(columnNames = {"teacher_assignment_id", "period", "school_id"})
 })
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class PeriodValidation {
@@ -32,4 +34,9 @@ public class PeriodValidation {
 
     @Column(name = "reject_comment", length = 500)
     private String rejectComment;
+
+    // ✅ MULTI-TENANT : Isolation explicite du Visa de période
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

@@ -2,6 +2,7 @@ package com.school.management.model.financial;
 
 import com.school.management.model.academic.AcademicYear;
 import com.school.management.model.enums.Currency;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,14 +16,13 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Expense {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @Column(unique = true, nullable = false, length = 50)
-    private String voucherNumber; // Numéro du Bon de Sortie (ex: BS-2026-04-001)
+    private String voucherNumber;
 
     @Column(nullable = false, columnDefinition = "TEXT")
     private String description;
@@ -51,4 +51,8 @@ public class Expense {
     @JoinColumn(name = "academic_year_id", nullable = false)
     private AcademicYear academicYear;
 
+    // ✅ LIEN MULTI-TENANT DIRECT
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

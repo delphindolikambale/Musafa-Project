@@ -7,13 +7,14 @@ import java.util.List;
 
 public interface LevelService {
 
-    LevelDTO create(LevelCreateDTO dto);
+    // ✅ ADAPTATION : Remplacement de l'entité School par Long schoolId pour s'aligner sur le contrôleur
+    LevelDTO create(LevelCreateDTO dto, Long schoolId);
 
-    List<LevelDTO> getAll();
+    List<LevelDTO> getAll(Long schoolId);
 
-    LevelDTO getById(Long id);
+    LevelDTO getById(Long id, Long schoolId);
 
-    // Nouveaux compléments
-    LevelDTO update(Long id, LevelCreateDTO dto);
-    void delete(Long id);
+    LevelDTO update(Long id, LevelCreateDTO dto, Long schoolId);
+
+    void delete(Long id, Long schoolId);
 }

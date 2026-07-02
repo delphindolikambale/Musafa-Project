@@ -11,28 +11,33 @@ import java.util.Optional;
 
 @Repository
 public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
-    // ✅ Ajout de la méthode manquante pour corriger l'erreur de compilation
-    Optional<Enrollment> findByStudentIdAndAcademicYearId(Long studentId, Long academicYearId);
-    boolean existsByStudentIdAndAcademicYearId(Long studentId, Long academicYearId);
 
-    long countByAcademicYearId(Long academicYearId);
+    // ✅ SÉCURISÉ : Récupération par ID avec verrou de scope d'école
+    Optional<Enrollment> findByIdAndSchoolId(Long id, Long schoolId);
 
-    List<Enrollment> findByClassroomIdAndAcademicYearIdAndActiveTrue(Long classroomId, Long academicYearId);
+    Optional<Enrollment> findByStudentIdAndAcademicYearIdAndSchoolId(Long studentId, Long academicYearId, Long schoolId);
 
-    List<Enrollment> findByStudentId(Long studentId);
+    boolean existsByStudentIdAndAcademicYearIdAndSchoolId(Long studentId, Long academicYearId, Long schoolId);
 
-    // Nouvelle méthode pour le filtrage par année
-    List<Enrollment> findByAcademicYearId(Long academicYearId);
+    long countByAcademicYearIdAndSchoolId(Long academicYearId, Long schoolId);
 
-    long countByClassroomIdAndAcademicYearIdAndActiveTrue(Long classroomId, Long academicYearId);
+    List<Enrollment> findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(Long classroomId, Long academicYearId, Long schoolId);
 
-    long countByClassroomId(Long classroomId);
+    List<Enrollment> findByStudentIdAndSchoolId(Long studentId, Long schoolId);
 
-    List<Enrollment> findByStudentMatriculeOrderByAcademicYearDesc(String matricule);
+    List<Enrollment> findByAcademicYearIdAndSchoolId(Long academicYearId, Long schoolId);
 
-    @Query("SELECT e FROM Enrollment e WHERE e.student.matricule = :matricule " +
+    List<Enrollment> findBySchoolId(Long schoolId);
+
+    long countByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(Long classroomId, Long academicYearId, Long schoolId);
+
+    long countByClassroomIdAndSchoolId(Long classroomId, Long schoolId);
+
+    List<Enrollment> findByStudentMatriculeAndSchoolIdOrderByAcademicYearDesc(String matricule, Long schoolId);
+
+    @Query("SELECT e FROM Enrollment e WHERE e.student.matricule = :matricule AND e.school.id = :schoolId " +
             "ORDER BY e.academicYear.dateDebut DESC")
-    List<Enrollment> findAllHistoryByMatricule(@Param("matricule") String matricule);
-    // ✅ Cette méthode permet au service de compter les élèves par classe ET par année
-    long countByClassroomIdAndAcademicYearId(Long classroomId, Long academicYearId);
+    List<Enrollment> findAllHistoryByMatriculeAndSchoolId(@Param("matricule") String matricule, @Param("schoolId") Long schoolId);
+
+    long countByClassroomIdAndAcademicYearIdAndSchoolId(Long classroomId, Long academicYearId, Long schoolId);
 }

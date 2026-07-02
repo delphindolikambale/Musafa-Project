@@ -12,26 +12,29 @@ import java.util.List;
 @Repository
 public interface CashReceiptRepository extends JpaRepository<StudentPaymentBreakdown, Long>{
     /**
-     * Récupère TOUTES les perceptions depuis le début pour le calcul des ratios.
+     * Récupère TOUTES les perceptions depuis le début pour le calcul des ratios pour une école spécifique.
      */
     @Query("SELECT b.feesGroup.id, b.feesItemName, SUM(b.amount), b.currency, b.payment.annualProfile.enrollment.classroom.id " +
             "FROM StudentPaymentBreakdown b " +
             "WHERE b.payment.paymentDate <= :endDate " +
             "AND b.feesGroup.academicYear.active = true " +
+            "AND b.feesGroup.academicYear.school.id = :schoolId " +
             "GROUP BY b.feesGroup.id, b.feesItemName, b.currency, b.payment.annualProfile.enrollment.classroom.id")
-    List<Object[]> getCumulativeReceiptsUntil(@Param("endDate") LocalDateTime endDate);
+    List<Object[]> getCumulativeReceiptsUntil(@Param("endDate") LocalDateTime endDate, @Param("schoolId") Long schoolId);
 
     /**
-     * Récupère les perceptions UNIQUEMENT pour la période sélectionnée (pour le flux dynamique).
+     * Récupère les perceptions UNIQUEMENT pour la période sélectionnée et pour une école spécifique.
      */
     @Query("SELECT b.feesGroup.id, b.feesGroup.type, b.feesItemName, SUM(b.amount), b.feesGroup.academicYear.annee, b.currency " +
             "FROM StudentPaymentBreakdown b " +
             "WHERE b.payment.paymentDate BETWEEN :startDate AND :endDate " +
             "AND (:classroomId IS NULL OR b.payment.annualProfile.enrollment.classroom.id = :classroomId) " +
+            "AND b.feesGroup.academicYear.school.id = :schoolId " +
             "GROUP BY b.feesGroup.id, b.feesGroup.type, b.feesItemName, b.feesGroup.academicYear.annee, b.currency")
     List<Object[]> getFlowReceiptsForPeriod(
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
-            @Param("classroomId") Long classroomId
+            @Param("classroomId") Long classroomId,
+            @Param("schoolId") Long schoolId
     );
 }

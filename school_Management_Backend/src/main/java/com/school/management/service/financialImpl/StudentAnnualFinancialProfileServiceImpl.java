@@ -4,6 +4,7 @@ import com.school.management.dto.financial.*;
 import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.academic.Enrollment;
 import com.school.management.model.financial.*;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.EnrollmentRepository;
 import com.school.management.repository.financial.*;
 import com.school.management.service.financial.StudentAnnualFinancialProfileService;
@@ -19,8 +20,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional // Sécurise les transactions
-
+@Transactional
 public class StudentAnnualFinancialProfileServiceImpl implements StudentAnnualFinancialProfileService {
 
     private final StudentFinancialAccountRepository accountRepository;
@@ -31,17 +31,19 @@ public class StudentAnnualFinancialProfileServiceImpl implements StudentAnnualFi
     private final StudentPaymentBreakdownRepository breakdownRepository;
 
     @Override
-    public StudentAnnualFinancialProfileResponseDTO create(StudentAnnualFinancialProfileCreateDTO dto) {
-        StudentFinancialAccount account = accountRepository.findById(dto.getFinancialAccountId())
-                .orElseThrow(() -> new ResourceNotFoundException("Compte financier introuvable"));
+    public StudentAnnualFinancialProfileResponseDTO create(StudentAnnualFinancialProfileCreateDTO dto, Long schoolId) {
+        StudentFinancialAccount account = accountRepository.findByIdAndSchoolId(dto.getFinancialAccountId(), schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Compte financier introuvable dans votre établissement."));
 
+        // Enforce Multi-tenant isolation sur l'inscription
         Enrollment enrollment = enrollmentRepository.findById(dto.getEnrollmentId())
-                .orElseThrow(() -> new ResourceNotFoundException("Inscription introuvable"));
+                .filter(e -> e.getAcademicYear() != null && e.getAcademicYear().getSchool() != null && e.getAcademicYear().getSchool().getId().equals(schoolId))
+                .orElseThrow(() -> new ResourceNotFoundException("Inscription introuvable dans votre établissement."));
 
-        ScheduleFees scheduleFees = scheduleFeesRepository.findById(dto.getScheduleFeesId())
-                .orElseThrow(() -> new ResourceNotFoundException("Barème introuvable"));
+        ScheduleFees scheduleFees = scheduleFeesRepository.findByIdAndSchoolId(dto.getScheduleFeesId(), schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Barème introuvable dans votre établissement."));
 
-        repository.findByFinancialAccountIdAndAcademicYearId(account.getId(), enrollment.getAcademicYear().getId())
+        repository.findByFinancialAccountIdAndAcademicYearIdAndSchoolId(account.getId(), enrollment.getAcademicYear().getId(), schoolId)
                 .ifPresent(p -> { throw new IllegalStateException("Profil financier déjà existant pour cette année."); });
 
         StudentAnnualFinancialProfile profile = StudentAnnualFinancialProfile.builder()
@@ -50,32 +52,37 @@ public class StudentAnnualFinancialProfileServiceImpl implements StudentAnnualFi
                 .academicYear(enrollment.getAcademicYear())
                 .scheduleFees(scheduleFees)
                 .totalAmountPaid(BigDecimal.ZERO)
+                .school(School.builder().id(schoolId).build()) // ✅ Isolation multi-tenant assurée
                 .active(true)
                 .build();
 
         return mapToResponseDTO(repository.save(profile));
     }
 
-    @Override @Transactional(readOnly = true)
-    public StudentAnnualFinancialProfileResponseDTO getById(Long id) {
-        return repository.findById(id).map(this::mapToResponseDTO)
-                .orElseThrow(() -> new ResourceNotFoundException("Profil introuvable"));
+    @Override
+    @Transactional(readOnly = true)
+    public StudentAnnualFinancialProfileResponseDTO getById(Long id, Long schoolId) {
+        return repository.findByIdAndSchoolId(id, schoolId).map(this::mapToResponseDTO)
+                .orElseThrow(() -> new ResourceNotFoundException("Profil introuvable dans votre établissement."));
     }
 
-    @Override @Transactional(readOnly = true)
-    public List<StudentAnnualFinancialProfileResponseDTO> getAll() {
-        return repository.findAll().stream().map(this::mapToResponseDTO).toList();
+    @Override
+    @Transactional(readOnly = true)
+    public List<StudentAnnualFinancialProfileResponseDTO> getAll(Long schoolId) {
+        return repository.findBySchoolId(schoolId).stream().map(this::mapToResponseDTO).toList();
     }
 
-    @Override @Transactional(readOnly = true)
-    public List<StudentAnnualFinancialProfileResponseDTO> getByAccountNumber(String accountNumber) {
-        return repository.findByFinancialAccount_AccountNumber(accountNumber).stream()
+    @Override
+    @Transactional(readOnly = true)
+    public List<StudentAnnualFinancialProfileResponseDTO> getByAccountNumber(String accountNumber, Long schoolId) {
+        return repository.findByFinancialAccount_AccountNumberAndSchoolId(accountNumber, schoolId).stream()
                 .map(this::mapToResponseDTO).toList();
     }
 
-    @Override @Transactional(readOnly = true)
-    public List<StudentAnnualFinancialProfileResponseDTO> getByClassroom(Long classroomId) {
-        return repository.findByEnrollment_Classroom_Id(classroomId).stream()
+    @Override
+    @Transactional(readOnly = true)
+    public List<StudentAnnualFinancialProfileResponseDTO> getByClassroom(Long classroomId, Long schoolId) {
+        return repository.findByEnrollment_Classroom_IdAndSchoolId(classroomId, schoolId).stream()
                 .map(this::mapToResponseDTO)
                 .toList();
     }
@@ -84,7 +91,11 @@ public class StudentAnnualFinancialProfileServiceImpl implements StudentAnnualFi
         BigDecimal totalDue = profile.getTotalAmountDue() != null ? profile.getTotalAmountDue() : BigDecimal.ZERO;
         BigDecimal totalPaidGlobal = profile.getTotalAmountPaid() != null ? profile.getTotalAmountPaid() : BigDecimal.ZERO;
 
-        List<FeesGroup> configGroups = feesGroupRepository.findByAcademicYearIdAndActiveTrue(profile.getAcademicYear().getId());
+        // ✅ CORRECTION : Utilisation de la méthode multi-tenant appropriée du Repository
+        List<FeesGroup> configGroups = feesGroupRepository.findByAcademicYearIdAndSchoolIdAndActiveTrue(
+                profile.getAcademicYear().getId(),
+                profile.getSchool().getId()
+        );
 
         List<FeesGroupResponseDTO> feeBreakdownDTOs = configGroups.stream().map(group -> {
             BigDecimal groupTotalAmount = totalDue.multiply(group.getPercentage()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);

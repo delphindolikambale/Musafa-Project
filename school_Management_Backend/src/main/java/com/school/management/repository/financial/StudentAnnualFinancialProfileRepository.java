@@ -8,43 +8,22 @@ import java.util.Optional;
 
 public interface StudentAnnualFinancialProfileRepository extends JpaRepository<StudentAnnualFinancialProfile, Long>{
 
-    /**
-     * Utilisé pour vérifier l'unicité avant création
-     */
-    Optional<StudentAnnualFinancialProfile>
-    findByFinancialAccountIdAndAcademicYearId(Long accountId, Long academicYearId);
+    Optional<StudentAnnualFinancialProfile> findByIdAndSchoolId(Long id, Long schoolId);
 
-    /**
-     * Recherche par numéro de compte (numéro permanent de l'élève)
-     */
-    List<StudentAnnualFinancialProfile>
-    findByFinancialAccount_AccountNumber(String accountNumber);
+    Optional<StudentAnnualFinancialProfile> findByFinancialAccountIdAndAcademicYearIdAndSchoolId(Long accountId, Long academicYearId, Long schoolId);
 
-    /**
-     * Recherche tous les profils pour une année académique spécifique.
-     * Utile pour les rapports financiers globaux de l'année.
-     */
-    List<StudentAnnualFinancialProfile> findByAcademicYearId(Long academicYearId);
+    List<StudentAnnualFinancialProfile> findByFinancialAccount_AccountNumberAndSchoolId(String accountNumber, Long schoolId);
 
-    /**
-     * Recherche par ID d'inscription (Enrollment).
-     * Utile pour retrouver le profil financier d'un élève précis dans une classe.
-     */
-    Optional<StudentAnnualFinancialProfile> findByEnrollmentId(Long enrollmentId);
+    List<StudentAnnualFinancialProfile> findByAcademicYearIdAndSchoolId(Long academicYearId, Long schoolId);
 
-    /**
-     * Recherche tous les élèves liés à une grille tarifaire spécifique.
-     */
-    List<StudentAnnualFinancialProfile> findByScheduleFeesId(Long scheduleFeesId);
+    Optional<StudentAnnualFinancialProfile> findByEnrollmentIdAndSchoolId(Long enrollmentId, Long schoolId);
 
-    /**
-     * ✅ NOUVEAU : Recherche tous les profils financiers des élèves d'une classe spécifique.
-     * Utilisé pour le recouvrement par classe.
-     */
-    List<StudentAnnualFinancialProfile> findByEnrollment_Classroom_Id(Long classroomId);
+    List<StudentAnnualFinancialProfile> findByScheduleFeesIdAndSchoolId(Long scheduleFeesId, Long schoolId);
 
-    /**
-     * Liste les profils actifs ou clôturés
-     */
-    List<StudentAnnualFinancialProfile> findByActiveTrue();
+    List<StudentAnnualFinancialProfile> findByEnrollment_Classroom_IdAndSchoolId(Long classroomId, Long schoolId);
+
+    List<StudentAnnualFinancialProfile> findByActiveTrueAndSchoolId(Long schoolId);
+
+    // ✅ AJOUT DE LA MÉTHODE MANQUANTE POUR L'ISOLATION GLOBALE MULTI-TENANT
+    List<StudentAnnualFinancialProfile> findBySchoolId(Long schoolId);
 }

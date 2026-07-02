@@ -11,8 +11,9 @@ import java.util.Optional;
 @Repository
 public interface PeriodValidationRepository extends JpaRepository<PeriodValidation, Long> {
 
-    Optional<PeriodValidation> findByTeacherAssignmentIdAndPeriod(Long teacherAssignmentId, int period);
+    // ✅ ADAPTATION MULTI-TENANT : Recherche d'un visa spécifique par école
+    Optional<PeriodValidation> findByTeacherAssignmentIdAndPeriodAndSchoolId(Long teacherAssignmentId, int period, Long schoolId);
 
-    // NOUVELLE MÉTHODE : Permet à Spring de générer la requête "SELECT * FROM period_validation WHERE status = ?"
-    List<PeriodValidation> findByStatus(VisaStatus status);
+    // ✅ ADAPTATION MULTI-TENANT : Récupération des visas en attente uniquement pour l'école du Proviseur connecté
+    List<PeriodValidation> findByStatusAndSchoolId(VisaStatus status, Long schoolId);
 }

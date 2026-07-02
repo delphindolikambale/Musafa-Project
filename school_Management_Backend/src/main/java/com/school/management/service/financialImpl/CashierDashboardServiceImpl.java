@@ -1,6 +1,7 @@
 package com.school.management.service.financialImpl;
+
 import com.school.management.model.academic.AcademicYear;
-import com.school.management.model.enums.Currency; // Importatio
+import com.school.management.model.enums.Currency;
 import com.school.management.dto.financial.CashierDashboardDTO;
 import com.school.management.model.financial.Expense;
 import com.school.management.model.financial.StudentAnnualFinancialProfile;
@@ -30,17 +31,27 @@ public class CashierDashboardServiceImpl implements CashierDashboardService {
 
     @Override
     @Transactional(readOnly = true)
-    public CashierDashboardDTO getGlobalStats(Long academicYearId) {
+    public CashierDashboardDTO getGlobalStats(Long academicYearId, Long schoolId) {
 
-        // Récupération de l'année académique pour le libellé
+        // ✅ Vérification d'étanchéité multi-tenant pour l'année académique demandée
         AcademicYear academicYear = academicYearRepository.findById(academicYearId)
-                .orElseThrow(() -> new RuntimeException("Année académique non trouvée avec l'ID: " + academicYearId));
+                .filter(ay -> ay.getSchool() != null && ay.getSchool().getId().equals(schoolId))
+                .orElseThrow(() -> new RuntimeException("Année académique non trouvée ou accès non autorisé pour cet établissement."));
 
-        List<StudentAnnualFinancialProfile> profiles = profileRepository.findByAcademicYearId(academicYearId);
+        // 🔄 CORRECTION : Utilisation de la méthode sécurisée et cloisonnée par établissement
+        List<StudentAnnualFinancialProfile> profiles = profileRepository.findByAcademicYearIdAndSchoolId(academicYearId, schoolId);
+
+        // ✅ Sécurisation multi-tenant du flux global des paiements
         List<StudentPayment> payments = paymentRepository.findAll().stream()
-                .filter(p -> p.getAnnualProfile().getAcademicYear().getId().equals(academicYearId))
+                .filter(p -> p.getAnnualProfile() != null
+                        && p.getAnnualProfile().getAcademicYear() != null
+                        && p.getAnnualProfile().getAcademicYear().getId().equals(academicYearId)
+                        && p.getAnnualProfile().getAcademicYear().getSchool() != null
+                        && p.getAnnualProfile().getAcademicYear().getSchool().getId().equals(schoolId))
                 .toList();
-        List<Expense> expenses = expenseRepository.findByAcademicYearId(academicYearId);
+
+        // 🔄 CORRECTION : Utilisation de la méthode sécurisée et cloisonnée par établissement
+        List<Expense> expenses = expenseRepository.findByAcademicYearIdAndSchoolId(academicYearId, schoolId);
 
         // Sommes USD
         BigDecimal totalExpectedUsd = sumProfileAmount(profiles, Currency.USD, StudentAnnualFinancialProfile::getTotalAmountDue);
@@ -69,7 +80,7 @@ public class CashierDashboardServiceImpl implements CashierDashboardService {
                 .collect(Collectors.toList());
 
         return CashierDashboardDTO.builder()
-                .academicYearLabel(academicYear.getAnnee()) // Injection du nom de l'année
+                .academicYearLabel(academicYear.getAnnee())
                 .totalExpectedUsd(totalExpectedUsd)
                 .totalExpectedCdf(totalExpectedCdf)
                 .totalReceivedUsd(totalReceivedUsd)
@@ -95,7 +106,7 @@ public class CashierDashboardServiceImpl implements CashierDashboardService {
     }
 
     private List<CashierDashboardDTO.MonthlyFlowDTO> calculateMonthlyFlows(List<StudentPayment> payments, List<Expense> expenses) {
-        Map<Integer, CashierDashboardDTO.MonthlyFlowDTO> monthlyData = new TreeMap<>(); // TreeMap trie par mois (1-12)
+        Map<Integer, CashierDashboardDTO.MonthlyFlowDTO> monthlyData = new TreeMap<>();
 
         for (StudentPayment p : payments) {
             int monthVal = p.getPaymentDate().getMonthValue();
@@ -126,5 +137,4 @@ public class CashierDashboardServiceImpl implements CashierDashboardService {
         }
         return new ArrayList<>(monthlyData.values());
     }
-
 }

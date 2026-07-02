@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-
 public interface DetailsCashTransactionRepository extends JpaRepository<DetailsCashTransaction, Long> {
-    List<DetailsCashTransaction> findByAcademicYearOrderByTransactionDateDesc(String academicYear);
+    // ✅ Ajout de la clause de filtrage par identifiant d'établissement
+    List<DetailsCashTransaction> findByAcademicYearAndSchoolIdOrderByTransactionDateDesc(String academicYear, Long schoolId);
 }

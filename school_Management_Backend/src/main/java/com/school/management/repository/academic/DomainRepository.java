@@ -11,7 +11,8 @@ import java.util.List;
 @Repository
 public interface DomainRepository extends JpaRepository<Domain, Long> {
 
-    @Query("SELECT d FROM Domain d WHERE d.level.id = :levelId " +
+    // ✅ ADAPTATION MULTI-TENANT : Filtrage strict par schoolId lors de la récupération contextuelle
+    @Query("SELECT d FROM Domain d WHERE d.school.id = :schoolId AND d.level.id = :levelId " +
             "AND ((d.section IS NULL AND :sectionId IS NULL) OR (d.section.id = :sectionId)) " +
             "AND ((d.option IS NULL AND :optionId IS NULL) OR (d.option.id = :optionId)) " +
             "AND d.academicYear.id = :yearId ORDER BY d.orderIndex ASC")
@@ -19,9 +20,13 @@ public interface DomainRepository extends JpaRepository<Domain, Long> {
             @Param("levelId") Long levelId,
             @Param("sectionId") Long sectionId,
             @Param("optionId") Long optionId,
-            @Param("yearId") Long yearId
+            @Param("yearId") Long yearId,
+            @Param("schoolId") Long schoolId
     );
 
-    // Recherche des domaines exigeant une compétence spécifique
-    List<Domain> findByRequiredSpecialityId(Long specialityId);
+    // ✅ ADAPTATION MULTI-TENANT : Recherche cloisonnée par spécialité et établissement
+    List<Domain> findByRequiredSpecialityIdAndSchoolId(Long specialityId, Long schoolId);
+
+    // ✅ ADAPTATION MULTI-TENANT : Isolation de la liste globale
+    List<Domain> findAllBySchoolId(Long schoolId);
 }

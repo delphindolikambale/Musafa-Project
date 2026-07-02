@@ -1,9 +1,4 @@
-import axios from 'axios';
-
-// ✅ Détection automatique de l'environnement (Render ou Localhost)
-const API_URL = window.location.hostname.includes('onrender.com')
-  ? "https://musafa-projectbackend.onrender.com/api/v1/admin/school-config"
-  : "http://localhost:8080/api/v1/admin/school-config";
+import api from './api'; // ✅ MODIFICATION : Utilise l'instance centrale pour inclure dynamiquement la sécurité JWT et l'URL
 
 export const SchoolConfigService = {
   /**
@@ -11,7 +6,7 @@ export const SchoolConfigService = {
    */
   getConfig: async () => {
     try {
-      const response = await axios.get(API_URL);
+      const response = await api.get("/v1/admin/school-config");
       return response.data;
     } catch (error) {
       console.error("Erreur lors de la récupération de la configuration de l'école:", error);

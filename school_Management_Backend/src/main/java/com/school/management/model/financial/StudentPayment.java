@@ -1,6 +1,7 @@
 package com.school.management.model.financial;
 
 import com.school.management.model.enums.Currency;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -16,7 +17,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class StudentPayment {
 
     @Id
@@ -45,6 +45,11 @@ public class StudentPayment {
 
     // Champ d'audit pour savoir qui a perçu l'argent
     private String collectedBy;
+
+    // ✅ LIEN MULTI-TENANT : Chaque paiement est explicitement rattaché à une école
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @OneToMany(
             mappedBy = "studentPayment",

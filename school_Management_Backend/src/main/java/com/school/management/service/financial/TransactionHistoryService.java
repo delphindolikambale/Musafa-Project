@@ -7,9 +7,10 @@ import java.util.List;
 
 public interface TransactionHistoryService {
 
-    List<TransactionHistoryDTO> getAllHistory();
-    List<TransactionHistoryDTO> getHistoryByType(String type);
-    List<TransactionHistoryDTO> getTodayHistory(); // Nouveau
-    void logTransaction(String type, String label, BigDecimal amount, String currency, String ref, String user, Long sourceId);
-    void deleteHistory(Long id); // Nouveau
+    // ✅ Signature mise en conformité avec l'isolation multi-tenant
+    List<TransactionHistoryDTO> getAllHistory(Long schoolId);
+    List<TransactionHistoryDTO> getHistoryByType(String type, Long schoolId);
+    List<TransactionHistoryDTO> getTodayHistory(Long schoolId);
+    void logTransaction(String type, String label, BigDecimal amount, String currency, String ref, String user, Long sourceId, Long schoolId);
+    void deleteHistory(Long id, Long schoolId);
 }

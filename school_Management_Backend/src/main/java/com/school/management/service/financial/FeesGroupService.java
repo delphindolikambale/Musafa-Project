@@ -6,34 +6,11 @@ import com.school.management.dto.financial.FeesGroupResponseDTO;
 import java.util.List;
 
 public interface FeesGroupService {
-    /* =========================
-           CREATE
-           =========================
-           Création d’un FeesGroup (SCOLARITE / DIVERS)
-           pour une ANNÉE ACADÉMIQUE
-           ========================= */
-    FeesGroupResponseDTO create(FeesGroupCreateDTO dto);
-    // Nouvelles méthodes
-    FeesGroupResponseDTO update(Long id, FeesGroupCreateDTO dto);
-    void delete(Long id);
-
-    /* =========================
-       GET ALL (ADMIN / BACK-OFFICE)
-       ========================= */
-    List<FeesGroupResponseDTO> getAll();
-
-    /* =========================
-       GET BY ACADEMIC YEAR
-       ========================= */
-    List<FeesGroupResponseDTO> getByAcademicYear(Long academicYearId);
-
-    /* =========================
-       GET BY ID
-       ========================= */
-    FeesGroupResponseDTO getById(Long id);
-
-    /* =========================
-       DEACTIVATE
-       ========================= */
-    void deactivate(Long id);
+    FeesGroupResponseDTO create(FeesGroupCreateDTO dto, Long schoolId);
+    FeesGroupResponseDTO update(Long id, FeesGroupCreateDTO dto, Long schoolId);
+    void delete(Long id, Long schoolId);
+    List<FeesGroupResponseDTO> getAll(Long schoolId);
+    List<FeesGroupResponseDTO> getByAcademicYear(Long academicYearId, Long schoolId);
+    FeesGroupResponseDTO getById(Long id, Long schoolId);
+    void deactivate(Long id, Long schoolId);
 }

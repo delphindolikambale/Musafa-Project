@@ -25,6 +25,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.scheduling.annotation.Scheduled;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -47,8 +48,6 @@ public class SchoolServiceImpl implements SchoolService {
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder encoder;
-
-    // ✅ AJOUT : Injection du service d'envoi d'e-mail Spring Boot
     private final JavaMailSender mailSender;
 
     @Override
@@ -61,20 +60,19 @@ public class SchoolServiceImpl implements SchoolService {
             throw new IllegalStateException("Une école portant cette dénomination est déjà enregistrée.");
         }
 
-        // L'école démarre sans code d'activation tant qu'elle n'a pas payé l'abonnement
         School school = School.builder()
                 .name(dto.getName())
                 .code(dto.getCode().toUpperCase())
                 .province(dto.getProvince())
                 .city(dto.getCity())
                 .contactEmail(dto.getContactEmail())
-                .activationCode(null) // Devient généré uniquement après le paiement effectif
+                .activationCode(null)
                 .isActive(false)
                 .isSubscriptionActive(false)
                 .isSchoolConfigured(false)
                 .build();
 
-        School savedSchool = schoolRepository.save(school);
+        School savedSchool = schoolRepository.saveAndFlush(school);
 
         Subscription subscription = Subscription.builder()
                 .school(savedSchool)
@@ -84,7 +82,7 @@ public class SchoolServiceImpl implements SchoolService {
                 .maxStudentsAllowed(dto.getMaxStudentsAllowed())
                 .build();
 
-        subscriptionRepository.save(subscription);
+        subscriptionRepository.saveAndFlush(subscription);
 
         String defaultUsername = "admin_" + savedSchool.getCode().toLowerCase();
         String defaultPassword = "Admin@" + savedSchool.getCode().toUpperCase() + "2026!";
@@ -97,8 +95,8 @@ public class SchoolServiceImpl implements SchoolService {
                     .isAccountNonLocked(true)
                     .isEnabled(true)
                     .mustChangePassword(true)
-                    .defaultUsername(defaultUsername) // Stockage de sécurité pour la comparaison stricte
-                    .defaultPasswordHashed(encoder.encode(defaultPassword)) // Empreinte de référence
+                    .defaultUsername(defaultUsername)
+                    .defaultPasswordHashed(encoder.encode(defaultPassword))
                     .school(savedSchool)
                     .build();
 
@@ -108,13 +106,13 @@ public class SchoolServiceImpl implements SchoolService {
             roles.add(adminRole);
             schoolAdmin.setRoles(roles);
 
-            userRepository.save(schoolAdmin);
+            userRepository.saveAndFlush(schoolAdmin);
         }
 
         return mapToResponseDTO(savedSchool, subscription);
     }
 
-    // Nouvelle méthode métier appelée depuis l'interface d'enregistrement des Abonnements du SuperAdmin
+    @Override
     @Transactional
     public SchoolResponseDTO recordSubscriptionPayment(Long schoolId, LocalDate endDate, Double amount, String currencyStr) {
         School school = schoolRepository.findById(schoolId)
@@ -124,27 +122,26 @@ public class SchoolServiceImpl implements SchoolService {
                 .stream().findFirst()
                 .orElseThrow(() -> new ResourceNotFoundException("Aucun historique d'abonnement trouvé pour cette école."));
 
-        // Enregistrement des données financières réelles de l'abonnement
         sub.setPaymentDate(LocalDate.now());
         sub.setEndDate(endDate);
         sub.setAmount(amount);
         sub.setPaymentMode("CASH");
         sub.setCurrency(Currency.valueOf(currencyStr.toUpperCase()));
-        sub.setStatus(SubscriptionStatus.SUSPENDU); // Reste suspendu tant que l'école n'a pas tapé le code d'activation
+        sub.setStatus(SubscriptionStatus.SUSPENDU);
 
-        subscriptionRepository.save(sub);
+        subscriptionRepository.saveAndFlush(sub);
 
-        // Génération automatique et affectation de la clé secrète d'activation
+        // ✅ GÉNÉRATION ET SAUVEGARDE STRICTE DE LA CLÉ
         String generatedCode = "ACT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         school.setActivationCode(generatedCode);
-        schoolRepository.save(school);
+        school.setSubscriptionActive(false);
 
-        String defaultUsername = "admin_" + school.getCode().toLowerCase();
+        School updatedSchool = schoolRepository.saveAndFlush(school);
 
-        // ✅ ADAPTATION : Envoi réel de l'e-mail avec la clé d'activation
-        sendActivationEmail(school.getContactEmail(), school.getName(), generatedCode, defaultUsername);
+        String defaultUsername = "admin_" + updatedSchool.getCode().toLowerCase();
+        sendActivationEmail(updatedSchool.getContactEmail(), updatedSchool.getName(), generatedCode, defaultUsername);
 
-        return mapToResponseDTO(school, sub);
+        return mapToResponseDTO(updatedSchool, sub);
     }
 
     @Override
@@ -171,16 +168,16 @@ public class SchoolServiceImpl implements SchoolService {
         if (sub != null && !activate) {
             sub.setStatus(SubscriptionStatus.SUSPENDU);
             school.setSubscriptionActive(false);
-            subscriptionRepository.save(sub);
+            subscriptionRepository.saveAndFlush(sub);
         } else if (sub != null && activate && sub.getEndDate().isAfter(LocalDate.now())) {
             sub.setStatus(SubscriptionStatus.ACTIF);
             school.setSubscriptionActive(true);
-            subscriptionRepository.save(sub);
+            subscriptionRepository.saveAndFlush(sub);
         } else {
             school.setSubscriptionActive(false);
         }
 
-        School updated = schoolRepository.save(school);
+        School updated = schoolRepository.saveAndFlush(school);
         return mapToResponseDTO(updated, sub);
     }
 
@@ -204,18 +201,19 @@ public class SchoolServiceImpl implements SchoolService {
                 .maxStudentsAllowed(latestSub != null ? latestSub.getMaxStudentsAllowed() : 1000)
                 .build();
 
-        subscriptionRepository.save(newSubscription);
+        subscriptionRepository.saveAndFlush(newSubscription);
 
         String generatedCode = "ACT-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         school.setActivationCode(generatedCode);
         school.setActive(false);
         school.setSubscriptionActive(false);
-        schoolRepository.save(school);
 
-        String adminUsername = "admin_" + school.getCode().toLowerCase();
-        sendActivationEmail(school.getContactEmail(), school.getName(), generatedCode, adminUsername);
+        School updatedSchool = schoolRepository.saveAndFlush(school);
 
-        return mapToResponseDTO(school, newSubscription);
+        String adminUsername = "admin_" + updatedSchool.getCode().toLowerCase();
+        sendActivationEmail(updatedSchool.getContactEmail(), updatedSchool.getName(), generatedCode, adminUsername);
+
+        return mapToResponseDTO(updatedSchool, newSubscription);
     }
 
     @Override
@@ -230,14 +228,15 @@ public class SchoolServiceImpl implements SchoolService {
 
         school.setActive(true);
         school.setSubscriptionActive(true);
-        school.setActivationCode(null);
-        schoolRepository.save(school);
+        school.setSchoolConfigured(true); // ✅ DÉBLOQUE L'ADMIN DÉFINITIVEMENT
+        school.setActivationCode(null);   // ✅ DÉTRUIT LA CLÉ APRÈS USAGE
+        schoolRepository.saveAndFlush(school);
 
         Subscription sub = subscriptionRepository.findBySchoolIdOrderByEndDateDesc(school.getId())
                 .stream().findFirst().orElse(null);
         if (sub != null) {
             sub.setStatus(SubscriptionStatus.ACTIF);
-            subscriptionRepository.save(sub);
+            subscriptionRepository.saveAndFlush(sub);
         }
     }
 
@@ -248,7 +247,7 @@ public class SchoolServiceImpl implements SchoolService {
         if (school == null || !school.isActive()) {
             if (school != null && school.isSubscriptionActive()) {
                 school.setSubscriptionActive(false);
-                schoolRepository.save(school);
+                schoolRepository.saveAndFlush(school);
             }
             return false;
         }
@@ -258,7 +257,7 @@ public class SchoolServiceImpl implements SchoolService {
         if (sub == null || sub.getEndDate().isBefore(LocalDate.now())) {
             if (school.isSubscriptionActive()) {
                 school.setSubscriptionActive(false);
-                schoolRepository.save(school);
+                schoolRepository.saveAndFlush(school);
             }
             return false;
         }
@@ -267,10 +266,59 @@ public class SchoolServiceImpl implements SchoolService {
 
         if (school.isSubscriptionActive() != currentStatusActive) {
             school.setSubscriptionActive(currentStatusActive);
-            schoolRepository.save(school);
+            schoolRepository.saveAndFlush(school);
         }
 
         return currentStatusActive;
+    }
+
+    @Scheduled(cron = "0 0 7 * * ?")
+    @Transactional
+    public void runDailySubscriptionSecurityCheck() {
+        List<School> schools = schoolRepository.findAll();
+        LocalDate tomorrow = LocalDate.now().plusDays(1);
+
+        for (School school : schools) {
+            Subscription sub = subscriptionRepository.findBySchoolIdOrderByEndDateDesc(school.getId())
+                    .stream().findFirst().orElse(null);
+
+            if (sub != null && sub.getStatus() == SubscriptionStatus.ACTIF) {
+                if (sub.getEndDate().equals(tomorrow)) {
+                    sendExpirationWarningEmail(school.getContactEmail(), school.getName(), sub.getEndDate());
+                }
+
+                if (sub.getEndDate().isBefore(LocalDate.now()) || sub.getEndDate().equals(LocalDate.now())) {
+                    sub.setStatus(SubscriptionStatus.SUSPENDU);
+                    school.setSubscriptionActive(false);
+                    schoolRepository.saveAndFlush(school);
+                    subscriptionRepository.saveAndFlush(sub);
+                }
+            }
+        }
+    }
+
+    private void sendExpirationWarningEmail(String toEmail, String schoolName, LocalDate expirationDate) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setTo(toEmail);
+            helper.setSubject("⚠️ ALERTE ÉCHÉANCE : Abonnement MyAcademia expire dans 24 heures - " + schoolName);
+
+            String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; border: 1px solid #f5c6cb; border-radius: 8px; max-width: 600px; background-color: #f8d7da;'>"
+                    + "<h2 style='color: #721c24; text-align: center;'>⚠️ Rappel d'expiration d'abonnement</h2>"
+                    + "<p>Bonjour l'Administration de <strong>" + schoolName + "</strong>,</p>"
+                    + "<p>Nous vous informons que votre licence d'utilisation annuelle arrive à son terme demain, le <strong>" + expirationDate + "</strong>.</p>"
+                    + "<p>Pour éviter une coupure de service et la réapparition de la barrière de réactivation sur vos écrans de connexion, veuillez procéder au règlement auprès du Super Administrateur.</p>"
+                    + "<hr style='border: 0; border-top: 1px solid #f5c6cb;'/>"
+                    + "<p style='font-size: 11px; color: #721c24; text-align: center;'>Ceci est une notification système automatique. Ne pas répondre.</p>"
+                    + "</div>";
+
+            helper.setText(htmlContent, true);
+            mailSender.send(message);
+        } catch (Exception e) {
+            System.err.println("[CRON SMTP ERROR] Échec de l'envoi de l'alerte d'échéance à : " + toEmail);
+        }
     }
 
     @Override
@@ -299,7 +347,18 @@ public class SchoolServiceImpl implements SchoolService {
         return settingsRepository.save(settings);
     }
 
+    // ✅ LA SOLUTION MAGIQUE EST ICI : On restaure l'intelligence du DTO !
     private SchoolResponseDTO mapToResponseDTO(School school, Subscription sub) {
+        String statusStr = "AUCUN";
+        if (sub != null) {
+            statusStr = sub.getStatus().name();
+            // Si la BDD contient un code d'activation pour cette école, c'est que le SuperAdmin a encaissé l'argent.
+            // On force le statut DTO à "EN_ATTENTE_ACTIVATION" pour déclencher l'affichage frontend vert/jaune !
+            if (school.getActivationCode() != null && !school.getActivationCode().isEmpty()) {
+                statusStr = "EN_ATTENTE_ACTIVATION";
+            }
+        }
+
         return SchoolResponseDTO.builder()
                 .id(school.getId())
                 .name(school.getName())
@@ -308,46 +367,41 @@ public class SchoolServiceImpl implements SchoolService {
                 .city(school.getCity())
                 .isActive(school.isActive())
                 .subscriptionEndDate(sub != null ? sub.getEndDate() : null)
-                .currentSubscriptionStatus(sub != null ? sub.getStatus().name() : "AUCUN")
+                .currentSubscriptionStatus(statusStr)
                 .contactEmail(school.getContactEmail())
                 .activationCode(school.getActivationCode())
                 .build();
     }
 
-    // ✅ ADAPTATION : Remplacement du log console par un véritable envoi d'e-mail HTML formaté
-    private void sendActivationEmail(String toEmail, String schoolName, String licenseCode, String username) {
+    private void sendActivationEmail(String toEmail, String schoolName, String activationCode, String username) {
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
 
             helper.setTo(toEmail);
-            helper.setSubject("🔑 Clé de Licence et Activation - " + schoolName);
+            helper.setSubject("🚀 ACTIVATION : Clé de licence MyAcademia - " + schoolName);
 
-            String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px; max-width: 600px;'>"
-                    + "<h2 style='color: #0056b3; text-align: center;'>Félicitations ! Votre paiement a été validé.</h2>"
+            String htmlContent = "<div style='font-family: Arial, sans-serif; padding: 20px; border: 1px solid #c3e6cb; border-radius: 8px; max-width: 600px; background-color: #d4edda;'>"
+                    + "<h2 style='color: #155724; text-align: center;'>🚀 Bienvenue sur MyAcademia !</h2>"
                     + "<p>Bonjour l'Administration de <strong>" + schoolName + "</strong>,</p>"
-                    + "<p>Le Super Administrateur de la plateforme vient d'enregistrer la réception des frais d'activation de votre abonnement.</p>"
-                    + "<hr style='border: 0; border-top: 1px solid #eee;'/>"
-                    + "<h3 style='color: #333;'>Vos Identifiants Provisoires d'Accès :</h3>"
-                    + "<p><strong>Nom d'utilisateur Admin :</strong> <span style='background: #f4f4f4; padding: 3px 8px; border-radius: 4px; font-family: monospace;'>" + username + "</span></p>"
-                    + "<p style='color: #666; font-size: 13px;'>*Le mot de passe par défaut a été transmis lors de la création de l'école.*</p>"
-                    + "<div style='background-color: #e8f4fd; border: 1px solid #b8daff; padding: 15px; text-align: center; border-radius: 6px; margin: 20px 0;'>"
-                    + "<h4 style='margin: 0 0 10px 0; color: #004085;'>VOTRE CLÉ SECRÈTE D'ACTIVATION UNIQUE :</h4>"
-                    + "<span style='font-size: 24px; font-weight: bold; color: #721c24; letter-spacing: 2px; font-family: monospace;'>" + licenseCode + "</span>"
+                    + "<p>Le paiement de votre abonnement a été enregistré avec succès par le Super Administrateur.</p>"
+                    + "<p>Voici vos identifiants de connexion initiaux pour accéder à votre espace :</p>"
+                    + "<ul>"
+                    + "<li><strong>Nom d'utilisateur :</strong> " + username + "</li>"
+                    + "<li><em>Le mot de passe initial vous a été communiqué de manière sécurisée par le gestionnaire de la plateforme.</em></li>"
+                    + "</ul>"
+                    + "<p>Pour débloquer définitivement les accès et finaliser la configuration de votre établissement, veuillez utiliser la clé de licence unique ci-dessous :</p>"
+                    + "<div style='text-align: center; margin: 20px 0; padding: 15px; background-color: #ffffff; border: 2px dashed #28a745; border-radius: 4px;'>"
+                    + "<span style='font-size: 20px; font-weight: bold; color: #28a745; letter-spacing: 2px;'>" + activationCode + "</span>"
                     + "</div>"
-                    + "<p style='font-size: 13px; color: #ffc107; font-weight: bold;'>⚠️ Attention : Ce code d'activation est à usage unique. Il vous sera demandé lors de votre connexion pour débloquer votre espace de travail.</p>"
-                    + "<hr style='border: 0; border-top: 1px solid #eee;'/>"
-                    + "<p style='font-size: 11px; color: #777; text-align: center;'>Ceci est un message automatique du serveur central de gestion multitenant. Ne pas répondre.</p>"
+                    + "<hr style='border: 0; border-top: 1px solid #c3e6cb;'/>"
+                    + "<p style='font-size: 11px; color: #155724; text-align: center;'>Ceci est une notification système automatique. Ne pas répondre.</p>"
                     + "</div>";
 
             helper.setText(htmlContent, true);
-
             mailSender.send(message);
-            System.out.println("[SMTP SUCCESS] Le mail d'activation a été envoyé avec succès à : " + toEmail);
-
         } catch (Exception e) {
-            System.err.println("[SMTP ERROR] Échec critique de l'envoi du mail d'activation à " + toEmail);
-            e.printStackTrace();
+            System.err.println("[SMTP ERROR] Échec de l'envoi de l'e-mail d'activation à : " + toEmail);
         }
     }
 }

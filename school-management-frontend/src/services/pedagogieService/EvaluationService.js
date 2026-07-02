@@ -1,59 +1,52 @@
-import axios from 'axios';
-import { BACKEND_BASE } from '../api';
+import api from '../api'; // ✅ MODIFICATION : Utilisation de l'instance centralisée
 
-const API_BASE_URL = BACKEND_BASE;
-const API_EVAL = `${API_BASE_URL}/api/v1/evaluations`;
-const API_MARKS = `${API_BASE_URL}/api/v1/marks`;
-const API_TA = `${API_BASE_URL}/api/teacher-assignments`;
-
-const getHeader = () => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    return user && user.accessToken ? { Authorization: 'Bearer ' + user.accessToken } : {};
-};
+const API_EVAL = '/v1/evaluations'; // ✅ Les préfixes /api obsolètes sont gérés par l'instance centrale
+const API_MARKS = '/v1/marks';
+const API_TA = '/teacher-assignments';
 
 const EvaluationService = {
     saveEvaluation: async (dto) => {
-        const response = await axios.post(`${API_EVAL}/save-marks`, dto, { headers: getHeader() });
+        const response = await api.post(`${API_EVAL}/save-marks`, dto);
         return response.data;
     },
 
     getEvaluationsByAssignment: async (taId, period) => {
-        const response = await axios.get(`${API_EVAL}/assignment/${taId}/period/${period}`, { headers: getHeader() });
+        const response = await api.get(`${API_EVAL}/assignment/${taId}/period/${period}`);
         return response.data;
     },
 
     getCurrentSum: async (taId, period) => {
-        const response = await axios.get(`${API_EVAL}/current-sum/${taId}/${period}`, { headers: getHeader() });
+        const response = await api.get(`${API_EVAL}/current-sum/${taId}/${period}`);
         return response.data;
     },
 
     updateMark: async (markId, value) => {
-        const response = await axios.put(`${API_MARKS}/${markId}?value=${value}`, {}, { headers: getHeader() });
+        const response = await api.put(`${API_MARKS}/${markId}?value=${value}`, {});
         return response.data;
     },
 
     getMarksByEvaluationTask: async (taskId) => {
-        const response = await axios.get(`${API_MARKS}/evaluation/${taskId}`, { headers: getHeader() });
+        const response = await api.get(`${API_MARKS}/evaluation/${taskId}`);
         return response.data;
     },
 
     submitForVisa: async (teacherAssignmentId, period) => {
-        const response = await axios.post(`${API_EVAL}/assignment/${teacherAssignmentId}/period/${period}/submit`, {}, { headers: getHeader() });
+        const response = await api.post(`${API_EVAL}/assignment/${teacherAssignmentId}/period/${period}/submit`, {});
         return response.data;
     },
 
     getVisaStatus: async (teacherAssignmentId, period) => {
-        const response = await axios.get(`${API_EVAL}/assignment/${teacherAssignmentId}/period/${period}/visa-status`, { headers: getHeader() });
+        const response = await api.get(`${API_EVAL}/assignment/${teacherAssignmentId}/period/${period}/visa-status`);
         return response.data;
     },
 
     getTeacherAssignmentById: async (taId) => {
-        const response = await axios.get(`${API_TA}/${taId}`, { headers: getHeader() });
+        const response = await api.get(`${API_TA}/${taId}`);
         return response.data;
     },
 
     getAssignmentConfig: async (taId) => {
-        const response = await axios.get(`${API_EVAL}/assignment/${taId}/config`, { headers: getHeader() });
+        const response = await api.get(`${API_EVAL}/assignment/${taId}/config`);
         return response.data;
     }
 };

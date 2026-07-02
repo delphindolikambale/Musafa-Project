@@ -5,6 +5,9 @@ import com.school.management.dto.academic.BulletinHeaderResponseDTO;
 import com.school.management.model.academic.BulletinHeader;
 import com.school.management.repository.academic.BulletinHeaderRepository;
 import com.school.management.service.academic.BulletinHeaderService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,15 +27,34 @@ public class BulletinHeaderServiceImpl implements BulletinHeaderService {
 
     private final BulletinHeaderRepository repository;
 
-    // 🔥 CORRECTION : Utilisation du dossier "storage" pour harmoniser avec votre WebConfig
+    // Utilisation du dossier "storage" pour harmoniser avec votre WebConfig
     private final String UPLOAD_DIR = "storage/bulletin-headers/";
+
+    /**
+     * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SÉCURISÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est relié à aucun établissement.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
 
     @Override
     @Transactional(readOnly = true)
     public BulletinHeaderResponseDTO getBulletinHeader() {
-        return repository.findFirstByOrderByIdAsc()
+        // ✅ MULTI-TENANT : Recherche cloisonnée par ID d'établissement
+        return repository.findBySchoolId(getCurrentSchoolId())
                 .map(this::mapToResponseDTO)
-                .orElse(null); // Retourne null si l'admin n'a pas encore configuré l'en-tête
+                .orElse(null); // Retourne null si l'admin n'a pas encore configuré l'en-tête de cette école
     }
 
     @Override
@@ -42,8 +64,8 @@ public class BulletinHeaderServiceImpl implements BulletinHeaderService {
             MultipartFile ministryLogo,
             MultipartFile watermarkLogo) {
 
-        // On cherche s'il existe déjà une configuration pour la mettre à jour, sinon on en crée une nouvelle
-        BulletinHeader header = repository.findFirstByOrderByIdAsc().orElse(new BulletinHeader());
+        // ✅ MULTI-TENANT : Recherche de la configuration existante de l'école ou création dédiée
+        BulletinHeader header = repository.findBySchoolId(getCurrentSchoolId()).orElse(new BulletinHeader());
 
         header.setCountry(requestDTO.getCountry());
         header.setMinistry(requestDTO.getMinistry());
@@ -52,6 +74,7 @@ public class BulletinHeaderServiceImpl implements BulletinHeaderService {
         header.setCommuneTerritory(requestDTO.getCommuneTerritory());
         header.setSchoolName(requestDTO.getSchoolName());
         header.setSchoolCode(requestDTO.getSchoolCode());
+        header.setSchool(getCurrentUser().getSchool()); // ✅ MULTI-TENANT : Liaison obligatoire avec l'école courante
 
         // Gestion de l'upload des images
         if (flagImage != null && !flagImage.isEmpty()) {
@@ -76,8 +99,8 @@ public class BulletinHeaderServiceImpl implements BulletinHeaderService {
                 Files.createDirectories(uploadPath);
             }
 
-            // Génération d'un nom unique pour éviter les conflits d'écrasement
-            String fileName = prefix + UUID.randomUUID() + "_" + file.getOriginalFilename();
+            // Génération d'un nom unique pour éviter les conflits d'écrasement inter-écoles
+            String fileName = prefix + getCurrentSchoolId() + "_" + UUID.randomUUID() + "_" + file.getOriginalFilename();
             Path filePath = uploadPath.resolve(fileName);
             Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 

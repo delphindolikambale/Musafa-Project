@@ -1,7 +1,4 @@
-import axios from 'axios';
-import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
-
-const API_BASE_URL = `${BACKEND_BASE}/api`; // ✅ Rendu dynamique
+import api from './api'; // ✅ MODIFICATION : Utilisation de l'instance centrale pour injecter automatiquement le Token JWT
 
 export const RecouvrementFraisService = {
     /**
@@ -9,9 +6,7 @@ export const RecouvrementFraisService = {
      */
     getClassrooms: async () => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/classrooms`, {
-                withCredentials: true
-            });
+            const response = await api.get('/classrooms');
             return response.data;
         } catch (error) {
             console.error("Erreur lors de la récupération des classes:", error);
@@ -24,9 +19,7 @@ export const RecouvrementFraisService = {
      */
     getSituationRecouvrement: async (classId, trancheValue) => {
         try {
-            const response = await axios.get(`${API_BASE_URL}/v1/annual-profiles/classroom/${classId}`, {
-                withCredentials: true
-            });
+            const response = await api.get(`/v1/annual-profiles/classroom/${classId}`);
 
             const profilesData = response.data;
             let availableInstallments = [];

@@ -7,6 +7,9 @@ import com.school.management.model.enums.VisaStatus;
 import com.school.management.repository.academic.PeriodValidationRepository;
 import com.school.management.repository.academic.StudentMarkRepository;
 import com.school.management.service.academic.StudentMarkService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,7 +23,25 @@ import java.util.stream.Collectors;
 public class StudentMarkServiceImpl implements StudentMarkService {
 
     private final StudentMarkRepository markRepository;
-    private final PeriodValidationRepository validationRepository; // AJOUT : Nécessaire pour vérifier la sécurité
+    private final PeriodValidationRepository validationRepository;
+
+    /**
+     * ✅ EXTRACTION DES COMPTES PAR TENANT CONNECTÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est rattaché à aucun établissement scolaire active.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
 
     @Override
     @Transactional
@@ -28,11 +49,17 @@ public class StudentMarkServiceImpl implements StudentMarkService {
         StudentMark mark = markRepository.findById(markId)
                 .orElseThrow(() -> new RuntimeException("Note non trouvée"));
 
+        // ✅ BARRIÈRE CRITIQUE SÉCURITÉ MULTI-TENANT
+        if (!mark.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Modification non autorisée : Cette note provient d'un autre établissement.");
+        }
+
         // SECURITE : Vérifier si la Fiche de notes de la période est déjà soumise
         int period = mark.getEvaluationTask().getPeriod();
         Long taId = mark.getEvaluationTask().getTeacherAssignment().getId();
 
-        Optional<PeriodValidation> validation = validationRepository.findByTeacherAssignmentIdAndPeriod(taId, period);
+        // ✅ CORRECTION MULTI-TENANT : Passage du schoolId pour correspondre à la signature du Repository
+        Optional<PeriodValidation> validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, getCurrentSchoolId());
         if (validation.isPresent() && validation.get().getStatus() != VisaStatus.DRAFT) {
             throw new RuntimeException("Modification impossible : La Fiche de notes de cette période est déjà verrouillée et soumise au Proviseur.");
         }
@@ -48,7 +75,8 @@ public class StudentMarkServiceImpl implements StudentMarkService {
 
     @Override
     public List<StudentMarkDTO> getMarksByEvaluation(Long evaluationTaskId) {
-        return markRepository.findByEvaluationTaskId(evaluationTaskId).stream()
+        // ✅ PROTECTION DU FLUX LECTURE SUR LE PERIMÈTRE DE L'ÉCOLE ACTIVE
+        return markRepository.findByEvaluationTaskIdAndSchoolId(evaluationTaskId, getCurrentSchoolId()).stream()
                 .map(m -> {
                     StudentMarkDTO dto = new StudentMarkDTO();
                     dto.setStudentId(m.getStudent().getId());
@@ -59,7 +87,8 @@ public class StudentMarkServiceImpl implements StudentMarkService {
 
     @Override
     public List<StudentMarkDTO> getStudentMarksForAssignment(Long studentId, Long taId) {
-        return markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentId(studentId, taId).stream()
+        // ✅ PROTECTION DU FLUX LECTURE SUR LE PERIMÈTRE DE L'ÉCOLE ACTIVE
+        return markRepository.findByStudentIdAndEvaluationTaskTeacherAssignmentIdAndSchoolId(studentId, taId, getCurrentSchoolId()).stream()
                 .map(m -> {
                     StudentMarkDTO dto = new StudentMarkDTO();
                     dto.setStudentId(m.getStudent().getId());

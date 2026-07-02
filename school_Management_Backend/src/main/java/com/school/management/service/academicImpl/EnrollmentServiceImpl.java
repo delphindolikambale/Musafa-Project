@@ -10,15 +10,16 @@ import com.school.management.dto.financial.StudentFinancialAccountResponseDTO;
 import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.academic.*;
 import com.school.management.model.financial.ScheduleFees;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.*;
 import com.school.management.repository.financial.ScheduleFeesRepository;
+import com.school.management.security.services.UserDetailsImpl;
 import com.school.management.service.academic.EnrollmentService;
-
 import com.school.management.service.financial.StudentAnnualFinancialProfileService;
 import com.school.management.service.financial.StudentFinancialAccountService;
 import com.school.management.service.financialImpl.NotificationService;
 import org.springframework.http.HttpStatus;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -36,12 +37,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
-/**
- * Implémentation du service d'inscription.
- * Gère la logique métier des inscriptions et la génération du matricule unique MUSAFA.
- */
-@Service
 
+@Service
 public class EnrollmentServiceImpl implements EnrollmentService {
     private final EnrollmentRepository enrollmentRepository;
     private final StudentRepository studentRepository;
@@ -83,14 +80,27 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
     }
 
+    /**
+     * Extrait l'ID de l'établissement lié à la session utilisateur courante
+     */
+    private Long getCurrentSchoolId() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (userDetails.getSchool() == null) {
+            throw new IllegalStateException("❌ Configuration requise : Votre compte n'est rattaché à aucun établissement.");
+        }
+        return userDetails.getSchool().getId();
+    }
+
     @Override
     @Transactional(readOnly = true)
     public List<EnrollmentResponseDTO> getAllEnrollments(Long academicYearId) {
+        Long schoolId = getCurrentSchoolId();
         List<Enrollment> enrollments;
+
         if (academicYearId != null) {
-            enrollments = enrollmentRepository.findByAcademicYearId(academicYearId);
+            enrollments = enrollmentRepository.findByAcademicYearIdAndSchoolId(academicYearId, schoolId);
         } else {
-            enrollments = enrollmentRepository.findAll();
+            enrollments = enrollmentRepository.findBySchoolId(schoolId);
         }
         return enrollments.stream().map(this::mapToResponseDTO).collect(Collectors.toList());
     }
@@ -98,6 +108,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Transactional
     public EnrollmentResponseDTO createEnrollment(EnrollmentRequestDTO dto) {
+        Long schoolId = getCurrentSchoolId();
+
         Student student = studentRepository.findById(dto.getStudentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Élève non trouvé"));
         AcademicYear year = academicYearRepository.findById(dto.getAcademicYearId())
@@ -105,20 +117,22 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Classroom classroom = classroomRepository.findById(dto.getClassroomId())
                 .orElseThrow(() -> new ResourceNotFoundException("Classe non trouvée"));
 
-        validateClassroomCapacity(classroom, year.getId());
+        validateClassroomCapacity(classroom, year.getId(), schoolId);
 
-        if (enrollmentRepository.existsByStudentIdAndAcademicYearId(student.getId(), year.getId())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "❌ Cet élève est déjà inscrit pour cette année académique.");
+        if (enrollmentRepository.existsByStudentIdAndAcademicYearIdAndSchoolId(student.getId(), year.getId(), schoolId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "❌ Cet élève est déjà inscrit pour cette année académique dans votre établissement.");
         }
 
+        @SuppressWarnings("static-access")
         Enrollment enrollment = Enrollment.builder()
                 .student(student)
                 .academicYear(year)
                 .classroom(classroom)
+                .school(School.builder().id(schoolId).build()) // ✅ Affectation de l'école (Tenant isolation)
                 .enrollmentType(dto.getEnrollmentType())
                 .active(true)
                 .enrollmentDate(LocalDate.now())
-                .enrollmentNumber(generateEnrollmentNumber(dto.getEnrollmentType().name(), year.getId()))
+                .enrollmentNumber(generateEnrollmentNumber(dto.getEnrollmentType().name(), year.getId(), schoolId))
                 .documents(new ArrayList<>())
                 .build();
 
@@ -134,22 +148,29 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             studentRepository.save(student);
         }
 
+        // ✅ Passage de l'argument 'schoolId' requis
         StudentFinancialAccountResponseDTO account = financialAccountService.create(
-                StudentFinancialAccountCreateDTO.builder().studentId(student.getId()).build()
+                StudentFinancialAccountCreateDTO.builder().studentId(student.getId()).build(),
+                schoolId
         );
 
-        ScheduleFees schedule = scheduleFeesRepository.findByLevelIdAndOptionIdAndAcademicYearId(
+        // ✅ Utilisation du barème isolé de l'école adapté à l'étape précédente
+        ScheduleFees schedule = scheduleFeesRepository.findByLevelIdAndOptionIdAndAcademicYearIdAndSchoolId(
                 classroom.getLevel().getId(),
                 (classroom.getOption() != null ? classroom.getOption().getId() : null),
-                year.getId()
+                year.getId(),
+                schoolId
         ).orElseThrow(() -> new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
-                "❌ Aucun barème configuré pour la classe " + classroom.getDisplayName()));
+                "❌ Aucun barème configuré pour la classe " + classroom.getDisplayName() + " dans votre établissement."));
 
+        // ✅ Passage du second paramètre 'schoolId' requis par l'interface StudentAnnualFinancialProfileService
         financialProfileService.create(StudentAnnualFinancialProfileCreateDTO.builder()
-                .financialAccountId(account.getId())
-                .enrollmentId(savedEnrollment.getId())
-                .scheduleFeesId(schedule.getId())
-                .build());
+                        .financialAccountId(account.getId())
+                        .enrollmentId(savedEnrollment.getId())
+                        .scheduleFeesId(schedule.getId())
+                        .build(),
+                schoolId
+        );
 
         String fullName = student.getLastName() + " " + (student.getPostName() != null ? student.getPostName() + " " : "") + student.getFirstName();
 
@@ -162,7 +183,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
                 .message("Nouvelle inscription effectuée.")
                 .build();
 
-        notificationService.sendEnrollmentNotification(notifDto);
+        // ✅ CORRECTION : Ajout du second argument 'schoolId' requis par la méthode de NotificationService
+        notificationService.sendEnrollmentNotification(notifDto, schoolId);
 
         return mapToResponseDTO(savedEnrollment);
     }
@@ -170,14 +192,16 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Transactional
     public EnrollmentResponseDTO updateEnrollment(Long id, EnrollmentRequestDTO dto) {
-        Enrollment enrollment = enrollmentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Inscription introuvable"));
+        Long schoolId = getCurrentSchoolId();
+
+        Enrollment enrollment = enrollmentRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inscription introuvable dans votre établissement."));
 
         Classroom newClassroom = classroomRepository.findById(dto.getClassroomId())
                 .orElseThrow(() -> new ResourceNotFoundException("La classe spécifiée n'existe pas"));
 
         if (!enrollment.getClassroom().getId().equals(newClassroom.getId())) {
-            validateClassroomCapacity(newClassroom, enrollment.getAcademicYear().getId());
+            validateClassroomCapacity(newClassroom, enrollment.getAcademicYear().getId(), schoolId);
         }
 
         if (dto.getFiles() != null && !dto.getFiles().isEmpty()) {
@@ -227,6 +251,11 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Transactional
     public void deleteDocument(Long enrollmentId, Long documentId) {
+        Long schoolId = getCurrentSchoolId();
+        // Vérifie d'abord que l'inscription appartient bien au tenant connecté
+        enrollmentRepository.findByIdAndSchoolId(enrollmentId, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inscription introuvable dans votre établissement."));
+
         StudentDocument doc = studentDocumentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document introuvable"));
         try {
@@ -237,8 +266,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         studentDocumentRepository.delete(doc);
     }
 
-    private void validateClassroomCapacity(Classroom classroom, Long academicYearId) {
-        long currentStudents = enrollmentRepository.countByClassroomIdAndAcademicYearIdAndActiveTrue(classroom.getId(), academicYearId);
+    private void validateClassroomCapacity(Classroom classroom, Long academicYearId, Long schoolId) {
+        long currentStudents = enrollmentRepository.countByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(classroom.getId(), academicYearId, schoolId);
         int maxCapacity = (classroom.getRoom() != null) ? classroom.getRoom().getCapacity() : 0;
 
         if (maxCapacity > 0 && currentStudents >= maxCapacity) {
@@ -247,8 +276,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         }
     }
 
-    private String generateEnrollmentNumber(String type, Long academicYearId) {
-        long count = enrollmentRepository.countByAcademicYearId(academicYearId);
+    private String generateEnrollmentNumber(String type, Long academicYearId, Long schoolId) {
+        long count = enrollmentRepository.countByAcademicYearIdAndSchoolId(academicYearId, schoolId);
         String prefix = type.equalsIgnoreCase("REINSCRIPTION") ? "R" : "N";
         return String.format("INS-%d-%03d-%s", academicYearId, count + 1, prefix);
     }
@@ -256,7 +285,8 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Transactional(readOnly = true)
     public List<EnrollmentResponseDTO> getEnrollmentsByClassroomAndAcademicYear(Long classroomId, Long academicYearId) {
-        return enrollmentRepository.findByClassroomIdAndAcademicYearIdAndActiveTrue(classroomId, academicYearId)
+        Long schoolId = getCurrentSchoolId();
+        return enrollmentRepository.findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(classroomId, academicYearId, schoolId)
                 .stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
@@ -265,8 +295,9 @@ public class EnrollmentServiceImpl implements EnrollmentService {
     @Override
     @Transactional
     public void deleteEnrollment(Long id) {
-        Enrollment enrollment = enrollmentRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Inscription introuvable"));
+        Long schoolId = getCurrentSchoolId();
+        Enrollment enrollment = enrollmentRepository.findByIdAndSchoolId(id, schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("Inscription introuvable dans votre établissement."));
         enrollmentRepository.delete(enrollment);
     }
 
@@ -274,8 +305,9 @@ public class EnrollmentServiceImpl implements EnrollmentService {
         Student student = enrollment.getStudent();
         Classroom classroom = enrollment.getClassroom();
         Long yearId = enrollment.getAcademicYear().getId();
+        Long schoolId = enrollment.getSchool().getId();
 
-        long currentCount = enrollmentRepository.countByClassroomIdAndAcademicYearIdAndActiveTrue(classroom.getId(), yearId);
+        long currentCount = enrollmentRepository.countByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(classroom.getId(), yearId, schoolId);
         int capacity = (classroom.getRoom() != null) ? classroom.getRoom().getCapacity() : 0;
 
         List<DocumentDTO> documentDTOs = enrollment.getDocuments().stream()
@@ -289,7 +321,7 @@ public class EnrollmentServiceImpl implements EnrollmentService {
 
         return EnrollmentResponseDTO.builder()
                 .id(enrollment.getId())
-                .studentId(student.getId()) // CORRECTION CRUCIALE : Expose l'ID unique de l'élève
+                .studentId(student.getId())
                 .studentFullName(student.getLastName() + " " + (student.getPostName() != null ? student.getPostName() + " " : "") + student.getFirstName())
                 .matricule(student.getMatricule())
                 .gender(student.getGender() != null ? student.getGender().name() : "N/A")

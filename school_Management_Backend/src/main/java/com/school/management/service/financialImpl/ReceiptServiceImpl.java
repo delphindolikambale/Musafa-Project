@@ -1,6 +1,5 @@
 package com.school.management.service.financialImpl;
 
-import com.itextpdf.layout.element.*;
 import com.school.management.dto.financial.StudentReceiptDTO;
 import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.admin.SchoolConfiguration;
@@ -24,19 +23,23 @@ public class ReceiptServiceImpl implements ReceiptService {
 
     @Override
     @Transactional(readOnly = true)
-    public StudentReceiptDTO getReceiptData(Long paymentId) {
+    public StudentReceiptDTO getReceiptData(Long paymentId, Long schoolId) {
+        // ✅ Vérification d'appartenance du paiement à l'école connectée
         StudentPayment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Paiement introuvable"));
+                .filter(p -> p.getAnnualProfile() != null
+                        && p.getAnnualProfile().getAcademicYear() != null
+                        && p.getAnnualProfile().getAcademicYear().getSchool() != null
+                        && p.getAnnualProfile().getAcademicYear().getSchool().getId().equals(schoolId))
+                .orElseThrow(() -> new ResourceNotFoundException("Paiement introuvable ou accès non autorisé."));
 
-        SchoolConfiguration config = configRepository.findFirstByOrderByIdAsc()
-                .orElseThrow(() -> new IllegalStateException("Configuration école manquante"));
+        // ✅ Récupération de la configuration propre à cette école (findBySchoolId assumé dans le repository)
+        SchoolConfiguration config = configRepository.findBySchoolId(schoolId)
+                .orElseThrow(() -> new IllegalStateException("Configuration spécifique manquante pour cet établissement"));
 
         StudentAnnualFinancialProfile profile = payment.getAnnualProfile();
         DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("HH:mm");
 
-        // --- LOGIQUE D'ADAPTATION DU MOTIF ---
-        // On vérifie si l'un des breakdowns appartient au groupe "SCOLARITE"
         boolean hasScolarite = payment.getBreakdowns().stream()
                 .anyMatch(b -> "SCOLARITE".equalsIgnoreCase(b.getFeesGroupName()));
 
@@ -44,7 +47,6 @@ public class ReceiptServiceImpl implements ReceiptService {
         if (hasScolarite) {
             motifPaiement = "Frais Scolaires";
         } else if (!payment.getBreakdowns().isEmpty()) {
-            // Si c'est uniquement des frais divers, on affiche "Frais divers" ou le nom du premier item
             motifPaiement = "Frais divers (" + payment.getBreakdowns().get(0).getFeesItemName() + ")";
         } else {
             motifPaiement = "Paiement frais scolaires";
@@ -76,5 +78,7 @@ public class ReceiptServiceImpl implements ReceiptService {
     }
 
     @Override
-    public byte[] generateReceiptPdf(Long paymentId) { return new byte[0]; }
+    public byte[] generateReceiptPdf(Long paymentId, Long schoolId) {
+        return new byte[0];
+    }
 }

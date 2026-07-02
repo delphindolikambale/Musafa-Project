@@ -7,15 +7,16 @@ import com.school.management.model.academic.Option;
 import java.util.List;
 
 public interface OptionService {
-    Option create(OptionRequestDTO dto);
+    // ✅ ADAPTATION : Reçoit désormais Long schoolId pour s'aligner sur le contrôleur
+    Option create(OptionRequestDTO dto, Long schoolId);
 
-    List<Option> getAll();
-    Option getById(Long id);
+    List<Option> getAll(Long schoolId);
 
-    // ✅ Ajoutez cette ligne :
-    List<Option> getBySection(Long sectionId);
+    Option getById(Long id, Long schoolId);
 
-    OptionDTO update(Long id, OptionRequestDTO dto); // Retourne un DTO pour le Controller
-    void delete(Long id);
+    List<Option> getBySection(Long sectionId, Long schoolId);
 
+    OptionDTO update(Long id, OptionRequestDTO dto, Long schoolId);
+
+    void delete(Long id, Long schoolId);
 }

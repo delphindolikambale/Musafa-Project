@@ -22,12 +22,24 @@ public class SystemAdminController {
 
     private final SchoolServiceImpl schoolService;
 
+    // ✅ NOUVEAU : Endpoint public pour charger la liste des écoles à l'inscription
+    @GetMapping("/public/schools")
+    public ResponseEntity<List<Map<String, Object>>> getPublicSchools() {
+        List<Map<String, Object>> publicSchools = schoolService.getAllSchools().stream()
+                .filter(SchoolResponseDTO::isActive) // On ne garde que les écoles actives
+                .map(school -> Map.of(
+                        "id", (Object) school.getId(),
+                        "name", (Object) school.getName()
+                ))
+                .toList();
+        return ResponseEntity.ok(publicSchools);
+    }
+
     @PostMapping("/schools")
     public ResponseEntity<SchoolResponseDTO> createSchool(@Valid @RequestBody SchoolCreateDTO dto) {
         return ResponseEntity.ok(schoolService.registerNewSchool(dto));
     }
 
-    // ✅ NOUVEAU : Endpoint appelé lors de l'enregistrement du paiement Cash dans l'interface Abonnement
     @PostMapping("/schools/{id}/pay-subscription")
     public ResponseEntity<SchoolResponseDTO> collectSubscriptionPayment(
             @PathVariable Long id,
@@ -35,7 +47,7 @@ public class SystemAdminController {
 
         LocalDate endDate = LocalDate.parse(paymentPayload.get("endDate").toString());
         Double amount = Double.valueOf(paymentPayload.get("amount").toString());
-        String currency = paymentPayload.get("currency").toString(); // Ex: "USD" ou "CDF"
+        String currency = paymentPayload.get("currency").toString();
 
         return ResponseEntity.ok(schoolService.recordSubscriptionPayment(id, endDate, amount, currency));
     }

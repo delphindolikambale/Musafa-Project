@@ -4,6 +4,7 @@ import com.school.management.exception.ResourceNotFoundException;
 import com.school.management.model.academic.Student;
 import com.school.management.model.auth.User;
 import com.school.management.model.enums.StudentStatus;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.StudentRepository;
 import com.school.management.repository.auth.UserRepository;
 import com.school.management.security.services.UserDetailsImpl;
@@ -63,6 +64,9 @@ public class StudentServiceImpl implements StudentService {
             student.setStatus(StudentStatus.ACTIF);
         }
 
+        // ✅ CORRECTION MULTI-TENANT : Injection obligatoire de l'école courante pour isoler l'élève créé
+        student.setSchool(School.builder().id(schoolId).build());
+
         return studentRepository.save(student);
     }
 
@@ -83,9 +87,15 @@ public class StudentServiceImpl implements StudentService {
     @Override
     @Transactional
     public Student updateStudent(Student student) {
-        if (!studentRepository.existsById(student.getId())) {
-            throw new ResourceNotFoundException("❌ Impossible de modifier : Élève introuvable avec l'id " + student.getId());
-        }
+        Long schoolId = getCurrentSchoolId();
+
+        // ✅ SÉCURISATION MULTI-TENANT : Valider l'existence ET le scope d'appartenance à l'établissement avant modification
+        Student existingStudent = studentRepository.findByIdAndSchoolId(student.getId(), schoolId)
+                .orElseThrow(() -> new ResourceNotFoundException("❌ Impossible de modifier : Élève introuvable ou accès non autorisé avec l'id " + student.getId()));
+
+        // ✅ PROTECTION : On verrouille l'école d'origine pour empêcher tout transfert inter-tenant frauduleux via le payload JSON
+        student.setSchool(existingStudent.getSchool());
+
         return studentRepository.save(student);
     }
 
@@ -137,20 +147,29 @@ public class StudentServiceImpl implements StudentService {
             throw new IllegalArgumentException("Mot de passe incorrect");
         }
 
-        Student student = studentRepository.findByMatriculeAndSchoolId(matricule, getCurrentSchoolId())
-                .orElseThrow(() -> new ResourceNotFoundException("Matricule introuvable dans votre établissement."));
+        // ✅ MODIFICATION APPORTÉE : Recherche globale par matricule au lieu de filtrer par l'école de la session utilisateur (qui est encore nulle)
+        Student student = studentRepository.findByMatricule(matricule)
+                .orElseThrow(() -> new ResourceNotFoundException("Matricule introuvable dans le système."));
 
         if (student.getUser() != null && !student.getUser().getId().equals(userId)) {
             throw new IllegalStateException("Ce matricule est déjà lié à un autre compte.");
         }
 
         student.setUser(user);
+
+        // ✅ MUTATION MULTI-TENANT CRITIQUE : Maintenant que l'élève est trouvé, on propage l'ID de son établissement d'origine vers son compte User local
+        if (user.getSchool() == null && student.getSchool() != null) {
+            user.setSchool(student.getSchool());
+            userRepository.save(user);
+        }
+
         return studentRepository.save(student);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<Student> getStudentByUserId(Long userId) {
-        return studentRepository.findByUserIdAndSchoolId(userId, getCurrentSchoolId());
+        // ✅ MODIFICATION APPORTÉE : Recherche directe par ID utilisateur sans passer par getCurrentSchoolId() pour éviter le plantage 500 des comptes non liés au démarrage de l'application
+        return studentRepository.findByUserId(userId);
     }
 }

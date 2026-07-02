@@ -7,6 +7,7 @@ import com.school.management.model.academic.Level;
 import com.school.management.model.academic.Option;
 import com.school.management.model.enums.Currency;
 import com.school.management.model.enums.PaymentFrequency;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -19,7 +20,7 @@ import java.util.List;
 @Table(
         name = "schedule_fees",
         uniqueConstraints = @UniqueConstraint(
-                columnNames = {"academic_year_id", "level_id", "option_id"}
+                columnNames = {"academic_year_id", "level_id", "option_id", "school_id"}
         )
 )
 @Getter
@@ -43,6 +44,12 @@ public class ScheduleFees {
     @JoinColumn(name = "option_id")
     private Option option;
 
+    // ✅ COUPLAGE MULTI-TENANT : Rattachement explicite du barème à son école
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
+    // 🛠️ CORRECTION ICI : Remplacement de @睫numerated par @Enumerated
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Currency currency;
@@ -71,12 +78,9 @@ public class ScheduleFees {
     private List<InstallmentSchedule> installments = new ArrayList<>();
 
     /* =========================
-       NOUVEAU : RELATION POUR LA SYNCHRO
+       RELATION POUR LA SYNCHRO
        ========================= */
     @OneToMany(mappedBy = "scheduleFees")
     @Builder.Default
     private List<StudentAnnualFinancialProfile> linkedProfiles = new ArrayList<>();
-
 }
-
-

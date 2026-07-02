@@ -29,7 +29,6 @@ public class EnrollmentController {
         EnrollmentResponseDTO response = enrollmentService.createEnrollment(dto);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-
     /**
      * ✅ INTELLIGENCE AJOUTÉE :
      * On peut maintenant appeler /api/enrollments?yearId=5

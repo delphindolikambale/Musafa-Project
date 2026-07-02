@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.enums.EnrollmentType;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,7 +16,7 @@ import java.util.List;
 @Table(
         name = "enrollments",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = {"student_id", "academic_year_id"})
+                @UniqueConstraint(columnNames = {"student_id", "academic_year_id", "school_id"})
         }
 )
 @Getter
@@ -23,7 +24,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Enrollment {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -41,6 +41,11 @@ public class Enrollment {
     @JoinColumn(name = "classroom_id")
     private Classroom classroom;
 
+    // ✅ COUPLAGE MULTI-TENANT : Chaque inscription est strictement liée à son école
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
+
     @Column(nullable = false)
     private LocalDate enrollmentDate;
 
@@ -48,8 +53,8 @@ public class Enrollment {
     @Column(nullable = false)
     private EnrollmentType enrollmentType;
 
-    // ✅ ADAPTATION : Liste d'objets documents au lieu d'une liste de Strings
     @OneToMany(mappedBy = "enrollment", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
     private List<StudentDocument> documents = new ArrayList<>();
 
     @Column(nullable = false)

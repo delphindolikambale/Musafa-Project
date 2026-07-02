@@ -3,6 +3,7 @@ package com.school.management.model.financial;
 import com.school.management.model.academic.AcademicYear;
 import com.school.management.model.enums.Currency;
 import com.school.management.model.enums.TransactionType;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
@@ -11,13 +12,17 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "cash_transactions")
-@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CashTransaction {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
 
     @Enumerated(EnumType.STRING)
     private TransactionType type;
@@ -61,4 +66,9 @@ public class CashTransaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "fees_item_id")
     private FeesItem feesItem;
+
+    // ✅ LIEN MULTI-TENANT DIRECT
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

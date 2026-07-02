@@ -8,8 +8,9 @@ import com.school.management.model.financial.Expense;
 import com.school.management.repository.financial.CashReceiptRepository;
 import com.school.management.repository.financial.ExpenseRepository;
 import com.school.management.service.financial.CashReceiptService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
@@ -18,19 +19,16 @@ import java.time.LocalTime;
 import java.time.format.TextStyle;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
-import java.util.stream.Collectors;
 
 @Service
-
+@RequiredArgsConstructor
 public class CashReceiptServiceImpl implements CashReceiptService {
-    @Autowired
-    private CashReceiptRepository repository;
 
-    @Autowired
-    private ExpenseRepository expenseRepository;
+    private final CashReceiptRepository repository;
+    private final ExpenseRepository expenseRepository;
 
     @Override
-    public CashReceiptDashboardDTO getDashboardData(String filterType, LocalDate date, Long classroomId) {
+    public CashReceiptDashboardDTO getDashboardData(String filterType, LocalDate date, Long classroomId, Long schoolId) {
         LocalDateTime startDate, endDate;
         String periodLabel;
         Locale french = Locale.FRENCH;
@@ -58,10 +56,13 @@ public class CashReceiptServiceImpl implements CashReceiptService {
                 break;
         }
 
-        List<Object[]> flowResults = repository.getFlowReceiptsForPeriod(startDate, endDate, classroomId);
-        List<Object[]> cumulativePerceptions = repository.getCumulativeReceiptsUntil(endDate);
+        // ✅ Isolation Multi-tenant au niveau des requêtes du dépôt
+        List<Object[]> flowResults = repository.getFlowReceiptsForPeriod(startDate, endDate, classroomId, schoolId);
+        List<Object[]> cumulativePerceptions = repository.getCumulativeReceiptsUntil(endDate, schoolId);
 
+        // ✅ Isolation Multi-tenant au niveau du filtrage des dépenses
         List<Expense> periodExpenses = expenseRepository.findAll().stream()
+                .filter(e -> e.getAcademicYear() != null && e.getAcademicYear().getSchool() != null && e.getAcademicYear().getSchool().getId().equals(schoolId))
                 .filter(e -> !e.getExpenseDate().isBefore(startDate) && !e.getExpenseDate().isAfter(endDate))
                 .toList();
 
@@ -168,14 +169,11 @@ public class CashReceiptServiceImpl implements CashReceiptService {
             if (itemOpt.isPresent()) {
                 FeesItemSummaryDTO i = itemOpt.get();
 
-                // CALCUL INTELLIGENT : On ne soustrait jamais plus que le montant disponible (Cap à 0)
                 BigDecimal currentAmount = i.getAmount();
-                BigDecimal actualSubtraction = amtToSubtract.min(currentAmount); // Si amt > current, on prend juste current
+                BigDecimal actualSubtraction = amtToSubtract.min(currentAmount);
 
-                // Mise à jour de l'item
                 i.setAmount(currentAmount.subtract(actualSubtraction));
 
-                // Mise à jour des totaux groupe et dashboard
                 if (cur == Currency.USD) {
                     g.setGroupTotalUSD(g.getGroupTotalUSD().subtract(actualSubtraction));
                     d.setTotalGeneralUSD(d.getTotalGeneralUSD().subtract(actualSubtraction));

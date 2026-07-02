@@ -1,44 +1,27 @@
-import axios from 'axios';
-import { BACKEND_BASE } from './api'; // ✅ Importation de la base URL dynamique
-
-const API_BASE_URL = `${BACKEND_BASE}/api/v1/schedule-fees`; // ✅ Rendu dynamique
-
-// Configuration de l'instance pour inclure le token si nécessaire
-const apiClient = axios.create({
-    baseURL: API_BASE_URL,
-    headers: { 'Content-Type': 'application/json' }
-});
-
-apiClient.interceptors.request.use((config) => {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user?.accessToken) {
-        config.headers.Authorization = `Bearer ${user.accessToken}`;
-    }
-    return config;
-});
+import api from './api'; // ✅ MODIFICATION : Migration vers l'instance centrale api
 
 export const scheduleService = {
     // Récupère tous les barèmes de l'année active
     getAll: async () => {
-        const response = await apiClient.get("");
+        const response = await api.get("/v1/schedule-fees");
         return response.data;
     },
 
     // Récupère un barème par son ID
     getById: async (id) => {
-        const response = await apiClient.get(`/${id}`);
+        const response = await api.get(`/v1/schedule-fees/${id}`);
         return response.data;
     },
 
     // CRUCIAL : Cette méthode déclenche la synchronisation automatique côté Backend
     update: async (id, scheduleData) => {
-        const response = await apiClient.put(`/${id}`, scheduleData);
+        const response = await api.put(`/v1/schedule-fees/${id}`, scheduleData);
         return response.data;
     },
 
     // Récupère les tranches configurées pour un barème spécifique
     getInstallmentsBySchedule: async (scheduleFeesId) => {
-        const response = await apiClient.get(`/${scheduleFeesId}/installments`);
+        const response = await api.get(`/v1/schedule-fees/${scheduleFeesId}/installments`);
         return response.data;
     }
 };

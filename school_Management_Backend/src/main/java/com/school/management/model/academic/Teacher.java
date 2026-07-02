@@ -1,7 +1,7 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.auth.User;
-import com.school.management.model.multitenant.School; // NOUVEAU
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -11,8 +11,14 @@ import java.time.LocalDate;
 import java.util.List;
 
 @Entity
-@Table(name = "teachers")
-@Data // Génère automatiquement les Getters, Setters, etc.
+@Table(
+        name = "teachers",
+        uniqueConstraints = {
+                // ✅ SÉCURITÉ MULTI-TENANT : Le matricule doit être unique AU SEIN de la même école seulement
+                @UniqueConstraint(columnNames = {"school_id", "schoolRegistrationNumber"})
+        }
+)
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class Teacher {
@@ -21,7 +27,7 @@ public class Teacher {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(unique = true, nullable = false, updatable = false)
+    @Column(nullable = false, updatable = false)
     private String schoolRegistrationNumber;
 
     @Column(unique = true)

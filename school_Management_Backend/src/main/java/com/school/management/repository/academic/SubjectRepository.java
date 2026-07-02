@@ -4,18 +4,19 @@ import com.school.management.model.academic.Subject;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+@Repository
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
-    // ADAPTATION MAJEURE : Remplacement de la contrainte stricte sur levelId par une logique optionnelle.
-    // Cette structure garantit que si levelId est null (Ex: Vue matricielle globale d'un cycle),
-    // le système renvoie les cours de tous les niveaux liés à cette section/option.
+    // ✅ ADAPTATION MULTI-TENANT : Intégration du paramètre schoolId pour bloquer toute fuite inter-établissements
     @Query("SELECT s FROM Subject s " +
             "LEFT JOIN s.section sec " +
             "LEFT JOIN s.option opt " +
-            "WHERE (:levelId IS NULL OR s.level.id = :levelId) " +
+            "WHERE s.school.id = :schoolId " +
+            "AND (:levelId IS NULL OR s.level.id = :levelId) " +
             "AND ((:sectionId IS NULL AND sec IS NULL) OR (sec.id = :sectionId)) " +
             "AND ((:optionId IS NULL AND opt IS NULL) OR (opt.id = :optionId)) " +
             "AND s.academicYear.id = :yearId")
@@ -23,21 +24,25 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
             @Param("levelId") Long levelId,
             @Param("sectionId") Long sectionId,
             @Param("optionId") Long optionId,
-            @Param("yearId") Long yearId
+            @Param("yearId") Long yearId,
+            @Param("schoolId") Long schoolId
     );
 
-    // ADAPTATION SIMILAIRE : Application de la même logique stricte pour l'affichage
-    // de l'emploi du temps personnalisé côté espace étudiant.
+    // ✅ ADAPTATION MULTI-TENANT : Double validation avec l'école courante pour l'espace étudiant
     @Query("SELECT s FROM Subject s " +
             "LEFT JOIN s.section sec " +
             "LEFT JOIN s.option opt " +
             "JOIN Enrollment e ON e.classroom.level.id = s.level.id " +
             "LEFT JOIN e.classroom.section cSec " +
             "LEFT JOIN e.classroom.option cOpt " +
-            "WHERE e.student.user.id = :userId " +
+            "WHERE s.school.id = :schoolId " +
+            "AND e.student.user.id = :userId " +
             "AND e.active = true " +
             "AND ((sec IS NULL AND cSec IS NULL) OR (sec.id = cSec.id)) " +
             "AND ((opt IS NULL AND cOpt IS NULL) OR (opt.id = cOpt.id)) " +
             "AND e.academicYear.id = s.academicYear.id")
-    List<Subject> findSubjectsByStudentUserId(@Param("userId") Long userId);
+    List<Subject> findSubjectsByStudentUserId(@Param("userId") Long userId, @Param("schoolId") Long schoolId);
+
+    // ✅ ADAPTATION MULTI-TENANT : Liste filtrée par école
+    List<Subject> findAllBySchoolId(Long schoolId);
 }

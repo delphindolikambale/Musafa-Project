@@ -7,10 +7,11 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-
 public interface ExpenseRepository extends JpaRepository<Expense, Long> {
 
-    // Compte les bons pour générer le prochain numéro unique par mois/année
-    long countByVoucherNumberStartingWith(String prefix);
-    List<Expense> findByAcademicYearId(Long academicYearId);
+    // ✅ Isolation multi-tenant ajoutée pour le compteur de séquence mensuel
+    long countByVoucherNumberStartingWithAndSchoolId(String prefix, Long schoolId);
+
+    // ✅ Isolation multi-tenant ajoutée
+    List<Expense> findByAcademicYearIdAndSchoolId(Long academicYearId, Long schoolId);
 }

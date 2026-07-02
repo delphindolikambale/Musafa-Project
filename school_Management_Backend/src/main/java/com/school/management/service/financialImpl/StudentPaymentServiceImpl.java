@@ -6,7 +6,6 @@ import com.school.management.model.enums.Currency;
 import com.school.management.model.enums.TransactionType;
 import com.school.management.model.financial.*;
 import com.school.management.repository.financial.*;
-import com.school.management.service.financial.CashTransactionService;
 import com.school.management.service.financial.DetailsCashTransactionService;
 import com.school.management.service.financial.StudentPaymentService;
 import com.school.management.service.financial.TransactionHistoryService;
@@ -22,12 +21,10 @@ import java.time.format.TextStyle;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
-
 public class StudentPaymentServiceImpl implements StudentPaymentService {
 
     private final StudentPaymentRepository paymentRepository;
@@ -41,12 +38,13 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
     private final TransactionHistoryService transactionHistoryService;
     private final DetailsCashTransactionService detailsService;
 
-    @Override @Transactional(readOnly = true)
-    public DailyCashierReportDTO getDailyReport() {
+    @Override
+    @Transactional(readOnly = true)
+    public DailyCashierReportDTO getDailyReport(Long schoolId) {
         LocalDateTime start = LocalDateTime.now().with(LocalTime.MIN);
         LocalDateTime end = LocalDateTime.now().with(LocalTime.MAX);
 
-        List<StudentPayment> dailyPayments = paymentRepository.findByPaymentDateBetween(start, end);
+        List<StudentPayment> dailyPayments = paymentRepository.findByPaymentDateBetweenAndSchoolId(start, end, schoolId);
 
         BigDecimal totalCdf = dailyPayments.stream()
                 .filter(p -> p.getCurrency() == Currency.CDF)
@@ -58,11 +56,11 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
                 .map(StudentPayment::getAmountPaid)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal scolCdf = breakdownRepository.sumByGroupNameAndCurrencyAndDate("SCOLARITE", Currency.CDF, start, end);
-        BigDecimal scolUsd = breakdownRepository.sumByGroupNameAndCurrencyAndDate("SCOLARITE", Currency.USD, start, end);
+        BigDecimal scolCdf = breakdownRepository.sumByGroupNameAndCurrencyAndDateAndSchoolId("SCOLARITE", Currency.CDF, start, end, schoolId);
+        BigDecimal scolUsd = breakdownRepository.sumByGroupNameAndCurrencyAndDateAndSchoolId("SCOLARITE", Currency.USD, start, end, schoolId);
 
-        BigDecimal divCdf = breakdownRepository.sumByGroupNameAndCurrencyAndDate("DIVERS", Currency.CDF, start, end);
-        BigDecimal divUsd = breakdownRepository.sumByGroupNameAndCurrencyAndDate("DIVERS", Currency.USD, start, end);
+        BigDecimal divCdf = breakdownRepository.sumByGroupNameAndCurrencyAndDateAndSchoolId("DIVERS", Currency.CDF, start, end, schoolId);
+        BigDecimal divUsd = breakdownRepository.sumByGroupNameAndCurrencyAndDateAndSchoolId("DIVERS", Currency.USD, start, end, schoolId);
 
         return DailyCashierReportDTO.builder()
                 .totalCollectedCdf(totalCdf)
@@ -76,14 +74,20 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
     }
 
     @Override
-    public StudentPaymentResponseDTO pay(StudentPaymentCreateDTO dto) {
+    public StudentPaymentResponseDTO pay(StudentPaymentCreateDTO dto, Long schoolId) {
         StudentAnnualFinancialProfile targetProfile = profileRepository.findById(dto.getAnnualProfileId())
                 .orElseThrow(() -> new ResourceNotFoundException("Profil financier introuvable"));
 
+        // Blocage de sécurité anti-cross-tenant
+        if (!targetProfile.getAcademicYear().getSchool().getId().equals(schoolId)) {
+            throw new SecurityException("Opération interdite : Ce profil n'appartient pas à votre école.");
+        }
+
         StudentFinancialAccount account = targetProfile.getFinancialAccount();
 
+        // MULTI-TENANT OPTIMISÉ
         List<StudentAnnualFinancialProfile> unpaidProfiles = profileRepository
-                .findByFinancialAccount_AccountNumber(account.getAccountNumber())
+                .findByFinancialAccount_AccountNumberAndSchoolId(account.getAccountNumber(), schoolId)
                 .stream()
                 .filter(p -> p.isActive() && p.getBalance().compareTo(BigDecimal.ZERO) > 0)
                 .sorted(Comparator.comparing(p -> p.getAcademicYear().getAnnee()))
@@ -95,7 +99,9 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
         String yearStr = targetProfile.getAcademicYear().getAnnee().substring(2, 4);
         String monthStr = String.format("%02d", LocalDateTime.now().getMonthValue());
         String searchPrefix = "PAY-" + yearStr + "-" + monthStr + "-N";
-        long currentCount = paymentRepository.countByReceiptNumberStartingWith(searchPrefix);
+
+        // Isolation du compteur de reçus par école
+        long currentCount = paymentRepository.countByReceiptNumberStartingWithAndSchoolId(searchPrefix, schoolId);
 
         for (StudentAnnualFinancialProfile profile : unpaidProfiles) {
             if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) break;
@@ -114,10 +120,12 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
                     .paymentMethod(dto.getPaymentMethod())
                     .paymentDate(LocalDateTime.now())
                     .collectedBy("SYSTEM_CASHIER")
+                    .school(targetProfile.getAcademicYear().getSchool()) // Assignation explicite du tenant
                     .build();
 
             lastPaymentCreated = paymentRepository.save(payment);
 
+            // CORRECTION DU COMPTEUR D'ARGUMENTS : Ajout du paramètre schoolId en 8ème position
             transactionHistoryService.logTransaction(
                     "IN",
                     "Paiement Frais Scolaires - " + account.getStudent().getFullName(),
@@ -125,12 +133,15 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
                     payment.getCurrency().name(),
                     finalReceiptNumber,
                     "SYSTEM_CASHIER",
-                    lastPaymentCreated.getId()
+                    lastPaymentCreated.getId(),
+                    schoolId
             );
 
-            applyPaymentToInstallments(lastPaymentCreated, amountToApply, profile.getId());
+            // ADAPTATION MULTI-TENANT : Transmission du schoolId pour la ventilation des tranches
+            applyPaymentToInstallments(lastPaymentCreated, amountToApply, profile.getId(), schoolId);
 
-            calculateAndSaveBreakdown(lastPaymentCreated, amountToApply);
+            // CORRECTION : Transmission du schoolId pour la ventilation par groupe de frais
+            calculateAndSaveBreakdown(lastPaymentCreated, amountToApply, schoolId);
 
             profile.setTotalAmountPaid(profile.getTotalAmountPaid().add(amountToApply));
             profileRepository.save(profile);
@@ -141,9 +152,10 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
         return mapToDTO(lastPaymentCreated != null ? lastPaymentCreated : new StudentPayment());
     }
 
-    private void calculateAndSaveBreakdown(StudentPayment payment, BigDecimal totalPaid) {
-        List<FeesGroup> groups = feesGroupRepository.findByAcademicYearIdAndActiveTrue(
-                payment.getAnnualProfile().getAcademicYear().getId()
+    // CORRECTION MULTI-TENANT : Ajout du schoolId dans la signature de la méthode de répartition
+    private void calculateAndSaveBreakdown(StudentPayment payment, BigDecimal totalPaid, Long schoolId) {
+        List<FeesGroup> groups = feesGroupRepository.findByAcademicYearIdAndSchoolIdAndActiveTrue(
+                payment.getAnnualProfile().getAcademicYear().getId(), schoolId
         );
 
         if (groups.isEmpty()) return;
@@ -181,13 +193,10 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
 
                 distributedToItems = distributedToItems.add(itemAmount);
 
-                // --- MISE À JOUR DES SOLDES (Logique de Trésorerie) ---
                 if (currency == Currency.USD) {
-                    // Correction de la casse ici : balanceUSD
                     item.setBalanceUSD(item.getBalanceUSD().add(itemAmount));
                     group.setBalanceUSD(group.getBalanceUSD().add(itemAmount));
                 } else {
-                    // Correction de la casse ici : balanceCDF
                     item.setBalanceCDF(item.getBalanceCDF().add(itemAmount));
                     group.setBalanceCDF(group.getBalanceCDF().add(itemAmount));
                 }
@@ -221,19 +230,20 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
                 .amount(totalPaid)
                 .actor(studentInfo)
                 .documentNumber(payment.getReceiptNumber())
-                .build());
+                .build(), schoolId);
     }
 
-    private void applyPaymentToInstallments(StudentPayment payment, BigDecimal amountToApply, Long profileId) {
+    private void applyPaymentToInstallments(StudentPayment payment, BigDecimal amountToApply, Long profileId, Long schoolId) {
         BigDecimal remaining = amountToApply;
+
         List<InstallmentSchedule> schedule = installmentScheduleRepository
-                .findByScheduleFeesIdOrderByInstallmentNumberAsc(payment.getAnnualProfile().getScheduleFees().getId());
+                .findByScheduleFeesIdAndSchoolIdOrderByInstallmentNumberAsc(payment.getAnnualProfile().getScheduleFees().getId(), schoolId);
 
         for (InstallmentSchedule installment : schedule) {
             if (remaining.compareTo(BigDecimal.ZERO) <= 0) break;
 
             BigDecimal alreadyPaid = installmentSchedulePaymentRepository
-                    .sumAmountAppliedByInstallmentAndProfile(installment.getId(), profileId);
+                    .sumAmountAppliedByInstallmentAndProfileAndSchoolId(installment.getId(), profileId, schoolId);
             if (alreadyPaid == null) alreadyPaid = BigDecimal.ZERO;
 
             BigDecimal rest = installment.getAmount().subtract(alreadyPaid);
@@ -248,6 +258,7 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
             BigDecimal amountForInst = remaining.min(rest);
             boolean isNowFullyPaid = alreadyPaid.add(amountForInst).compareTo(installment.getAmount()) >= 0;
 
+            // ✅ CORRECTION MULTI-TENANT : Assignation de l'école récupérée du paiement parent
             InstallmentSchedulePayment isp = InstallmentSchedulePayment.builder()
                     .installmentSchedule(installment)
                     .installmentNumber(installment.getInstallmentNumber())
@@ -255,6 +266,7 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
                     .amountApplied(amountForInst)
                     .fullyPaid(isNowFullyPaid)
                     .appliedAt(LocalDateTime.now())
+                    .school(payment.getSchool())
                     .build();
 
             installmentSchedulePaymentRepository.save(isp);
@@ -268,13 +280,18 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
         }
     }
 
-    @Override @Transactional(readOnly = true)
-    public StudentFinancialSummaryDTO getAccountSummary(String identifier) {
-        StudentFinancialAccount account = accountRepository.findByAccountNumber(identifier)
-                .orElseGet(() -> accountRepository.findByStudent_Matricule(identifier)
+    @Override
+    @Transactional(readOnly = true)
+    public StudentFinancialSummaryDTO getAccountSummary(String identifier, Long schoolId) {
+        StudentFinancialAccount account = accountRepository.findByAccountNumberAndSchoolId(identifier, schoolId)
+                .orElseGet(() -> accountRepository.findByStudent_MatriculeAndSchoolId(identifier, schoolId)
                         .orElseThrow(() -> new ResourceNotFoundException("Compte introuvable")));
 
-        List<StudentAnnualFinancialProfile> profiles = profileRepository.findByFinancialAccount_AccountNumber(account.getAccountNumber());
+        List<StudentAnnualFinancialProfile> profiles = profileRepository.findByFinancialAccount_AccountNumberAndSchoolId(account.getAccountNumber(), schoolId);
+
+        if (profiles.isEmpty()) {
+            throw new ResourceNotFoundException("Aucun profil financier pour cette école.");
+        }
 
         BigDecimal totalBalance = profiles.stream()
                 .map(StudentAnnualFinancialProfile::getBalance)
@@ -303,42 +320,56 @@ public class StudentPaymentServiceImpl implements StudentPaymentService {
                 .totalBalance(totalBalance)
                 .previousYearsDebt(oldDebt)
                 .hasDebt(oldDebt.compareTo(BigDecimal.ZERO) > 0)
-                .currency(profiles.isEmpty() ? "USD" : profiles.get(0).getCurrency().name())
+                .currency(profiles.get(0).getCurrency().name())
                 .annualProfileId(latestProfileId)
                 .build();
     }
 
-    @Override @Transactional(readOnly = true)
-    public List<StudentPaymentResponseDTO> getAll() {
-        return paymentRepository.findAll().stream().map(this::mapToDTO).toList();
+    @Override
+    @Transactional(readOnly = true)
+    public List<StudentPaymentResponseDTO> getAll(Long schoolId) {
+        return paymentRepository.findAllBySchoolId(schoolId).stream().map(this::mapToDTO).toList();
     }
 
-    @Override @Transactional(readOnly = true)
-    public StudentPaymentResponseDTO getById(Long id) {
-        return paymentRepository.findById(id).map(this::mapToDTO)
+    @Override
+    @Transactional(readOnly = true)
+    public StudentPaymentResponseDTO getById(Long id, Long schoolId) {
+        StudentPayment payment = paymentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Paiement introuvable"));
+
+        if (!payment.getSchool().getId().equals(schoolId)) {
+            throw new SecurityException("Accès refusé à ce reçu de paiement.");
+        }
+        return mapToDTO(payment);
     }
 
-    @Override @Transactional(readOnly = true)
-    public StudentPaymentResponseDTO getByReceiptNumber(String receiptNumber) {
-        return paymentRepository.findByReceiptNumber(receiptNumber).map(this::mapToDTO)
+    @Override
+    @Transactional(readOnly = true)
+    public StudentPaymentResponseDTO getByReceiptNumber(String receiptNumber, Long schoolId) {
+        return paymentRepository.findByReceiptNumberAndSchoolId(receiptNumber, schoolId)
+                .map(this::mapToDTO)
                 .orElseThrow(() -> new ResourceNotFoundException("Reçu introuvable"));
     }
 
-    @Override @Transactional(readOnly = true)
-    public List<StudentPaymentResponseDTO> getByAnnualProfile(Long annualProfileId) {
-        return paymentRepository.findByAnnualProfileId(annualProfileId).stream().map(this::mapToDTO).toList();
+    @Override
+    @Transactional(readOnly = true)
+    public List<StudentPaymentResponseDTO> getByAnnualProfile(Long annualProfileId, Long schoolId) {
+        return paymentRepository.findByAnnualProfileIdAndSchoolId(annualProfileId, schoolId).stream().map(this::mapToDTO).toList();
     }
 
-    @Override @Transactional(readOnly = true)
-    public boolean existsByAccountNumber(String accountNumber) {
-        return accountRepository.findByAccountNumber(accountNumber).isPresent() ||
-                accountRepository.findByStudent_Matricule(accountNumber).isPresent();
+    @Override
+    @Transactional(readOnly = true)
+    public boolean existsByAccountNumber(String accountNumber, Long schoolId) {
+        var accountOpt = accountRepository.findByAccountNumberAndSchoolId(accountNumber, schoolId)
+                .or(() -> accountRepository.findByStudent_MatriculeAndSchoolId(accountNumber, schoolId));
+
+        return accountOpt.isPresent() && accountOpt.get().getStudent().getSchool().getId().equals(schoolId);
     }
 
-    @Override @Transactional(readOnly = true)
-    public List<StudentPaymentResponseDTO> getByAccountNumber(String accountNumber) {
-        return paymentRepository.findAll().stream()
+    @Override
+    @Transactional(readOnly = true)
+    public List<StudentPaymentResponseDTO> getByAccountNumber(String accountNumber, Long schoolId) {
+        return paymentRepository.findAllBySchoolId(schoolId).stream()
                 .filter(p -> p.getAnnualProfile().getFinancialAccount().getAccountNumber().equals(accountNumber))
                 .map(this::mapToDTO).toList();
     }

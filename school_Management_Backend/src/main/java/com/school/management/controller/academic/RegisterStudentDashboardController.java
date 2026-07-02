@@ -6,8 +6,10 @@ import com.school.management.model.academic.Student;
 import com.school.management.service.academic.EnrollmentService;
 import com.school.management.service.academic.StudentService;
 import com.school.management.service.academicImpl.AcademicYearService;
+import com.school.management.security.services.UserDetailsImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -19,22 +21,34 @@ import java.util.stream.Collectors;
 @RequestMapping("/api/register-student-dashboard")
 @CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5170" , "http://localhost:5180"}, allowCredentials = "true")
 @RequiredArgsConstructor
-
 public class RegisterStudentDashboardController {
 
     private final StudentService studentService;
     private final EnrollmentService enrollmentService;
     private final AcademicYearService academicYearService;
 
+    /**
+     * Extraction sécurisée du schoolId pour le cloisonnement des statistiques du Dashboard
+     */
+    private Long getCurrentSchoolId() {
+        UserDetailsImpl userDetails = (UserDetailsImpl) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (userDetails == null || userDetails.getSchool() == null) {
+            throw new IllegalStateException("Aucun contexte d'école valide détecté pour cette action.");
+        }
+        return userDetails.getSchool().getId();
+    }
+
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getDashboardStats() {
         Map<String, Object> stats = new HashMap<>();
+        // ✅ Récupération du scope de l'école courante
+        Long schoolId = getCurrentSchoolId();
 
-        // 1. Année active
-        AcademicYear activeYear = academicYearService.getAnneeActive();
+        // 1. Année active filtrée par établissement
+        AcademicYear activeYear = academicYearService.getAnneeActive(schoolId);
         Long activeYearId = (activeYear != null) ? activeYear.getId() : null;
 
-        // 2. Données GLOBALES (pour le PieChart et les cartes de base)
+        // 2. Données GLOBALES (Déjà cloisonnées par le StudentService sous le capot)
         List<Student> allStudents = studentService.getAllStudents();
         long totalStudents = allStudents.size();
 

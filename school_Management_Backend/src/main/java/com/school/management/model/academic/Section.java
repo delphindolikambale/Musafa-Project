@@ -1,11 +1,14 @@
 package com.school.management.model.academic;
+
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
+
 @Entity
 @Table(
         name = "sections",
         uniqueConstraints = {
-                @UniqueConstraint(columnNames = "section_name")
+                @UniqueConstraint(columnNames = {"school_id", "section_name"})
         }
 )
 @Getter
@@ -13,7 +16,6 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-
 public class Section {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -31,4 +33,9 @@ public class Section {
      */
     @Column(nullable = false)
     private boolean active = true;
+
+    // ✅ LIEN MULTI-TENANT : Isolation par établissement
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 }

@@ -8,6 +8,9 @@ import com.school.management.model.enums.EvaluationType;
 import com.school.management.model.enums.VisaStatus;
 import com.school.management.repository.academic.*;
 import com.school.management.service.academic.EvaluationService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,14 +30,38 @@ public class EvaluationServiceImpl implements EvaluationService {
     private final StudentRepository studentRepository;
     private final PeriodValidationRepository validationRepository;
 
+    /**
+     * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SECURISÉ
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("L'utilisateur actuel n'est rattaché à aucune structure scolaire.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
     @Override
     @Transactional
     public void createEvaluationWithMarks(EvaluationCreateDTO dto) {
         TeacherAssignment ta = assignmentRepository.findById(dto.getTeacherAssignmentId())
                 .orElseThrow(() -> new RuntimeException("Affectation enseignant non trouvée"));
 
+        // ✅ SÉCURITÉ : Validation de l'isolation de l'affectation de l'enseignant
+        if (!ta.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Opération refusée : Cette affectation appartient à un autre établissement.");
+        }
+
         // VERIFICATION DU VISA : On utilise le repository directement ici pour vérifier le verrouillage
-        Optional<PeriodValidation> validation = validationRepository.findByTeacherAssignmentIdAndPeriod(ta.getId(), dto.getPeriod());
+        // ✅ CORRECTION MULTI-TENANT : Ajout du paramètre getCurrentSchoolId() pour correspondre à la signature du Repository
+        Optional<PeriodValidation> validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(ta.getId(), dto.getPeriod(), getCurrentSchoolId());
         VisaStatus status = validation.map(PeriodValidation::getStatus).orElse(VisaStatus.DRAFT);
 
         if (status != VisaStatus.DRAFT) {
@@ -42,7 +69,7 @@ public class EvaluationServiceImpl implements EvaluationService {
         }
 
         CourseAssignment config = ta.getCourseAssignment();
-        List<EvaluationTask> periodTasks = taskRepository.findByTeacherAssignmentIdAndPeriod(ta.getId(), dto.getPeriod());
+        List<EvaluationTask> periodTasks = taskRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(ta.getId(), dto.getPeriod(), getCurrentSchoolId());
         boolean isUpdate = dto.getId() != null;
 
         // LOGIQUE SPECIALE ENUM EXAMEN VS EVALUATIONS CONTINUES
@@ -79,6 +106,12 @@ public class EvaluationServiceImpl implements EvaluationService {
         if (isUpdate) {
             task = taskRepository.findById(dto.getId())
                     .orElseThrow(() -> new RuntimeException("Évaluation non trouvée"));
+
+            // ✅ SÉCURITÉ COHÉRENCE : Empêcher l'altération d'une évaluation transverse
+            if (!task.getSchool().getId().equals(getCurrentSchoolId())) {
+                throw new AccessDeniedException("❌ Modification interdite : Cette ressource appartient à un autre établissement.");
+            }
+
             task.setTitle(dto.getTitle());
             task.setType(dto.getType());
             task.setMaxPoints(dto.getMaxPoints());
@@ -92,15 +125,21 @@ public class EvaluationServiceImpl implements EvaluationService {
                     .teacherAssignment(ta)
                     .academicYear(ta.getAcademicYear())
                     .evaluationDate(LocalDate.now())
+                    .school(getCurrentUser().getSchool()) // ✅ MULTI-TENANT : Association explicite
                     .build();
         }
 
         EvaluationTask savedTask = taskRepository.save(task);
-        List<StudentMark> existingMarks = markRepository.findByEvaluationTaskId(savedTask.getId());
+        List<StudentMark> existingMarks = markRepository.findByEvaluationTaskIdAndSchoolId(savedTask.getId(), getCurrentSchoolId());
 
         dto.getMarks().forEach(markDto -> {
             Student student = studentRepository.findById(markDto.getStudentId())
                     .orElseThrow(() -> new RuntimeException("Élève non trouvé"));
+
+            // ✅ SÉCURITÉ CRITIQUE : L'élève ciblé doit appartenir au même tenant
+            if (!student.getSchool().getId().equals(getCurrentSchoolId())) {
+                throw new AccessDeniedException("❌ Corruption de données rejetée : Cet élève n'appartient pas à votre école.");
+            }
 
             // SÉCURITÉ SERVER-SIDE ANTI-CORRUPTION DES DONNÉES
             if (markDto.getObtainedValue() > dto.getMaxPoints()) {
@@ -119,6 +158,7 @@ public class EvaluationServiceImpl implements EvaluationService {
                         .student(student)
                         .evaluationTask(savedTask)
                         .obtainedValue(markDto.getObtainedValue())
+                        .school(getCurrentUser().getSchool()) // ✅ MULTI-TENANT : Association explicite
                         .build();
             }
             markRepository.save(mark);
@@ -137,7 +177,8 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     @Override
     public List<EvaluationResponseDTO> getEvaluationsByAssignment(Long taId, int period) {
-        return taskRepository.findByTeacherAssignmentIdAndPeriod(taId, period).stream()
+        // ✅ FILTRAGE DES RECHERCHES SUR LE COMPTE DU TENANT CONNECTÉ
+        return taskRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, getCurrentSchoolId()).stream()
                 .map(task -> EvaluationResponseDTO.builder()
                         .id(task.getId())
                         .title(task.getTitle())
@@ -153,7 +194,8 @@ public class EvaluationServiceImpl implements EvaluationService {
 
     @Override
     public double getCurrentPeriodTotalMax(Long taId, int period) {
-        List<EvaluationTask> periodTasks = taskRepository.findByTeacherAssignmentIdAndPeriod(taId, period);
+        // ✅ SECURISATION DE L'ACCÈS AUX TOTAUX
+        List<EvaluationTask> periodTasks = taskRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, getCurrentSchoolId());
         return periodTasks.stream()
                 .filter(t -> t.getType() != EvaluationType.EXAMEN)
                 .mapToDouble(EvaluationTask::getMaxPoints)
@@ -164,6 +206,12 @@ public class EvaluationServiceImpl implements EvaluationService {
     public CourseAssignmentResponseDTO getCourseConfigByAssignment(Long taId) {
         TeacherAssignment ta = assignmentRepository.findById(taId)
                 .orElseThrow(() -> new RuntimeException("Affectation non trouvée"));
+
+        // ✅ BARRIÈRE MULTI-TENANT
+        if (!ta.getSchool().getId().equals(getCurrentSchoolId())) {
+            throw new AccessDeniedException("❌ Consultation interdite : Données hors périmètre.");
+        }
+
         CourseAssignment entity = ta.getCourseAssignment();
         Subject s = entity.getSubject();
         return CourseAssignmentResponseDTO.builder()

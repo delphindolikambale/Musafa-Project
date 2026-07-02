@@ -1,29 +1,24 @@
-import axios from "axios";
-
-// ✅ Détection automatique de l'environnement (Render ou Localhost)
-const API_URL = window.location.hostname.includes('onrender.com')
-  ? "https://musafa-projectbackend.onrender.com/api/levels"
-  : "http://localhost:8080/api/levels";
+import api from "./api"; // ✅ MODIFICATION : Importation de votre instance configurée avec l'intercepteur JWT
 
 const getAllLevels = () => {
-  return axios.get(API_URL);
+    return api.get("/levels"); // ✅ MODIFICATION : Utilisation de l'instance sécurisée avec la route relative
 };
 
 const createLevel = (levelData) => {
-  return axios.post(API_URL, levelData);
+    return api.post("/levels", levelData);
 };
 
 const updateLevel = (id, levelData) => {
-  return axios.put(`${API_URL}/${id}`, levelData);
+    return api.put(`/levels/${id}`, levelData);
 };
 
 const deleteLevel = (id) => {
-  return axios.delete(`${API_URL}/${id}`);
+    return api.delete(`/levels/${id}`);
 };
 
 export default {
-  getAllLevels,
-  createLevel,
-  updateLevel,
-  deleteLevel,
+    getAllLevels,
+    createLevel,
+    updateLevel,
+    deleteLevel,
 };

@@ -1,6 +1,6 @@
 package com.school.management.model.academic;
-
 import com.school.management.model.enums.LevelType;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -9,10 +9,11 @@ import lombok.*;
         name = "classrooms",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {
+                        "school_id",
                         "level_id",
                         "section_id",
                         "option_id",
-                        "division" // On ajoute la division ici pour permettre les classes parallèles
+                        "division"
                 })
         }
 )
@@ -54,10 +55,15 @@ public class Classroom {
      * Relation avec l'enseignant titulaire de la classe
      */
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "titulaire_id", unique = true) // Un enseignant ne peut être titulaire que d'une seule classe
+    @JoinColumn(name = "titulaire_id", unique = true)
     private Teacher titulaire;
 
     private boolean active = true;
+
+    // ✅ LIEN MULTI-TENANT : Isolation par établissement
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @Transient
     public String getDisplayName() {
@@ -72,9 +78,7 @@ public class Classroom {
         }
         return sb.toString();
     }
-    /**
-     * Récupère dynamiquement la capacité via la salle liée
-     */
+
     @Transient
     public Integer getEffectiveCapacity() {
         return (room != null) ? room.getCapacity() : 0;

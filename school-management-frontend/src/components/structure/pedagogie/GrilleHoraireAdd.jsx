@@ -17,11 +17,22 @@ const GrilleHoraireAdd = ({ isOpen, onClose, activeCycle, selectedOptionId, acti
     // Récupérer la liste des colonnes/niveaux à afficher selon le contexte
     const cycleLevels = activeCycle === "CEB" ? ["7ème", "8ème"] : ["1ère", "2ème", "3ème", "4ème"];
     
-    // Obtenir la correspondance réelle des objets Level du backend avec une sécurité si allLevels est indéfini
+    // ✅ ADAPTATION MAJEURE : Correspondance robuste des objets Level du backend par extraction de chiffres
     const currentCycleLevelsObjects = allLevels 
-        ? cycleLevels.map(name => 
-            allLevels.find(l => l && (l.name === name || l.name.includes(name)))
-          ).filter(Boolean)
+        ? cycleLevels.map(colName => {
+            const normalizedCol = colName.toLowerCase().replace(/è|é/g, 'e');
+            const baseNumberMatch = normalizedCol.match(/\d+/);
+            const baseNumber = baseNumberMatch ? baseNumberMatch[0] : null;
+
+            return allLevels.find(l => {
+                if (!l || !l.name) return false;
+                const normalizedLvl = l.name.toLowerCase().replace(/è|é/g, 'e');
+                const lvlNumberMatch = normalizedLvl.match(/\d+/);
+                const lvlNumber = lvlNumberMatch ? lvlNumberMatch[0] : null;
+                
+                return baseNumber && lvlNumber && baseNumber === lvlNumber;
+            });
+          }).filter(Boolean)
         : [];
 
     // Initialiser et réinitialiser les champs à l'ouverture du modal

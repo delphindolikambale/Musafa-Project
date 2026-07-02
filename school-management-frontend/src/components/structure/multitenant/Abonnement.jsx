@@ -13,7 +13,7 @@ const Abonnement = () => {
         amount: '',
         currency: 'USD',
         paymentMode: 'CASH',
-        referenceNumber: '' // Géré localement au niveau de la vue (masqué en mode CASH)
+        referenceNumber: '' // Géré au niveau de la vue (masqué en mode CASH)
     });
 
     // Stockage temporaire des données du reçu après succès pour impression immédiate
@@ -60,12 +60,13 @@ const Abonnement = () => {
         e.preventDefault();
         if (!selectedSchool) return;
 
-        // Préparation stricte du payload attendu par le SystemAdminController du Backend
+        // Préparation du payload avec inclusion de la référence de transaction mobile/bancaire
         const paymentPayload = {
             endDate: formData.endDate,
             amount: parseFloat(formData.amount),
             currency: formData.currency,
-            paymentMode: formData.paymentMode // Envoyé pour de futures évolutions, bien que forcé dans le service
+            paymentMode: formData.paymentMode,
+            referenceNumber: formData.paymentMode !== 'CASH' ? formData.referenceNumber : 'AUTO_GENERATED_CASH'
         };
 
         try {
@@ -85,7 +86,7 @@ const Abonnement = () => {
                 currency: formData.currency,
                 paymentMode: formData.paymentMode,
                 referenceNumber: formData.paymentMode !== 'CASH' ? formData.referenceNumber : 'AUTO_GENERATED_CASH',
-                activationCode: updatedSchool.activationCode, // Clé générée par le backend
+                activationCode: updatedSchool.activationCode, // Clé générée et persistée par le backend
                 date: new Date().toLocaleDateString('fr-FR')
             });
 
@@ -94,7 +95,7 @@ const Abonnement = () => {
                 text: `Paiement enregistré avec succès. Le code d'activation a été envoyé à ${updatedSchool.contactEmail}.` 
             });
             
-            fetchSchools(); // Rafraîchir le tableau principal
+            fetchSchools(); // Rafraîchir instantanément le tableau principal
         } catch (error) {
             setMessage({ type: 'error', text: error.error || 'Une erreur est survenue lors du traitement du paiement.' });
         } finally {
@@ -106,19 +107,26 @@ const Abonnement = () => {
         window.print();
     };
 
+    // Fonction utilitaire pour formater proprement les dates du serveur sans décalage horaire
+    const formatDate = (dateString) => {
+        if (!dateString) return 'Aucun paiement';
+        const [year, month, day] = dateString.split('-');
+        if (!year || !month || !day) return dateString;
+        return `${day}/${month}/${year}`;
+    };
+
     return (
         <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
             {/* SECTION STYLES POUR L'IMPRESSION PROPRE DU REÇU */}
             <style>{`
                 @media print {
-                    body * { display: none; }
-                    .printable-receipt, .printable-receipt * { display: block; }
-                    .printable-receipt { position: absolute; left: 0; top: 0; width: 100%; border: none; }
                     .no-print { display: none !important; }
+                    .printable-receipt { display: block !important; border: none !important; padding: 0 !important; margin: 0 !important; }
                 }
-                .status-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+                .status-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; display: inline-block; }
                 .status-ACTIF { background-color: #d4edda; color: #155724; }
                 .status-SUSPENDU { background-color: #f8d7da; color: #721c24; }
+                .status-EN_ATTENTE_ACTIVATION { background-color: #fff3cd; color: #856404; }
             `}</style>
 
             <div className="no-print">
@@ -131,7 +139,8 @@ const Abonnement = () => {
                         marginBottom: '15px', 
                         borderRadius: '4px',
                         backgroundColor: message.type === 'success' ? '#d4edda' : '#f8d7da',
-                        color: message.type === 'success' ? '#155724' : '#721c24'
+                        color: message.type === 'success' ? '#155724' : '#721c24',
+                        border: `1px solid ${message.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`
                     }}>
                         {message.text}
                     </div>
@@ -155,11 +164,22 @@ const Abonnement = () => {
                                 <td><strong>{school.code}</strong></td>
                                 <td>{school.name}</td>
                                 <td>{school.contactEmail}</td>
-                                <td>{school.subscriptionEndDate ? new Date(school.subscriptionEndDate).toLocaleDateString('fr-FR') : 'Aucun paiement'}</td>
+                                <td>{formatDate(school.subscriptionEndDate)}</td>
                                 <td>
                                     <span className={`status-badge status-${school.currentSubscriptionStatus}`}>
-                                        {school.currentSubscriptionStatus}
+                                        {school.currentSubscriptionStatus === 'EN_ATTENTE_ACTIVATION' 
+                                            ? "EN ATTENTE D'ACTIVATION" 
+                                            : school.currentSubscriptionStatus}
                                     </span>
+                                    
+                                    {school.currentSubscriptionStatus === 'EN_ATTENTE_ACTIVATION' && school.activationCode && (
+                                        <div style={{ marginTop: '8px', fontSize: '11px', padding: '5px', backgroundColor: '#e2e3e5', borderRadius: '4px', textAlign: 'center', border: '1px dashed #adb5bd' }}>
+                                            <span style={{ display: 'block', color: '#6c757d', marginBottom: '2px' }}>Code secret généré :</span>
+                                            <strong style={{ fontFamily: 'monospace', fontSize: '13px', letterSpacing: '1px', color: '#d32f2f' }}>
+                                                {school.activationCode}
+                                            </strong>
+                                        </div>
+                                    )}
                                 </td>
                                 <td>
                                     <button 
@@ -176,7 +196,7 @@ const Abonnement = () => {
 
                 {/* MODAL / FORMULAIRE DE PAIEMENT D'ABONNEMENT */}
                 {selectedSchool && (
-                    <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px', backgroundColor: '#fafafa', maxWidth: '500px' }}>
+                    <div style={{ border: '1px solid #ccc', padding: '20px', borderRadius: '8px', backgroundColor: '#fafafa', maxWidth: '500px', marginBottom: '30px' }}>
                         <h3>Enregistrement Financier pour : <span style={{ color: '#007bff' }}>{selectedSchool.name}</span></h3>
                         
                         <form onSubmit={handleProcessPayment}>
@@ -327,7 +347,8 @@ const Abonnement = () => {
                             padding: '10px 15px', 
                             cursor: 'pointer', 
                             borderRadius: '4px',
-                            width: '100%' 
+                            width: '100%',
+                            fontWeight: 'bold'
                         }}
                     >
                         🖨️ Lancer l'Impression Physique du Reçu

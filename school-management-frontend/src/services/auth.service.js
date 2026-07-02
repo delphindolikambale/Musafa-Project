@@ -1,5 +1,5 @@
 import axios from "axios";
-import { BACKEND_BASE } from "./api"; // Importation de l'URL correcte depuis api.js
+import { BACKEND_BASE } from "./api"; 
 
 const API_BASE = `${BACKEND_BASE}/api`;
 
@@ -16,11 +16,12 @@ const login = async (username, password) => {
   return response.data;
 };
 
-const register = (username, email, password, role = "ELEVE") => {
+const register = (username, email, password, schoolId, role = "ELEVE") => {
   return axios.post(`${API_BASE}/auth/signup`, {
     username,
     email,
     password,
+    schoolId,
     role,
   });
 };
@@ -48,9 +49,14 @@ const activateSchool = async (schoolId, activationCode) => {
   return response.data;
 };
 
-// ✅ ADAPTATION : Ajout de la méthode d'initialisation automatique pour réparer le compte superadmin directement via le cycle de vie de l'application
 const initSuperAdmin = async () => {
   const response = await axios.post(`${API_BASE}/auth/init-superadmin`);
+  return response.data;
+};
+
+// ✅ AJOUT : Fonction publique pour récupérer les écoles sans Token
+const getPublicSchools = async () => {
+  const response = await axios.get(`${API_BASE}/system-admin/public/schools`);
   return response.data;
 };
 
@@ -60,7 +66,8 @@ const AuthService = {
   logout,
   getCurrentUser,
   activateSchool,
-  initSuperAdmin, // Exportation de la méthode de secours
+  initSuperAdmin,
+  getPublicSchools, // Exportation de la nouvelle fonction
 };
 
 export default AuthService;

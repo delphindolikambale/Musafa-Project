@@ -46,7 +46,6 @@ public class WebSecurityConfig {
         return authProvider;
     }
 
-    // ✅ ADAPTATION : Liaison explicite et prioritaire du fournisseur d'authentification BCrypt au gestionnaire
     @Bean
     public AuthenticationManager authenticationManager() {
         return new ProviderManager(List.of(authenticationProvider()));
@@ -104,13 +103,12 @@ public class WebSecurityConfig {
                                 .requestMatchers("/favicon.ico").permitAll()
                                 .requestMatchers("/storage/**").permitAll()
 
-                                // ✅ ADAPTATION : Harmonisation parfaite avec le nom de rôle de l'Enum AppRole
-                                .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
+                                // ✅ AJOUT : Ouverture de la route publique pour charger la liste des écoles (Placée AVANT le blocage global)
+                                .requestMatchers("/api/system-admin/public/schools").permitAll()
 
-                                // Droits pour l'administration de l'école (Maintenance technique existante)
+                                .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")
 
-                                // Fonctionnalités multi-tenant locales aux écoles (soumises à l'authentification)
                                 .requestMatchers("/api/academic/**", "/api/config/**", "/api/v1/admin/school-config").authenticated()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").authenticated()
                                 .requestMatchers("/api/specialities/**", "/api/teacher-assignments/**", "/api/archives/**").authenticated()
@@ -118,7 +116,6 @@ public class WebSecurityConfig {
                                 .anyRequest().authenticated()
                 );
 
-        // ✅ COHÉRENCE ET SÉCURISATION EXTENSION : Liaison obligatoire de l'AuthenticationProvider personnalisé
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(authenticationJwtTokenFilter(), UsernamePasswordAuthenticationFilter.class);
 

@@ -4,22 +4,44 @@ import com.school.management.dto.admin.SchoolConfigDTO;
 import com.school.management.model.admin.SchoolConfiguration;
 import com.school.management.repository.admin.SchoolConfigurationRepository;
 import com.school.management.service.admin.SchoolConfigService;
+import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
+import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-
 public class SchoolConfigServiceImpl implements SchoolConfigService {
 
     private final SchoolConfigurationRepository repository;
 
+    /**
+     * ✅ EXTRACTION SECURISÉE DU CONTEXTE MULTI-TENANT
+     */
+    private UserDetailsImpl getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof String) {
+            throw new AccessDeniedException("❌ Session utilisateur invalide ou expirée. Veuillez vous reconnecter.");
+        }
+        return (UserDetailsImpl) principal;
+    }
+
+    private Long getCurrentSchoolId() {
+        if (getCurrentUser().getSchool() == null) {
+            throw new IllegalStateException("Action impossible : Votre compte utilisateur n'est rattaché à aucune école.");
+        }
+        return getCurrentUser().getSchool().getId();
+    }
+
     @Override
     @Transactional(readOnly = true)
     public SchoolConfigDTO getConfig() {
-        // Retourne la config existante, ou null si la base est vide
-        return repository.findFirstByOrderByIdAsc()
+        Long schoolId = getCurrentSchoolId();
+
+        // ✅ MULTI-TENANT : Recherche cloisonnée par école
+        return repository.findBySchoolId(schoolId)
                 .map(this::mapToDTO)
                 .orElse(null);
     }
@@ -27,8 +49,11 @@ public class SchoolConfigServiceImpl implements SchoolConfigService {
     @Override
     @Transactional
     public SchoolConfigDTO saveOrUpdateConfig(SchoolConfigDTO dto) {
-        // On récupère l'unique enregistrement s'il existe, sinon on en instancie un nouveau
-        SchoolConfiguration config = repository.findFirstByOrderByIdAsc()
+        Long schoolId = getCurrentSchoolId();
+        UserDetailsImpl currentUser = getCurrentUser();
+
+        // ✅ MULTI-TENANT : Récupération de la configuration propre à l'école, sinon instanciation dédiée
+        SchoolConfiguration config = repository.findBySchoolId(schoolId)
                 .orElse(new SchoolConfiguration());
 
         // Mise à jour de tous les champs
@@ -47,6 +72,9 @@ public class SchoolConfigServiceImpl implements SchoolConfigService {
         config.setAcademicProviseur(dto.getAcademicProviseur());
         config.setDefaultCashierName(dto.getDefaultCashierName());
 
+        // ✅ MULTI-TENANT : Injection impérative du lien avec l'école courante
+        config.setSchool(currentUser.getSchool());
+
         // Save gère automatiquement l'ID (Update si ID présent, Insert sinon)
         return mapToDTO(repository.save(config));
     }
@@ -54,7 +82,9 @@ public class SchoolConfigServiceImpl implements SchoolConfigService {
     @Override
     @Transactional
     public void deleteConfig() {
-        repository.findFirstByOrderByIdAsc().ifPresent(repository::delete);
+        Long schoolId = getCurrentSchoolId();
+        // ✅ MULTI-TENANT : Suppression sécurisée limitée à l'école connectée
+        repository.findBySchoolId(schoolId).ifPresent(repository::delete);
     }
 
     private SchoolConfigDTO mapToDTO(SchoolConfiguration entity) {

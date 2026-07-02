@@ -10,12 +10,12 @@ import com.school.management.repository.academic.DomainRepository;
 import com.school.management.repository.academic.DomainSpecialityRepository;
 import com.school.management.repository.academic.TeacherRepository;
 import com.school.management.service.academic.TeacherService;
-import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
+import com.school.management.security.services.UserDetailsImpl;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
-import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -86,10 +86,13 @@ public class TeacherServiceImpl implements TeacherService {
     @Transactional
     public TeacherResponseDTO createTeacher(TeacherCreateDTO dto, MultipartFile photo, MultipartFile cv, List<MultipartFile> titleDocs, List<MultipartFile> trainingDocs) {
         Teacher teacher = new Teacher();
+        Long currentSchoolId = getCurrentSchoolId();
+
+        // ✅ RECORRECTION MULTI-TENANT : Récupère uniquement l'année active propre à l'établissement connecté
         AcademicYear activeYear = academicYearRepository.findAll().stream()
-                .filter(AcademicYear::isActive)
+                .filter(ay -> ay.isActive() && ay.getSchool() != null && ay.getSchool().getId().equals(currentSchoolId))
                 .findFirst()
-                .orElseThrow(() -> new RuntimeException("Aucune année académique active trouvée."));
+                .orElseThrow(() -> new RuntimeException("Aucune année académique active trouvée pour votre établissement."));
 
         // ✅ MULTI-TENANT : Rattachement direct de l'enseignant à l'école de la session courante
         teacher.setSchool(getCurrentUser().getSchool());
@@ -180,8 +183,17 @@ public class TeacherServiceImpl implements TeacherService {
 
     private void handleSpecialityAssignment(Teacher teacher, TeacherCreateDTO dto) {
         if (dto.getNewSpecialityName() != null && !dto.getNewSpecialityName().trim().isEmpty()) {
-            DomainSpeciality spec = specialityRepository.findByNameIgnoreCase(dto.getNewSpecialityName())
-                    .orElseGet(() -> specialityRepository.save(new DomainSpeciality(null, dto.getNewSpecialityName().toUpperCase())));
+            Long schoolId = getCurrentSchoolId();
+
+            // ✅ CORRECTION MULTI-TENANT & CONSTRUCTEUR : Utilisation du Lombok Builder pour s'aligner sur les 3 propriétés de l'entité
+            DomainSpeciality spec = specialityRepository.findByNameIgnoreCaseAndSchoolId(dto.getNewSpecialityName(), schoolId)
+                    .orElseGet(() -> {
+                        DomainSpeciality newSpec = DomainSpeciality.builder()
+                                .name(dto.getNewSpecialityName().toUpperCase())
+                                .school(getCurrentUser().getSchool()) // Cloisonnement hermétique du Master-Data
+                                .build();
+                        return specialityRepository.save(newSpec);
+                    });
             teacher.setDomainSpeciality(spec);
         } else if (dto.getDomainSpecialityId() != null) {
             teacher.setDomainSpeciality(specialityRepository.findById(dto.getDomainSpecialityId())
@@ -305,7 +317,7 @@ public class TeacherServiceImpl implements TeacherService {
     @Override
     @Transactional(readOnly = true)
     public List<TeacherResponseDTO> searchTeachers(String query) {
-        // ✅ CORRECTION DE L'ERREUR DE COMPILATION : Fournit à la fois le texte recherché et l'ID de l'école
+        // ✅ MULTI-TENANT : Fournit à la fois le texte recherché et l'ID de l'école
         return teacherRepository.searchTeachers(query, getCurrentSchoolId()).stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());

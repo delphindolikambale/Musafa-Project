@@ -4,35 +4,68 @@ const BulletinFooter = ({ bulletinData }) => {
     const formatType = bulletinData?.formatType || '7EME_EB';
 
     return (
-        <div className="border-2 border-black p-3 text-[10px] font-serif relative mt-1 print:text-black bg-white">
-            <ul className="list-none p-0 m-0 space-y-2 leading-tight font-normal text-[10px]">
-                <li>- L'élève ne pourra passer dans la classe supérieure s'il n'a subi avec succès un examen de repêchage en........................................................................................................................ <sup>(1)</sup></li>
-                <li>- L'élève passe dans la classe supérieure <sup>(1)</sup></li>
-                <li>- L'élève double la classe <sup>(1)</sup></li>
-            </ul>
+        <div className="border-[2px] border-black p-2 text-[11px] font-serif bg-white text-black print:text-black leading-snug">
             
-            <div className="flex justify-between items-start mt-8 px-4">
-                <div className="text-center font-black uppercase tracking-wide w-1/4">
+            {/* Section 1 : Conditions de passage */}
+            <div className="space-y-1 mb-4">
+                <div className="flex w-full items-end">
+                    <span className="whitespace-nowrap mr-1">- L'élève ne pourra passer dans la classe supérieure s'il n'a subi avec succès un examen de repêchage en</span>
+                    <div className="flex-grow border-b-[2px] border-dotted border-black mb-[3px]"></div>
+                </div>
+                <div className="flex w-full items-end">
+                    <div className="flex-grow border-b-[2px] border-dotted border-black mb-[3px]"></div>
+                    <span className="ml-1">(1)</span>
+                </div>
+                <p>- L'élève passe dans la classe supérieure (1)</p>
+                <p>- L'élève double la classe (1)</p>
+            </div>
+
+            {/* Section 2 : Signatures et Sceau (Alignement rigoureux par le bas) */}
+            <div className="flex justify-between items-end mt-6 px-4">
+                
+                {/* Colonne 1 : Élève */}
+                <div className="text-center font-bold w-1/4">
                     Signature de l'élève
                 </div>
-                <div className="text-center font-black uppercase tracking-wide w-1/4">
-                    Sceau de l'École
+                
+                {/* Colonne 2 : Sceau */}
+                <div className="text-center font-bold w-1/4">
+                    Sceau de l'Ecole
                 </div>
-                <div className="text-right w-[45%]">
-                    <p className="italic font-medium text-[9.5px]">Fait à ..........................................................., le ......../......../20........</p>
-                    <p className="font-black mt-4 text-center uppercase mr-6">Chef d'Etablissement,</p>
-                    <p className="font-black mt-8 text-center uppercase mr-6">Noms et Signature</p>
+                
+                {/* Colonne 3 : Direction */}
+                <div className="w-[45%] flex flex-col items-center">
+                    {/* Bloc Date */}
+                    <div className="flex items-end w-full whitespace-nowrap mb-4">
+                        <span className="mr-1">Fait à</span>
+                        <span className="flex-grow border-b-[2px] border-dotted border-black mb-[3px]"></span>
+                        <span className="mx-2">, le</span>
+                        <span className="w-8 border-b-[2px] border-dotted border-black mb-[3px]"></span>
+                        <span className="mx-1">/</span>
+                        <span className="w-8 border-b-[2px] border-dotted border-black mb-[3px]"></span>
+                        <span className="mx-1">/ 20</span>
+                        <span className="w-8 border-b-[2px] border-dotted border-black mb-[3px]"></span>
+                    </div>
+                    
+                    {/* Bloc Signatures Direction */}
+                    <div className="font-bold w-full text-center">Chef d'Etablissement,</div>
+                    <div className="h-10 w-full"></div> {/* Espace pour la signature manuelle */}
+                    <div className="font-bold w-full text-center">Noms et Signature</div>
                 </div>
             </div>
-            
-            <div className="mt-6 pt-1 text-[8px] leading-tight flex justify-between items-end">
-                <div>
-                    <p className="font-normal text-gray-800">(1) Biffer la mention inutile.</p>
-                    <p className="font-black mt-1">Note importante : Le bulletin est sans valeur s'il est raturé ou surchargé.</p>
-                    <p className="font-bold italic uppercase text-red-700 print:text-black">Interdiction formelle de reproduire ce bulletin sous peine des sanctions prévues par la loi.</p>
-                </div>
-                <div className="font-black text-[10px] tracking-wider">
-                    {formatType === 'HUMANITES' ? 'IGE/P.S./042' : 'IGE/P.S./007'}
+
+            {/* Section 3 : Notes de bas de page et avertissement légal */}
+            <div className="mt-5 text-[10px]">
+                <div className="leading-tight">(1) Biffer la mention inutile.</div>
+                <div className="leading-tight ml-4 mt-0.5">Note importante : Le bulletin est sans valeur s'il est raturé ou surchargé.</div>
+                
+                <div className="flex justify-center items-end relative mt-1">
+                    <div className="font-bold italic text-[10.5px]">
+                        Interdiction formelle de reproduire ce bulletin sous peine des sanctions prévues par la loi.
+                    </div>
+                    <div className="absolute right-0 bottom-0 font-bold text-[11px] tracking-wide">
+                        {formatType === 'HUMANITES' ? 'IGE/P.S./042' : 'IGE/P.S./007'}
+                    </div>
                 </div>
             </div>
         </div>

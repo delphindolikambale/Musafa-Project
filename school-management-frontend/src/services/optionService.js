@@ -1,18 +1,15 @@
-import axios from "axios";
-
-// ✅ Détection automatique de l'environnement (Render ou Localhost)
-const API_URL = window.location.hostname.includes('onrender.com')
-  ? "https://musafa-projectbackend.onrender.com/api/options"
-  : "http://localhost:8080/api/options";
+import api from "./api"; // ✅ MODIFICATION : Utilisation de l'instance centralisée avec l'intercepteur JWT
 
 const optionService = {
-    getAll: () => axios.get(API_URL),
+    getAll: () => api.get("/options"), // ✅ MODIFICATION : Utilisation de l'instance sécurisée avec route relative
+    
     // Cette méthode est géniale pour filtrer par section côté interface
-    getBySection: (sectionId) => axios.get(`${API_URL}/section/${sectionId}`),
+    getBySection: (sectionId) => api.get(`/options/section/${sectionId}`),
+    
     // Ici data contient { optionName, sectionId, active } pour OptionRequestDTO
-    create: (data) => axios.post(API_URL, data),
-    update: (id, data) => axios.put(`${API_URL}/${id}`, data),
-    delete: (id) => axios.delete(`${API_URL}/${id}`)
+    create: (data) => api.post("/options", data),
+    update: (id, data) => api.put(`/options/${id}`, data),
+    delete: (id) => api.delete(`/options/${id}`)
 };
 
 export default optionService;

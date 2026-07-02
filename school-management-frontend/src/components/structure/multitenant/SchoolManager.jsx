@@ -182,13 +182,13 @@ const SchoolManager = () => {
                         <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400 text-xs">
                           <Mail size={12} /> {school.contactEmail || 'Non renseigné'}
                         </div>
-                        {/* ✅ ADAPTATION : Le code d'activation n'est affiché QUE s'il a été généré via un paiement */}
+                        {/* ✅ ADAPTATION : Le code d'activation s'affiche avec un style d'alerte s'il existe et que l'école n'est pas encore active */}
                         {school.activationCode ? (
-                          <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-500 font-mono text-xs font-bold">
+                          <div className={`flex items-center gap-1.5 font-mono text-xs font-bold mt-1 px-2 py-1 rounded ${school.currentSubscriptionStatus === 'EN_ATTENTE_ACTIVATION' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800' : 'text-slate-500'}`}>
                             <Key size={12} /> Clé: {school.activationCode}
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5 text-slate-400 font-mono text-xs italic">
+                          <div className="flex items-center gap-1.5 text-slate-400 font-mono text-xs italic mt-1">
                             <Key size={12} /> Paiement en attente
                           </div>
                         )}

@@ -1,5 +1,6 @@
 package com.school.management.model.academic;
 
+import com.school.management.model.multitenant.School; // ✅ AJOUT
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -7,7 +8,6 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "student_documents")
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
-
 public class StudentDocument {
 
     @Id
@@ -33,6 +33,11 @@ public class StudentDocument {
     private Enrollment enrollment;
 
     private LocalDateTime uploadDate;
+
+    // ✅ MULTI-TENANT : Isolation directe du fichier au niveau de l'établissement
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "school_id", nullable = false)
+    private School school;
 
     @PrePersist
     protected void onCreate() {
