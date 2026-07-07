@@ -3,6 +3,8 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useSchool } from "../../context/SchoolContext";
 import AuthService from "../../services/auth.service";
 import { ThemeContext, LanguageContext } from "../../App"; // Importation des contextes
+// Assurez-vous que le chemin est correct selon votre structure
+import { getSystemLogoUrl } from "../../services/multitenantService/SuperAdminSystemService"; 
 import { 
   LayoutDashboard, CalendarDays, Layers, GitMerge, School, 
   Users, GraduationCap, Library, Clock, Wallet, 
@@ -77,6 +79,12 @@ const AdminLayout = () => {
   const language = languageContext?.language || 'FR';
   const toggleLanguage = languageContext?.toggleLanguage || (() => {});
 
+  // --- NOUVEAU : Identité du système ---
+  const [systemInfo, setSystemInfo] = useState({
+      appName: 'MyAcademia SaaS',
+      logoUrl: null
+  });
+
   // Fonction utilitaire pour récupérer la traduction
   const t = (key) => translations[language]?.[key] || key;
 
@@ -88,7 +96,19 @@ const AdminLayout = () => {
     profilePic: null 
   });
 
+  // Charger les infos du système depuis le LocalStorage
+  const loadSystemInfo = () => {
+      const storedAppName = localStorage.getItem('systemAppName');
+      const storedLogoPath = localStorage.getItem('systemLogoPath');
+      
+      setSystemInfo({
+          appName: storedAppName || 'MyAcademia SaaS',
+          logoUrl: storedLogoPath ? getSystemLogoUrl(storedLogoPath) : null
+      });
+  };
+
   useEffect(() => {
+    // Infos utilisateur
     const currentUser = AuthService.getCurrentUser();
     if (currentUser) {
       const roleArray = Array.isArray(currentUser.roles) ? currentUser.roles : (currentUser.role ? [currentUser.role] : []);
@@ -101,6 +121,17 @@ const AdminLayout = () => {
         profilePic: null
       });
     }
+
+    // Charger l'identité du système au montage
+    loadSystemInfo();
+
+    // Écouter les mises à jour (déclenchées depuis Parametres.jsx)
+    const handleSystemUpdate = () => loadSystemInfo();
+    window.addEventListener('system-settings-updated', handleSystemUpdate);
+
+    return () => {
+        window.removeEventListener('system-settings-updated', handleSystemUpdate);
+    };
   }, []); 
 
   const handleLogout = () => {
@@ -138,31 +169,39 @@ const AdminLayout = () => {
           {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        <div className="p-6 border-b border-slate-800/50 flex items-center justify-between shrink-0 h-20 overflow-hidden">
+        {/* HEADER SIDEBAR : IDENTITÉ DU SYSTÈME UNIQUEMENT */}
+        <div className="p-4 border-b border-slate-800/50 flex items-center justify-between shrink-0 h-auto min-h-[5rem] overflow-hidden">
           <Link to="/dashboard" className="flex items-center gap-3 group w-full">
-            <div className={`shrink-0 w-10 h-10 bg-gradient-to-br from-blue-600 via-blue-500 to-emerald-500 rounded-xl flex items-center justify-center text-white font-black text-xl shadow-[0_0_15px_rgba(16,185,129,0.3)] border border-white/10 group-hover:scale-110 transition-transform duration-300 overflow-hidden`}>
-              {schoolConfig?.logoBase64 ? (
+            {/* Logo du SYSTÈME */}
+            <div className={`shrink-0 w-12 h-12 bg-white rounded-xl flex items-center justify-center text-blue-900 font-black text-xl shadow-[0_0_15px_rgba(255,255,255,0.1)] border border-slate-700 group-hover:scale-105 transition-transform duration-300 overflow-hidden`}>
+              {systemInfo.logoUrl ? (
                 <img 
-                  src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
-                  alt="Logo" 
-                  className="w-full h-full object-cover" 
+                  src={systemInfo.logoUrl} 
+                  alt="System Logo" 
+                  className="w-full h-full object-contain p-1" 
                 />
               ) : (
-                <span>{schoolConfig?.schoolName ? schoolConfig.schoolName.charAt(0) : "S"}</span>
+                <span>{systemInfo.appName.charAt(0)}</span>
               )}
             </div>
+
+            {/* Nom : Système en gras avec bonne taille et retour à la ligne pour ERP */}
             {!isCollapsed && (
-              <h2 className="flex-1 text-transparent bg-clip-text bg-gradient-to-r from-white to-slate-400 font-black tracking-tighter text-sm uppercase italic leading-tight whitespace-nowrap overflow-hidden text-ellipsis transition-opacity duration-300">
-                {loading ? "..." : schoolConfig?.schoolName}
-              </h2>
+              <div className="flex flex-col flex-1 overflow-hidden justify-center transition-opacity duration-300">
+                <h1 className="text-white font-black tracking-tight text-lg uppercase leading-tight">
+                  {systemInfo.appName.split(/(?=\sERP)/i).map((part, index) => (
+                    <span key={index} className="block">{part.trim()}</span>
+                  ))}
+                </h1>
+              </div>
             )}
           </Link>
-          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden text-slate-400 hover:text-orange-500 transition-colors shrink-0">
-            <X size={24} />
+          <button onClick={() => setIsMobileMenuOpen(false)} className="lg:hidden text-slate-400 hover:text-orange-500 transition-colors shrink-0 absolute right-4 top-6">
+            <X size={20} />
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-hidden hover:overflow-y-auto py-6 space-y-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+        <nav className="flex-1 overflow-y-hidden hover:overflow-y-auto py-4 space-y-1 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
           
           {/* SECTION 1 */}
           <div className={`px-6 mb-2 text-[10px] font-black text-emerald-500/70 uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden text-ellipsis ${isCollapsed ? "text-center px-0 text-[8px]" : ""}`}>
@@ -174,7 +213,7 @@ const AdminLayout = () => {
           </Link>
 
           {/* SECTION 2 */}
-          <div className={`px-6 mt-8 mb-2 text-[10px] font-black text-emerald-500/70 uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden text-ellipsis ${isCollapsed ? "text-center px-0 text-[8px]" : ""}`}>
+          <div className={`px-6 mt-6 mb-2 text-[10px] font-black text-emerald-500/70 uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden text-ellipsis ${isCollapsed ? "text-center px-0 text-[8px]" : ""}`}>
             {isCollapsed ? "•••" : t('structureLevels')}
           </div>
           <Link to="/annee-scolaire" className={linkStyle("/annee-scolaire")} title={isCollapsed ? t('schoolYear') : ""}>
@@ -195,7 +234,7 @@ const AdminLayout = () => {
           </Link>
 
           {/* SECTION 3 */}
-          <div className={`px-6 mt-8 mb-2 text-[10px] font-black text-emerald-500/70 uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden text-ellipsis ${isCollapsed ? "text-center px-0 text-[8px]" : ""}`}>
+          <div className={`px-6 mt-6 mb-2 text-[10px] font-black text-emerald-500/70 uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden text-ellipsis ${isCollapsed ? "text-center px-0 text-[8px]" : ""}`}>
             {isCollapsed ? "•••" : t('actorsPedagogy')}
           </div>
           <Link to="/eleves" className={linkStyle("/eleves")} title={isCollapsed ? t('studentManagement') : ""}>
@@ -208,7 +247,7 @@ const AdminLayout = () => {
           </Link>
 
           {/* SECTION 4 */}
-          <div className={`px-6 mt-8 mb-2 text-[10px] font-black text-emerald-500/70 uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden text-ellipsis ${isCollapsed ? "text-center px-0 text-[8px]" : ""}`}>
+          <div className={`px-6 mt-6 mb-2 text-[10px] font-black text-emerald-500/70 uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden text-ellipsis ${isCollapsed ? "text-center px-0 text-[8px]" : ""}`}>
             {isCollapsed ? "•••" : t('administration')}
           </div>
           <Link to="/finances" className={linkStyle("/finances")} title={isCollapsed ? t('finances') : ""}>
@@ -225,15 +264,41 @@ const AdminLayout = () => {
           </Link>
         </nav>
 
-        <div className="p-4 bg-slate-900/50 border-t border-slate-800/50 shrink-0 h-20 flex items-center justify-center">
-          <button 
-            onClick={() => setShowLogoutModal(true)} 
-            className={`flex items-center justify-center gap-3 w-full px-4 py-3 bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-500 rounded-xl hover:from-orange-500 hover:to-red-600 hover:text-white transition-all duration-300 font-black uppercase text-[10px] tracking-widest shadow-sm ${isCollapsed ? "px-0 h-11 w-11 rounded-xl gap-0" : ""}`}
-            title={isCollapsed ? t('logout') : ""}
-          >
-            <LogOut size={16} className="shrink-0" /> 
-            {!isCollapsed && <span>{t('logout')}</span>}
-          </button>
+        {/* FOOTER SIDEBAR : UTILISATEUR ET DÉCONNEXION */}
+        <div className="bg-slate-900/80 border-t border-slate-800/80 shrink-0 flex flex-col justify-center py-4 px-4">
+            
+          {/* Profil Admin aligné à gauche avec icône diminuée */}
+          <div className={`flex flex-row items-center justify-start gap-3 mb-4 transition-all duration-300 w-full ${isCollapsed ? 'opacity-0 h-0 overflow-hidden mb-0' : 'opacity-100 h-auto'}`}>
+              <div className="w-10 h-10 shrink-0 rounded-xl overflow-hidden shadow-md border-2 border-slate-700 ring-2 ring-emerald-500/20 bg-slate-800">
+                  {adminUser.profilePic ? (
+                      <img src={adminUser.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                      <div className="w-full h-full bg-gradient-to-tr from-blue-700 via-blue-500 to-emerald-400 flex items-center justify-center text-white font-black text-sm">
+                          {adminUser.initials}
+                      </div>
+                  )}
+              </div>
+              <div className="flex flex-col overflow-hidden">
+                <span className="text-sm font-black text-white text-left w-full truncate">
+                    {adminUser.name === "Administrateur" ? t('adminTitle') : adminUser.name}
+                </span>
+                <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest text-left truncate">
+                    {adminUser.role === "Admin Principal" ? t('adminRole') : adminUser.role}
+                </span>
+              </div>
+          </div>
+
+          {/* Bouton Déconnexion */}
+          <div className="w-full">
+              <button 
+                onClick={() => setShowLogoutModal(true)} 
+                className={`flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-gradient-to-r from-orange-500/10 to-red-500/10 text-orange-500 rounded-xl hover:from-orange-500 hover:to-red-600 hover:text-white transition-all duration-300 font-black uppercase text-[10px] tracking-widest border border-orange-500/20 hover:border-transparent shadow-sm ${isCollapsed ? "px-0 h-10 w-10 mx-auto rounded-xl gap-0" : ""}`}
+                title={isCollapsed ? t('logout') : ""}
+              >
+                <LogOut size={16} className="shrink-0" /> 
+                {!isCollapsed && <span>{t('logout')}</span>}
+              </button>
+          </div>
         </div>
       </aside>
 
@@ -252,7 +317,7 @@ const AdminLayout = () => {
             </h1>
           </div>
           
-          <div className="flex items-center gap-2 lg:gap-6">
+          <div className="flex items-center gap-2 lg:gap-4">
             {/* BOUTON LANGUE */}
             <button onClick={toggleLanguage} className="hidden sm:flex items-center gap-2 p-2 text-slate-600 hover:text-emerald-600 bg-slate-50 hover:bg-emerald-50 dark:text-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 dark:hover:text-emerald-400 border border-slate-200 dark:border-slate-700 rounded-xl transition-all duration-300 font-bold text-xs shadow-sm">
                 <img 
@@ -274,26 +339,23 @@ const AdminLayout = () => {
               <Bell size={20} className="group-hover:scale-110 transition-transform" />
               <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-orange-500 border-2 border-white dark:border-slate-900 rounded-full animate-pulse"></span>
             </button>
-
-            <div className="flex items-center gap-4 border-l pl-4 lg:pl-6 border-slate-200 dark:border-slate-700 transition-colors duration-300">
-               <div className="flex flex-col items-end hidden sm:flex">
-                  <span className="text-sm font-black text-slate-800 dark:text-slate-100">
-                    {adminUser.name === "Administrateur" ? t('adminTitle') : adminUser.name}
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">
-                    {adminUser.role === "Admin Principal" ? t('adminRole') : adminUser.role}
-                  </span>
-               </div>
-               
-               <div className="w-10 h-10 md:w-11 md:h-11 rounded-2xl overflow-hidden shadow-md border-2 border-white dark:border-slate-800 cursor-pointer hover:scale-105 transition-transform duration-300 ring-2 ring-emerald-500/20">
-                  {adminUser.profilePic ? (
-                    <img src={adminUser.profilePic} alt="Profile" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-tr from-blue-700 via-blue-500 to-emerald-400 flex items-center justify-center text-white font-black text-sm md:text-lg">
-                      {adminUser.initials}
+            
+            {/* IDENTITÉ DE L'ÉCOLE (Placée après les notifications) */}
+            <div className="hidden md:flex items-center gap-3 pl-4 ml-1 border-l border-slate-200 dark:border-slate-700">
+                {schoolConfig?.logoBase64 && (
+                    <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 bg-white dark:bg-slate-800 flex items-center justify-center">
+                        <img 
+                            src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
+                            alt="School Logo" 
+                            className="w-full h-full object-contain p-0.5" 
+                        />
                     </div>
-                  )}
-               </div>
+                )}
+                <div className="flex flex-col justify-center">
+                    <span className="text-xs font-black text-slate-800 dark:text-slate-100 uppercase tracking-tight truncate max-w-[150px] lg:max-w-[200px]">
+                        {loading ? "Chargement..." : (schoolConfig?.schoolName || "Institution")}
+                    </span>
+                </div>
             </div>
           </div>
         </header>

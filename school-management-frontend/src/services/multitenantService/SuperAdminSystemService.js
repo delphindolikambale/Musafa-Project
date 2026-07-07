@@ -27,11 +27,28 @@ api.interceptors.request.use(
     }
 );
 
+// ✅ Fonction utilitaire pour résoudre l'URL du logo système
+export const getSystemLogoUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    return `http://localhost:8080/${path}`;
+};
+
 const SuperAdminSystemService = {
 
     // =========================================================================
-    // 🔓 ENDPOINT PUBLIC : Déblocage / Activation de l'établissement
+    // 🔓 ENDPOINTS PUBLICS : Sans authentification requise
     // =========================================================================
+
+    // ✅ NOUVEAU : Récupération publique des paramètres
+    getPublicSettings: async () => {
+        try {
+            const response = await api.get('/system-admin/public/settings');
+            return response.data;
+        } catch (error) {
+            throw error.response?.data || error.message;
+        }
+    },
 
     activateSchool: async (schoolCode, activationCode) => {
         try {

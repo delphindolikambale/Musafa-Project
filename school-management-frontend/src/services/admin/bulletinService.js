@@ -23,3 +23,30 @@ export const getStudentBulletin = async (studentId, yearId) => {
         throw error;
     }
 };
+
+// ✅ AJOUTS SAAS MULTI-TENANT : Endpoints du Proviseur sécurisés par école
+export const getClassesForProviseur = async (schoolId) => {
+    try {
+        const response = await axios.get(`${API_URL}/bulletins/proviseur/classes`, {
+            params: { schoolId },
+            withCredentials: true
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Erreur lors de la récupération des classes", error);
+        throw error;
+    }
+};
+
+export const getBulletinInitData = async (classroomId, academicYearId, schoolId) => {
+    try {
+        const response = await axios.get(`${API_URL}/bulletins/proviseur/init-data`, {
+            params: { classroomId, academicYearId, schoolId },
+            withCredentials: true
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Erreur lors de l'initialisation du bulletin", error);
+        throw error;
+    }
+};

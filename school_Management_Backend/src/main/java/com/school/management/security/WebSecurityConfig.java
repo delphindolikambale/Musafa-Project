@@ -21,6 +21,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,10 +30,17 @@ import java.util.List;
 @Configuration
 @EnableMethodSecurity
 @RequiredArgsConstructor
-public class WebSecurityConfig {
+public class WebSecurityConfig implements WebMvcConfigurer {
 
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthEntryPointJwt unauthorizedHandler;
+
+    // Configuration du mapping des fichiers statiques pour rendre les images accessibles
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        registry.addResourceHandler("/storage/**", "/uploads/**")
+                .addResourceLocations("file:storage/", "file:uploads/");
+    }
 
     @Bean
     public AuthTokenFilter authenticationJwtTokenFilter() {
@@ -101,10 +110,10 @@ public class WebSecurityConfig {
                                 .requestMatchers("/api/resources/**").permitAll()
                                 .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()
-                                .requestMatchers("/storage/**").permitAll()
+                                .requestMatchers("/storage/**", "/uploads/**").permitAll()
 
-                                // ✅ AJOUT : Ouverture de la route publique pour charger la liste des écoles (Placée AVANT le blocage global)
-                                .requestMatchers("/api/system-admin/public/schools").permitAll()
+                                // ✅ ADAPTATION : Ouverture de toutes les routes publiques (englobe /schools et /settings)
+                                .requestMatchers("/api/system-admin/public/**").permitAll()
 
                                 .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")

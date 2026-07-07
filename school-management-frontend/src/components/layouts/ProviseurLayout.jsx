@@ -6,16 +6,20 @@ import { ThemeContext } from '../../App';
 import { 
   LayoutDashboard, Users, BookOpen, UserCheck, Calendar, 
   Fingerprint, LogOut, Menu, X, 
-  ChevronLeft, ChevronRight, Sun, Moon, Inbox, FileText 
+  ChevronLeft, ChevronRight, Sun, Moon, Inbox, FileText,
+  ShieldAlert
 } from 'lucide-react';
 // Import du service de notification WebSocket
 import ProviseurNotificationService from '../../services/pedagogieService/ProviseurNotificationService'; 
 // IMPORT DU NOUVEAU DROPDOWN DE NOTIFICATION EN TEMPS RÉEL
 import NotificationDropdown from './NotificationDropdown';
+// Importation du service d'URL de logo système
+import { getSystemLogoUrl } from '../../services/multitenantService/SuperAdminSystemService'; 
 
 const ProviseurLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   
   // LOGIQUE DE THÈME CORRIGÉE ET SÉCURISÉE
   const themeContext = useContext(ThemeContext);
@@ -45,8 +49,6 @@ const ProviseurLayout = () => {
 
   // INITIALISATION DU SERVICE DE NOTIFICATIONS SONORES (SÉCURISÉ)
   useEffect(() => {
-    // Un léger délai permet de s'assurer que le rendu DOM est terminé
-    // et que le navigateur est prêt à autoriser d'éventuels Auto-Play audio après interaction
     const initTimer = setTimeout(() => {
         ProviseurNotificationService.startListening();
     }, 1000);
@@ -72,6 +74,32 @@ const ProviseurLayout = () => {
     return 'fr';
   });
 
+  // IDENTITÉ DU SYSTÈME
+  const [systemInfo, setSystemInfo] = useState({
+    appName: 'MYACADEMIA ERP',
+    logoUrl: null
+  });
+
+  const loadSystemInfo = () => {
+    const storedAppName = localStorage.getItem('systemAppName');
+    const storedLogoPath = localStorage.getItem('systemLogoPath');
+    
+    setSystemInfo({
+      appName: storedAppName || 'MYACADEMIA ERP',
+      logoUrl: storedLogoPath ? getSystemLogoUrl(storedLogoPath) : null
+    });
+  };
+
+  useEffect(() => {
+    loadSystemInfo();
+    const handleSystemUpdate = () => loadSystemInfo();
+    window.addEventListener('system-settings-updated', handleSystemUpdate);
+
+    return () => {
+      window.removeEventListener('system-settings-updated', handleSystemUpdate);
+    };
+  }, []);
+
   const { schoolConfig, loading } = useSchool();
   const navigate = useNavigate();
   const currentUser = AuthService.getCurrentUser();
@@ -80,11 +108,14 @@ const ProviseurLayout = () => {
     localStorage.setItem('language', language);
   }, [language]);
 
-  const handleLogout = () => {
-    if (window.confirm("Voulez-vous vraiment vous déconnecter ?")) {
-      AuthService.logout();
-      navigate('/login');
-    }
+  const triggerLogoutConfirmation = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = () => {
+    setShowLogoutModal(false);
+    AuthService.logout();
+    navigate('/login');
   };
 
   const menuItems = [
@@ -95,12 +126,11 @@ const ProviseurLayout = () => {
     { path: '/proviseur/horaires', icon: <Calendar size={20} />, label: 'Horaires' },
     { path: '/proviseur/presences', icon: <Fingerprint size={20} />, label: 'Présences/Pointage' },
     { path: '/proviseur/reception-fiches', icon: <Inbox size={20} />, label: 'Réception Fiches' },
-    // NOUVEAU LIEN VERS LE HUB DES BULLETINS
     { path: '/proviseur/bulletin', icon: <FileText size={20} />, label: 'Bulletins' },
   ];
 
   const getInitials = (name) => {
-    if (!name) return "AD";
+    if (!name) return "PR";
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
@@ -134,39 +164,43 @@ const ProviseurLayout = () => {
           {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
         </button>
 
-        <div className="p-6 flex items-center justify-between border-b border-white/5 h-20 shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="shrink-0 w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center shadow-lg border border-white/10 overflow-hidden">
-              {schoolConfig?.logoBase64 ? (
+        {/* HEADER SIDEBAR - IDENTITÉ DU SYSTÈME */}
+        <div className={`p-4 border-b border-slate-800/50 flex items-center justify-between shrink-0 h-auto min-h-[5rem] overflow-hidden mt-4 lg:mt-0 ${isCollapsed ? 'p-4 justify-center' : 'p-6'}`}>
+          <div className="flex items-center gap-3 group w-full">
+            <div className={`shrink-0 bg-white rounded-xl flex items-center justify-center text-blue-900 font-black shadow-[0_0_15px_rgba(255,255,255,0.1)] border border-slate-700 transition-all duration-300 overflow-hidden ${isCollapsed ? 'w-10 h-10' : 'w-12 h-12'}`}>
+              {systemInfo.logoUrl ? (
                 <img 
-                  src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
-                  alt="Logo" 
-                  className="w-full h-full object-cover" 
+                  src={systemInfo.logoUrl} 
+                  alt="System Logo" 
+                  className="w-full h-full object-contain p-1" 
                 />
               ) : (
-                <span className="font-bold text-xl text-blue-400">
-                  {schoolConfig?.schoolName ? schoolConfig.schoolName.charAt(0) : "M"}
-                </span>
+                <span className="text-xl font-black">{systemInfo.appName.charAt(0)}</span>
               )}
             </div>
-            
-            <div className={`min-w-0 flex-1 transition-all duration-300 ${isCollapsed ? 'lg:opacity-0 lg:w-0' : 'opacity-100'}`}>
-              <h1 className="font-bold text-sm tracking-tight leading-tight uppercase truncate">
-                {loading ? "Chargement..." : (schoolConfig?.schoolName || "C.S. MUSAFA")}
-              </h1>
-              <p className="text-[10px] text-blue-400 font-bold tracking-widest mt-1 uppercase whitespace-nowrap">Espace Proviseur</p>
-            </div>
+
+            {!isCollapsed && (
+              <div className="flex flex-col flex-1 overflow-hidden justify-center transition-opacity duration-300">
+                <h1 className="text-white font-black tracking-tight text-lg uppercase leading-tight text-left">
+                  {systemInfo.appName.split(/(?=\sERP)/i).map((part, index) => (
+                    <span key={index} className="block">{part.trim()}</span>
+                  ))}
+                </h1>
+              </div>
+            )}
           </div>
 
-          <button className="p-1 text-slate-400 hover:text-white lg:hidden" onClick={() => setIsSidebarOpen(false)}>
+          <button className="absolute top-4 right-4 text-slate-400 hover:text-white lg:hidden transition-colors" onClick={() => setIsSidebarOpen(false)}>
             <X size={24} />
           </button>
         </div>
 
         <nav className="flex-1 px-4 py-8 space-y-2 overflow-y-auto transition-all duration-300 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-transparent hover:[&::-webkit-scrollbar-thumb]:bg-white/20 [&::-webkit-scrollbar-thumb]:rounded-full">
-          <p className={`text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] px-4 mb-4 transition-opacity duration-300 ${isCollapsed ? 'lg:opacity-0' : 'opacity-100'}`}>
-            {isCollapsed ? "" : "Menu"}
-          </p>
+          {!isCollapsed && (
+            <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em] px-4 mb-4 transition-opacity duration-300 opacity-100">
+              Menu
+            </p>
+          )}
           
           {menuItems.map((item) => (
             <NavLink
@@ -180,9 +214,11 @@ const ProviseurLayout = () => {
               `}
             >
               <span className={`transition-colors shrink-0`}>{item.icon}</span>
-              <span className={`font-semibold text-sm tracking-wide transition-all duration-300 whitespace-nowrap ${isCollapsed ? 'lg:opacity-0 lg:w-0 overflow-hidden' : 'opacity-100'}`}>
-                {item.label}
-              </span>
+              {!isCollapsed && (
+                <span className="font-semibold text-sm tracking-wide transition-all duration-300 whitespace-nowrap opacity-100">
+                  {item.label}
+                </span>
+              )}
               
               {isCollapsed && (
                 <div className="absolute left-full ml-4 px-3 py-2 bg-slate-800 text-white text-xs font-bold rounded-lg opacity-0 group-hover/nav:opacity-100 pointer-events-none transition-all invisible lg:visible translate-x-[-10px] group-hover/nav:translate-x-0 z-[100] shadow-xl whitespace-nowrap border border-white/10">
@@ -193,15 +229,27 @@ const ProviseurLayout = () => {
           ))}
         </nav>
 
-        <div className="p-6 border-t border-white/5">
+        {/* FOOTER SIDEBAR - PROFIL & DÉCONNEXION */}
+        <div className="p-4 border-t border-slate-800/50 flex flex-col gap-3">
+          <div className={`flex items-center gap-3 mb-1 ${isCollapsed ? 'justify-center' : 'px-2'}`}>
+            <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center font-bold shadow-lg border border-white/10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white`}>
+              {getInitials(currentUser?.username)}
+            </div>
+            {!isCollapsed && (
+              <div className="text-left overflow-hidden">
+                <p className="text-sm font-bold uppercase text-slate-100 truncate">{currentUser?.username || "Proviseur"}</p>
+                <p className="text-[11px] text-emerald-500 font-bold tracking-wider truncate">PROVISEUR PRINCIPAL</p>
+              </div>
+            )}
+          </div>
+
           <button 
-            onClick={handleLogout}
-            className={`flex items-center gap-4 w-full px-4 py-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-600 hover:text-white transition-all font-bold text-sm ${isCollapsed ? 'lg:justify-center' : ''}`}
+            onClick={triggerLogoutConfirmation}
+            title={isCollapsed ? "Déconnexion" : ""}
+            className={`flex items-center text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded-xl transition-all duration-200 w-full ${isCollapsed ? 'justify-center p-3' : 'justify-start gap-3 px-4 py-3'}`}
           >
-            <LogOut size={18} className="shrink-0" />
-            <span className={`transition-all duration-300 whitespace-nowrap ${isCollapsed ? 'lg:opacity-0 lg:w-0 overflow-hidden' : 'opacity-100'}`}>
-              Déconnexion
-            </span>
+            <LogOut size={20} className="shrink-0" />
+            {!isCollapsed && <span className="text-sm font-medium whitespace-nowrap">Déconnexion</span>}
           </button>
         </div>
       </aside>
@@ -218,7 +266,7 @@ const ProviseurLayout = () => {
             </button>
             
             <h2 className="text-slate-800 dark:text-white font-black text-sm lg:text-lg transition-colors">
-              {isCollapsed ? (schoolConfig?.schoolName || "Espace Études") : "Espace Gestionnaire"}
+              Espace Gestionnaire
             </h2>
           </div>
 
@@ -252,18 +300,26 @@ const ProviseurLayout = () => {
             </div>
 
             <div className="flex items-center gap-3 lg:gap-6">
-              {/* INTÉGRATION DU DROPDOWN DE NOTIFICATION INTERACTIF */}
               <NotificationDropdown />
               
-              <div className="flex items-center gap-3 pl-4 border-l border-slate-100 dark:border-slate-700 transition-colors">
-                <div className="text-right hidden md:block leading-none">
-                  <p className="text-[13px] font-black text-slate-800 dark:text-white mb-0.5 transition-colors">
-                    {currentUser?.username || "Proviseur"}
-                  </p>
-                  <p className="text-[9px] font-black text-emerald-500 uppercase tracking-tighter">Proviseur Principal</p>
-                </div>
-                <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center text-white font-black shadow-lg border-2 border-white dark:border-slate-800 text-sm transform transition-transform hover:scale-105 cursor-pointer">
-                  {getInitials(currentUser?.username)}
+              {/* IDENTITÉ DE L'ÉCOLE DANS LE HEADER */}
+              <div className="hidden md:flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700 transition-colors">
+                {schoolConfig?.logoBase64 && (
+                  <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 bg-white dark:bg-slate-800 flex items-center justify-center">
+                    <img 
+                      src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
+                      alt="School Logo" 
+                      className="w-full h-full object-contain p-0.5" 
+                    />
+                  </div>
+                )}
+                <div className="flex flex-col justify-center">
+                  <span className="text-xs font-black uppercase tracking-tight truncate max-w-[150px] lg:max-w-[200px] text-slate-800 dark:text-slate-100 transition-colors">
+                    {loading ? "Chargement..." : schoolConfig?.schoolName}
+                  </span>
+                  <span className="text-[9px] text-blue-500 font-bold uppercase tracking-widest">
+                    Espace Proviseur
+                  </span>
                 </div>
               </div>
             </div>
@@ -277,6 +333,56 @@ const ProviseurLayout = () => {
           </div>
         </main>
       </div>
+
+      {/* BOÎTE DE DIALOGUE DE SÉCURITÉ POUR LA DÉCONNEXION */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto">
+          <div 
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity" 
+            onClick={() => setShowLogoutModal(false)}
+          />
+          
+          <div className={`relative w-full max-w-md transform overflow-hidden rounded-2xl p-6 text-left align-middle shadow-2xl transition-all border border-slate-700/30 ${
+            isDarkMode ? 'bg-[#0F172A] text-white' : 'bg-white text-slate-900'
+          }`}>
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-500 rounded-xl shrink-0">
+                <ShieldAlert size={26} />
+              </div>
+              <div className="flex-1">
+                <h3 className={`text-lg font-bold ${isDarkMode ? 'text-slate-100' : 'text-slate-900'}`}>
+                  Confirmation de sécurité
+                </h3>
+                <p className={`mt-2 text-sm ${isDarkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                  Êtes-vous sûr de vouloir vous déconnecter de votre espace proviseur ? Toutes les sessions actives non enregistrées prendront fin.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className={`px-4 py-2.5 rounded-xl text-sm font-medium border transition-all duration-200 ${
+                  isDarkMode 
+                    ? 'border-slate-700 text-slate-300 hover:bg-slate-800' 
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLogout}
+                className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-sm font-medium shadow-lg shadow-red-900/20 transition-all duration-200"
+              >
+                Confirmer la déconnexion
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

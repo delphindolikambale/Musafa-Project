@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { SchoolConfigService } from '../../services/schoolConfig.service';
 import { ThemeContext } from '../../App'; // Import du contexte pour le layout global
+import { getSystemLogoUrl } from '../../services/multitenantService/SuperAdminSystemService'; // Importation du service d'URL de logo système
 
 const RegisterStudents = () => {
   const { theme, toggleTheme } = useContext(ThemeContext);
@@ -35,6 +36,23 @@ const RegisterStudents = () => {
     logoBase64: null
   });
 
+  // --- ADAPTATION : Identité du système ---
+  const [systemInfo, setSystemInfo] = useState({
+    appName: 'MYACADEMIA ERP',
+    logoUrl: null
+  });
+
+  // Charger les infos du système depuis le LocalStorage
+  const loadSystemInfo = () => {
+    const storedAppName = localStorage.getItem('systemAppName');
+    const storedLogoPath = localStorage.getItem('systemLogoPath');
+    
+    setSystemInfo({
+      appName: storedAppName || 'MYACADEMIA ERP',
+      logoUrl: storedLogoPath ? getSystemLogoUrl(storedLogoPath) : null
+    });
+  };
+
   // Récupération de la configuration depuis le backend
   useEffect(() => {
     const fetchConfig = async () => {
@@ -51,6 +69,17 @@ const RegisterStudents = () => {
       }
     };
     fetchConfig();
+
+    // Charger l'identité du système au montage
+    loadSystemInfo();
+
+    // Écouter les mises à jour du système
+    const handleSystemUpdate = () => loadSystemInfo();
+    window.addEventListener('system-settings-updated', handleSystemUpdate);
+
+    return () => {
+      window.removeEventListener('system-settings-updated', handleSystemUpdate);
+    };
   }, []);
 
   const menuItems = [
@@ -76,22 +105,6 @@ const RegisterStudents = () => {
   // Fonction pour basculer la langue
   const toggleLanguage = () => {
     setLanguage(prev => prev === 'FR' ? 'EN' : 'FR');
-  };
-
-  // Fonction pour afficher correctement le logo Base64
-  const renderLogo = () => {
-    if (schoolConfig.logoBase64) {
-      const imageSrc = schoolConfig.logoBase64.startsWith('data:image') 
-        ? schoolConfig.logoBase64 
-        : `data:image/png;base64,${schoolConfig.logoBase64}`;
-        
-      return <img src={imageSrc} alt="Logo" className="w-full h-full object-cover" />;
-    }
-    return (
-      <span className="font-bold text-xl text-white">
-        {schoolConfig.schoolName.charAt(0).toUpperCase()}
-      </span>
-    );
   };
 
   return (
@@ -130,22 +143,33 @@ const RegisterStudents = () => {
           <X size={24} />
         </button>
 
-        {/* Header de la Sidebar */}
-        <div className={`p-6 flex flex-col items-center border-b border-slate-800/50 mt-4 lg:mt-0 transition-all duration-300 ${isSidebarCollapsed ? 'p-4' : 'p-6'}`}>
-          <div className={`bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden border border-slate-600 transition-all duration-300 ${isSidebarCollapsed ? 'w-10 h-10 mb-0' : 'w-16 h-16 mb-3'}`}>
-            {renderLogo()}
+        {/* ADAPTATION : Header de la Sidebar avec l'identité du Système uniquement */}
+        <div className={`p-4 border-b border-slate-800/50 flex items-center justify-between shrink-0 h-auto min-h-[5rem] overflow-hidden mt-4 lg:mt-0 ${isSidebarCollapsed ? 'p-4 justify-center' : 'p-6'}`}>
+          <div className="flex items-center gap-3 group w-full">
+            {/* Logo du SYSTÈME */}
+            <div className={`shrink-0 bg-white rounded-xl flex items-center justify-center text-blue-900 font-black shadow-[0_0_15px_rgba(255,255,255,0.1)] border border-slate-700 transition-all duration-300 overflow-hidden ${isSidebarCollapsed ? 'w-10 h-10' : 'w-12 h-12'}`}>
+              {systemInfo.logoUrl ? (
+                <img 
+                  src={systemInfo.logoUrl} 
+                  alt="System Logo" 
+                  className="w-full h-full object-contain p-1" 
+                />
+              ) : (
+                <span className="text-xl font-black">{systemInfo.appName.charAt(0)}</span>
+              )}
+            </div>
+
+            {/* Nom du Système : Police agrandie (text-lg) et passage automatique à la ligne pour ERP */}
+            {!isSidebarCollapsed && (
+              <div className="flex flex-col flex-1 overflow-hidden justify-center transition-opacity duration-300">
+                <h1 className="text-white font-black tracking-tight text-lg uppercase leading-tight text-left">
+                  {systemInfo.appName.split(/(?=\sERP)/i).map((part, index) => (
+                    <span key={index} className="block">{part.trim()}</span>
+                  ))}
+                </h1>
+              </div>
+            )}
           </div>
-          
-          {!isSidebarCollapsed && (
-            <>
-              <h2 className="text-sm font-bold text-center uppercase tracking-wider px-2 line-clamp-2 text-slate-100">
-                {schoolConfig.schoolName}
-              </h2>
-              <span className="text-[10px] text-emerald-400 mt-2 uppercase font-semibold bg-emerald-400/10 px-3 py-1 rounded-full border border-emerald-400/20 whitespace-nowrap">
-                Espace Préfet
-              </span>
-            </>
-          )}
         </div>
 
         {/* Navigation */}
@@ -175,13 +199,28 @@ const RegisterStudents = () => {
           ))}
         </nav>
 
-        {/* Footer Sidebar / Déconnexion */}
-        <div className="p-4 border-t border-slate-800/50">
+        {/* Footer Sidebar / Profil Préfet & Déconnexion */}
+        <div className="p-4 border-t border-slate-800/50 flex flex-col gap-3">
+          
+          {/* Profil Préfet */}
+          <div className={`flex items-center gap-3 mb-1 ${isSidebarCollapsed ? 'justify-center' : 'px-2'}`}>
+            <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center font-bold shadow-sm border bg-blue-900/40 text-blue-300 border-blue-800/50`}>
+              AD
+            </div>
+            {!isSidebarCollapsed && (
+              <div className="text-left overflow-hidden">
+                <p className="text-sm font-bold uppercase text-slate-100 truncate">Ir. Architecte</p>
+                <p className="text-[11px] text-emerald-500 font-bold tracking-wider truncate">PRÉFET DES ÉTUDES</p>
+              </div>
+            )}
+          </div>
+
+          {/* Bouton Déconnexion */}
           <button 
             onClick={triggerLogoutConfirmation}
             title={isSidebarCollapsed ? "Déconnexion" : ""}
             className={`flex items-center text-red-400 hover:bg-red-500/20 hover:text-red-300 rounded-xl transition-all duration-200 w-full ${
-              isSidebarCollapsed ? 'justify-center p-3' : 'justify-center gap-3 px-4 py-3'
+              isSidebarCollapsed ? 'justify-center p-3' : 'justify-start gap-3 px-4 py-3'
             }`}
           >
             <LogOut size={20} />
@@ -207,10 +246,10 @@ const RegisterStudents = () => {
             </h1>
           </div>
 
-          {/* Boutons de configurations & Profil alignés à droite */}
+          {/* Boutons de configurations alignés à droite */}
           <div className="flex items-center gap-4 sm:gap-6">
             
-            {/* --- NOUVEAU : BOUTON SÉLECTEUR DE LANGUE --- */}
+            {/* BOUTON SÉLECTEUR DE LANGUE */}
             <button 
               onClick={toggleLanguage}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all duration-200 ${
@@ -224,7 +263,7 @@ const RegisterStudents = () => {
               </span>
             </button>
 
-            {/* --- NOUVEAU : BOUTON THÈME (DARK & LIGHT) --- */}
+            {/* BOUTON THÈME (DARK & LIGHT) */}
             <button 
               onClick={toggleTheme}
               className={`p-2 rounded-lg border transition-all duration-200 ${
@@ -243,16 +282,24 @@ const RegisterStudents = () => {
               <span className={`absolute -top-1 -right-1 w-2.5 h-2.5 bg-orange-500 rounded-full border-2 ${isDark ? 'border-[#1E293B]' : 'border-white'}`}></span>
             </button>
             
-            {/* Profil Préfet */}
-            <div className={`flex items-center gap-3 border-l pl-4 sm:pl-6 ${isDark ? 'border-slate-700' : 'border-slate-200'}`}>
-              <div className="text-right hidden sm:block">
-                <p className={`text-sm font-bold uppercase ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>Ir. Architecte</p>
-                <p className="text-[11px] text-emerald-500 font-bold tracking-wider">PRÉFET DES ÉTUDES</p>
-              </div>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold shadow-sm border ${isDark ? 'bg-blue-900/40 text-blue-300 border-blue-800/50' : 'bg-blue-100 text-blue-700 border-blue-100'}`}>
-                AD
+            {/* ADAPTATION : Identité de l'école (Restée dans le header) */}
+            <div className="hidden md:flex items-center gap-3 pl-4 ml-1 border-l border-slate-200 dark:border-slate-700">
+              {schoolConfig.logoBase64 && (
+                <div className="w-9 h-9 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 bg-white dark:bg-slate-800 flex items-center justify-center">
+                  <img 
+                    src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
+                    alt="School Logo" 
+                    className="w-full h-full object-contain p-0.5" 
+                  />
+                </div>
+              )}
+              <div className="flex flex-col justify-center">
+                <span className={`text-xs font-black uppercase tracking-tight truncate max-w-[150px] lg:max-w-[200px] ${isDark ? 'text-slate-100' : 'text-slate-800'}`}>
+                  {schoolConfig.schoolName}
+                </span>
               </div>
             </div>
+            
           </div>
         </header>
 
@@ -261,7 +308,7 @@ const RegisterStudents = () => {
         </div>
       </main>
 
-      {/* --- NOUVEAU : BOITE DE DIALOGUE DE SECURITE (MODAL DE DECONNEXION) --- */}
+      {/* BOITE DE DIALOGUE DE SECURITE (MODAL DE DECONNEXION) */}
       {showLogoutModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-x-hidden overflow-y-auto">
           {/* Backdrop avec flou */}

@@ -22,7 +22,7 @@ public class SystemAdminController {
 
     private final SchoolServiceImpl schoolService;
 
-    // ✅ NOUVEAU : Endpoint public pour charger la liste des écoles à l'inscription
+    // ✅ Endpoint public pour charger la liste des écoles à l'inscription
     @GetMapping("/public/schools")
     public ResponseEntity<List<Map<String, Object>>> getPublicSchools() {
         List<Map<String, Object>> publicSchools = schoolService.getAllSchools().stream()
@@ -33,6 +33,16 @@ public class SystemAdminController {
                 ))
                 .toList();
         return ResponseEntity.ok(publicSchools);
+    }
+
+    // ✅ NOUVEAU : Endpoint public pour charger le nom et le logo sur la page d'accueil sans authentification
+    @GetMapping("/public/settings")
+    public ResponseEntity<Map<String, String>> getPublicSettings() {
+        SystemSettings settings = schoolService.getSystemSettings();
+        return ResponseEntity.ok(Map.of(
+                "applicationName", settings.getApplicationName() != null ? settings.getApplicationName() : "MyAcademia",
+                "globalLogoPath", settings.getGlobalLogoPath() != null ? settings.getGlobalLogoPath() : ""
+        ));
     }
 
     @PostMapping("/schools")

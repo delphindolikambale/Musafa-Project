@@ -1,5 +1,4 @@
 import React from 'react';
-import { getImageUrl } from '../../../services/api';
 
 const BulletinBody = ({ bulletinData, header }) => {
     if (!bulletinData) return <div className="text-center p-4 font-serif">Chargement de la grille...</div>;
@@ -18,23 +17,11 @@ const BulletinBody = ({ bulletinData, header }) => {
     return (
         <div className="relative w-full text-black font-serif text-[10px] leading-tight print:text-black">
             
-            {/* FILIGRANE / WATERMARK EN POSITION ABSOLUE SOUS LE TABLEAU */}
-            {header?.watermarkLogoPath && (
-                <div className="absolute inset-0 z-0 flex items-center justify-center pointer-events-none">
-                    <img 
-                        src={getImageUrl(header.watermarkLogoPath)} 
-                        alt="Filigrane Officiel MINEPST" 
-                        className="w-[55%] h-auto object-contain opacity-[0.15] grayscale print:opacity-[0.20]"
-                    />
-                </div>
-            )}
-
             {/* GRILLE PRINCIPALE DES EVALUATIONS */}
             <table className="relative z-10 w-full border-collapse border-2 border-black text-center table-fixed bg-transparent">
                 
                 {/* ================================================= */}
                 {/* DÉFINITION STRICTE DES LARGEURS DE COLONNES (COLGROUP) */}
-                {/* TOTAL : 20 Colonnes (100%)                          */}
                 {/* ================================================= */}
                 <colgroup>
                     <col className="w-[23.5%]" /> {/* 1. BRANCHES */}
@@ -80,72 +67,62 @@ const BulletinBody = ({ bulletinData, header }) => {
                         <th colSpan={2} className="p-0.5 text-[9px] align-middle leading-tight font-black">EXAMEN DE<br/>REPECHAGE</th>
                     </tr>
                     <tr className="border-b border-black text-[8px] font-bold bg-transparent">
-                        {/* SEMESTRE 1 */}
                         <th rowSpan={2} className="border-r border-black p-0.5 align-middle">MAX.</th>
                         <th colSpan={2} className="border-r border-black p-0.5 align-middle leading-tight">TRAVAUX<br/>JOURNAL.</th>
                         <th colSpan={2} rowSpan={2} className="border-r border-black p-0.4 align-middle">MAX.EXAM.</th>
                         <th colSpan={2} rowSpan={2} className="border-r-2 border-black p-0.5 align-middle">TOTAL</th>
                         
-                        {/* SEMESTRE 2 */}
                         <th rowSpan={2} className="border-r border-black p-0.5 align-middle">MAX.</th>
                         <th colSpan={2} className="border-r border-black p-0.5 align-middle leading-tight">TRAVAUX<br/>JOURNAL.</th>
                         <th colSpan={2} rowSpan={2} className="border-r border-black p-0.4 align-middle">MAX.EXAM.</th>
                         <th colSpan={2} rowSpan={2} className="border-r-2 border-black p-0.5 align-middle">TOTAL</th>
                         
-                        {/* TOTAL GENERAL est fusionné plus haut sur 3 lignes sans subdiviser MAX/OBT dans l'entête */}
-                        
-                        {/* REPECHAGE */}
                         <th rowSpan={2} className="border-r border-black p-0.5 align-middle">%</th>
                         <th rowSpan={2} className="p-0.5 align-middle leading-tight">Sign. Prof.</th>
                     </tr>
                     <tr className="border-b-2 border-black text-[8px] font-bold bg-transparent">
-                        {/* SOUS-COLONNES S1 */}
                         <th className="border-r border-black p-0.5">1ère P</th>
                         <th className="border-r border-black p-0.5">2ème P</th>
-                        {/* EXAMEN et TOTAL englobent cette ligne */}
-                        
-                        {/* SOUS-COLONNES S2 */}
                         <th className="border-r border-black p-0.5">3ème P</th>
                         <th className="border-r border-black p-0.5">4ème P</th>
-                        {/* EXAMEN et TOTAL englobent cette ligne */}
                     </tr>
                 </thead>
 
                 {/* ================================================= */}
-                {/* CORPS DU TABLEAU                                  */}
+                {/* CORPS DU TABLEAU (Hiérarchie Dynamique)           */}
                 {/* ================================================= */}
                 <tbody className="bg-transparent">
                     
                     {domains?.map((domain, dIdx) => (
                         <React.Fragment key={`eb-dom-${dIdx}`}>
                             
-                            {/* LIGNE DOMAINE (Gris puis Noir à partir du Total Général) */}
+                            {/* 1. LIGNE DOMAINE */}
                             <tr className="border-b border-black font-black text-left text-[9px] bg-gray-300" style={printGrayBgStyle}>
                                 <td colSpan={15} className="border-r-2 border-black p-1 pl-2 uppercase tracking-wider">
-                                    {domain.name}
+                                    {domain.domainName || domain.name}
                                 </td>
                                 <td colSpan={5} className="bg-black" style={printBlackColStyle}></td>
                             </tr>
                             
-                            {/* LIGNES DES BRANCHES */}
+                            {/* 2. LIGNES DES COURS DIRECTS (SANS SOUS-DOMAINE) */}
                             {domain.subjects?.map((sub, sIdx) => (
-                                <tr key={`eb-sub-${sIdx}`} className="border-b border-black text-[10px] bg-transparent">
-                                    <td className="border-r-2 border-black p-1 text-left pl-3 font-normal leading-tight">{sub.subjectName}</td>
+                                <tr key={`eb-dom-sub-${dIdx}-${sIdx}`} className="border-b border-black text-[10px] bg-transparent">
+                                    <td className="border-r-2 border-black p-1 text-left pl-3 font-normal leading-tight">{sub.subjectName || sub.name}</td>
                                     
                                     {/* S1 */}
-                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxPeriod || '10'}</td>
+                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxP1 || sub.maxPeriod || '10'}</td>
                                     <td className="border-r border-black p-0.5">{sub.p1 ?? ''}</td>
                                     <td className="border-r border-black p-0.5">{sub.p2 ?? ''}</td>
-                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxExam || '20'}</td>
+                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxExam1 || sub.maxExam || '20'}</td>
                                     <td className="border-r border-black p-0.5 font-bold">{sub.exam1 ?? ''}</td>
                                     <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalS1 || '40'}</td>
                                     <td className="border-r-2 border-black p-0.5 font-bold">{sub.totalS1 ?? ''}</td>
                                     
                                     {/* S2 */}
-                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxPeriod || '10'}</td>
+                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxP3 || sub.maxPeriod || '10'}</td>
                                     <td className="border-r border-black p-0.5">{sub.p3 ?? ''}</td>
                                     <td className="border-r border-black p-0.5">{sub.p4 ?? ''}</td>
-                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxExam || '20'}</td>
+                                    <td className="border-r border-black p-0.5 font-bold">{sub.maxExam2 || sub.maxExam || '20'}</td>
                                     <td className="border-r border-black p-0.5 font-bold">{sub.exam2 ?? ''}</td>
                                     <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalS2 || '40'}</td>
                                     <td className="border-r-2 border-black p-0.5 font-bold">{sub.totalS2 ?? ''}</td>
@@ -160,38 +137,89 @@ const BulletinBody = ({ bulletinData, header }) => {
                                     <td className="p-0.5"></td>
                                 </tr>
                             ))}
-                            
-                            {/* SOUS-TOTAL DU DOMAINE */}
-                            <tr className="border-b-2 border-black font-bold text-[9.5px] bg-gray-50/50">
-                                <td className="border-r-2 border-black text-left pl-2 italic">Sous-Total</td>
-                                
-                                {/* S1 */}
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subMaxPeriod || ''}</td>
-                                <td className="border-r border-black p-0.5">{domain.subP1 ?? ''}</td>
-                                <td className="border-r border-black p-0.5">{domain.subP2 ?? ''}</td>
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subMaxExam ?? ''}</td>
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subExam1 ?? ''}</td>
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subMaxTotalS1 ?? ''}</td>
-                                <td className="border-r-2 border-black p-0.5 font-bold">{domain.subTotalS1 ?? ''}</td>
-                                
-                                {/* S2 */}
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subMaxPeriod || ''}</td>
-                                <td className="border-r border-black p-0.5">{domain.subP3 ?? ''}</td>
-                                <td className="border-r border-black p-0.5">{domain.subP4 ?? ''}</td>
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subMaxExam ?? ''}</td>
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subExam2 ?? ''}</td>
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subMaxTotalS2 ?? ''}</td>
-                                <td className="border-r-2 border-black p-0.5 font-bold">{domain.subTotalS2 ?? ''}</td>
-                                
-                                {/* TOT GEN */}
-                                <td className="border-r border-black p-0.5 font-bold">{domain.subMaxTotalGen ?? ''}</td>
-                                <td className="border-r border-black p-0.5 font-black">{domain.subTotalAnnuel ?? ''}</td>
-                                
-                                {/* RESTE - NETTOYÉ */}
-                                <td className="border-r-2 border-black" style={printBlackColStyle}></td>
-                                <td className="border-r border-black p-0.5"></td>
-                                <td className="p-0.5"></td>
-                            </tr>
+
+                            {/* 3. LIGNES DES SOUS-DOMAINES ET LEURS COURS */}
+                            {domain.subDomains?.map((subDom, sdIdx) => {
+                                const domainStr = (domain.domainName || domain.name || '').trim().toUpperCase();
+                                const subDomStr = (subDom.subDomainName || subDom.name || '').trim().toUpperCase();
+                                // Ne pas afficher l'en-tête du sous-domaine s'il est identique au domaine principal
+                                const isRedundant = subDomStr === domainStr;
+
+                                return (
+                                <React.Fragment key={`eb-subdom-${dIdx}-${sdIdx}`}>
+                                    {/* Ligne En-tête Sous-Domaine avec Fond Gris */}
+                                    {!isRedundant && (
+                                        <tr className="border-b border-black text-left text-[9px] bg-gray-300" style={printGrayBgStyle}>
+                                            <td colSpan={15} className="border-r-2 border-black p-1 pl-4 font-bold italic text-gray-800">
+                                                {subDom.subDomainName || subDom.name}
+                                            </td>
+                                            <td colSpan={5} className="bg-black" style={printBlackColStyle}></td>
+                                        </tr>
+                                    )}
+
+                                    {/* Cours du Sous-Domaine */}
+                                    {subDom.subjects?.map((sub, sIdx) => (
+                                        <tr key={`eb-subdom-sub-${dIdx}-${sdIdx}-${sIdx}`} className="border-b border-black text-[10px] bg-transparent">
+                                            <td className="border-r-2 border-black p-1 text-left pl-5 font-normal leading-tight">{sub.subjectName || sub.name}</td>
+                                            
+                                            {/* S1 */}
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.maxP1 || sub.maxPeriod || '10'}</td>
+                                            <td className="border-r border-black p-0.5">{sub.p1 ?? ''}</td>
+                                            <td className="border-r border-black p-0.5">{sub.p2 ?? ''}</td>
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.maxExam1 || sub.maxExam || '20'}</td>
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.exam1 ?? ''}</td>
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalS1 || '40'}</td>
+                                            <td className="border-r-2 border-black p-0.5 font-bold">{sub.totalS1 ?? ''}</td>
+                                            
+                                            {/* S2 */}
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.maxP3 || sub.maxPeriod || '10'}</td>
+                                            <td className="border-r border-black p-0.5">{sub.p3 ?? ''}</td>
+                                            <td className="border-r border-black p-0.5">{sub.p4 ?? ''}</td>
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.maxExam2 || sub.maxExam || '20'}</td>
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.exam2 ?? ''}</td>
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalS2 || '40'}</td>
+                                            <td className="border-r-2 border-black p-0.5 font-bold">{sub.totalS2 ?? ''}</td>
+                                            
+                                            {/* TOT GEN */}
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalGen || '80'}</td>
+                                            <td className="border-r border-black p-0.5 font-black">{sub.totalAnnuel ?? ''}</td>
+                                            
+                                            {/* RESTE */}
+                                            <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                                            <td className="border-r border-black p-0.5 font-bold">{sub.repechagePct ?? ''}</td>
+                                            <td className="p-0.5"></td>
+                                        </tr>
+                                    ))}
+
+                                    {/* Sous-Total du Sous-Domaine */}
+                                    <tr className="border-b border-black font-bold text-[9px] bg-gray-50/50">
+                                        <td className="border-r-2 border-black text-left pl-4 italic">Sous-Total</td>
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.subMaxP1 || ''}</td>
+                                        <td className="border-r border-black p-0.5">{subDom.obtP1 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5">{subDom.obtP2 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.subMaxExam1 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.obtExam1 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.subMaxTotalS1 ?? ''}</td>
+                                        <td className="border-r-2 border-black p-0.5 font-bold">{subDom.obtTotalS1 ?? ''}</td>
+                                        
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.subMaxP3 || ''}</td>
+                                        <td className="border-r border-black p-0.5">{subDom.obtP3 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5">{subDom.obtP4 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.subMaxExam2 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.obtExam2 ?? ''}</td>
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.subMaxTotalS2 ?? ''}</td>
+                                        <td className="border-r-2 border-black p-0.5 font-bold">{subDom.obtTotalS2 ?? ''}</td>
+                                        
+                                        <td className="border-r border-black p-0.5 font-bold">{subDom.subMaxTotalGen ?? ''}</td>
+                                        <td className="border-r border-black p-0.5 font-black">{subDom.obtTotalAnnuel ?? ''}</td>
+                                        
+                                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                                        <td className="border-r border-black p-0.5"></td>
+                                        <td className="p-0.5"></td>
+                                    </tr>
+                                </React.Fragment>
+                                );
+                            })}
                         </React.Fragment>
                     ))}
 
@@ -199,26 +227,26 @@ const BulletinBody = ({ bulletinData, header }) => {
                     {/* LIGNES DE SYNTHÈSE DE FIN DE GRILLE               */}
                     {/* ================================================= */}
                     
-                    {/* 1. MAXIMA GENERAUX - NETTOYÉ (Avec % et Sign. Prof remplis de noir) */}
+                    {/* 1. MAXIMA GENERAUX */}
                     <tr className="border-b border-black font-black uppercase bg-transparent text-[9.5px]">
                         <td className="border-r-2 border-black p-1 text-left font-black pl-2">MAXIMA GENERAUX</td>
-                        <td className="border-r border-black p-0.5 font-bold">{results?.maxPeriod || ''}</td>
+                        <td className="border-r border-black p-0.5 font-bold">{bulletinData?.totalMaxP1 || results?.maxPeriod || ''}</td>
                         <td className="border-r border-black p-0.5"></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5 font-bold">{results?.maxExam || ''}</td>
+                        <td className="border-r border-black p-0.5 font-bold">{bulletinData?.totalMaxExam1 || results?.maxExam || ''}</td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5 font-black">{results?.maxS1_Tot || ''}</td>
+                        <td className="border-r border-black p-0.5 font-black">{bulletinData?.totalMaxS1 || results?.maxS1_Tot || ''}</td>
                         <td className="border-r-2 border-black p-0.5"></td>
                         
-                        <td className="border-r border-black p-0.5 font-bold">{results?.maxPeriod || ''}</td>
+                        <td className="border-r border-black p-0.5 font-bold">{bulletinData?.totalMaxP3 || results?.maxPeriod || ''}</td>
                         <td className="border-r border-black p-0.5"></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5 font-bold">{results?.maxExam || ''}</td>
+                        <td className="border-r border-black p-0.5 font-bold">{bulletinData?.totalMaxExam2 || results?.maxExam || ''}</td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5 font-black">{results?.maxS2_Tot || ''}</td>
+                        <td className="border-r border-black p-0.5 font-black">{bulletinData?.totalMaxS2 || results?.maxS2_Tot || ''}</td>
                         <td className="border-r-2 border-black p-0.5"></td>
                         
-                        <td className="border-r border-black p-0.5 font-black">{results?.totalGeneralMax || ''}</td>
+                        <td className="border-r border-black p-0.5 font-black">{bulletinData?.totalGeneralMax || results?.totalGeneralMax || ''}</td>
                         <td className="border-r border-black p-0.5"></td>
                         
                         <td className="border-r-2 border-black" style={printBlackColStyle}></td>
@@ -229,23 +257,23 @@ const BulletinBody = ({ bulletinData, header }) => {
                     {/* 2. TOTAUX OBTENUS */}
                     <tr className="border-b border-black font-bold uppercase bg-transparent text-[10px]">
                         <td className="border-r-2 border-black p-1 text-left font-black pl-2">TOTAUX</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.obtS1_P1 ?? ''}</td>
                         <td className="border-r border-black p-0.5">{results?.obtS1_P2 ?? ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.obtS1_Exam ?? ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5 font-black">{results?.obtS1_Tot ?? ''}</td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.obtS2_P3 ?? ''}</td>
                         <td className="border-r border-black p-0.5">{results?.obtS2_P4 ?? ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.obtS2_Exam ?? ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5 font-black">{results?.obtS2_Tot ?? ''}</td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* TOT GEN MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5 font-black">{results?.totalGeneralObt ?? ''}</td>
                         
                         <td className="border-r-2 border-black" style={printBlackColStyle}></td>
@@ -261,23 +289,23 @@ const BulletinBody = ({ bulletinData, header }) => {
                     {/* 3. POURCENTAGE */}
                     <tr className="border-b border-black font-bold uppercase bg-transparent text-[9.5px]">
                         <td className="border-r-2 border-black p-1 text-left font-black pl-2">POURCENTAGE</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5 font-bold">{results?.pctS1_P1 ? `${results.pctS1_P1}%` : ''}</td>
                         <td className="border-r border-black p-0.5 font-bold">{results?.pctS1_P2 ? `${results.pctS1_P2}%` : ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5 font-bold">{results?.pctS1_Exam ? `${results.pctS1_Exam}%` : ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5 font-black">{results?.pctS1_Tot ? `${results.pctS1_Tot}%` : ''}</td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5 font-bold">{results?.pctS2_P3 ? `${results.pctS2_P3}%` : ''}</td>
                         <td className="border-r border-black p-0.5 font-bold">{results?.pctS2_P4 ? `${results.pctS2_P4}%` : ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5 font-bold">{results?.pctS2_Exam ? `${results.pctS2_Exam}%` : ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5 font-black">{results?.pctS2_Tot ? `${results.pctS2_Tot}%` : ''}</td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* TOT GEN MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5 font-black">{results?.pourcentageGeneral ? `${results.pourcentageGeneral}%` : ''}</td>
                         
                         <td className="border-r-2 border-black" style={printBlackColStyle}></td>
@@ -286,24 +314,24 @@ const BulletinBody = ({ bulletinData, header }) => {
                     {/* 4. PLACE / NBRE D'ELEVES */}
                     <tr className="border-b border-black font-bold uppercase bg-transparent text-[9.5px]">
                         <td className="border-r-2 border-black p-1 text-left font-black pl-2">PLACE / NBRE D'ELEVES</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 MAX TJ */}
-                        <td className="border-r border-black p-0.5">{results?.placeS1_P1 || ''} / {results?.nbEleves || ''}</td>
-                        <td className="border-r border-black p-0.5">{results?.placeS1_P2 || ''} / {results?.nbEleves || ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r border-black p-0.5">{results?.placeS1_P1 || ''} / {bulletinData?.studentCount || results?.nbEleves || ''}</td>
+                        <td className="border-r border-black p-0.5">{results?.placeS1_P2 || ''} / {bulletinData?.studentCount || results?.nbEleves || ''}</td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 TOTAL MAX */}
-                        <td className="border-r-2 border-black p-0.5 font-bold">{results?.placeS1_Tot || ''} / {results?.nbEleves || ''}</td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r-2 border-black p-0.5 font-bold">{results?.placeS1_Tot || ''} / {bulletinData?.studentCount || results?.nbEleves || ''}</td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 MAX TJ */}
-                        <td className="border-r border-black p-0.5">{results?.placeS2_P3 || ''} / {results?.nbEleves || ''}</td>
-                        <td className="border-r border-black p-0.5">{results?.placeS2_P4 || ''} / {results?.nbEleves || ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r border-black p-0.5">{results?.placeS2_P3 || ''} / {bulletinData?.studentCount || results?.nbEleves || ''}</td>
+                        <td className="border-r border-black p-0.5">{results?.placeS2_P4 || ''} / {bulletinData?.studentCount || results?.nbEleves || ''}</td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 TOTAL MAX */}
-                        <td className="border-r-2 border-black p-0.5 font-bold">{results?.placeS2_Tot || ''} / {results?.nbEleves || ''}</td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r-2 border-black p-0.5 font-bold">{results?.placeS2_Tot || ''} / {bulletinData?.studentCount || results?.nbEleves || ''}</td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* TOT GEN MAX */}
-                        <td className="border-r border-black p-0.5 font-black">{results?.placeGeneral || ''} / {results?.nbEleves || ''}</td>
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
+                        <td className="border-r border-black p-0.5 font-black">{results?.placeGeneral || ''} / {bulletinData?.studentCount || results?.nbEleves || ''}</td>
                         
                         <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                     </tr>
@@ -311,23 +339,23 @@ const BulletinBody = ({ bulletinData, header }) => {
                     {/* 5. APPLICATION */}
                     <tr className="border-b border-black font-bold uppercase bg-transparent text-[9.5px]">
                         <td className="border-r-2 border-black p-1 text-left font-black pl-2">APPLICATION</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.appP1 || ''}</td>
                         <td className="border-r border-black p-0.5">{results?.appP2 || ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5"></td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.appP3 || ''}</td>
                         <td className="border-r border-black p-0.5">{results?.appP4 || ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5"></td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* TOT GEN MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
                         
                         <td className="border-r-2 border-black" style={printBlackColStyle}></td>
@@ -336,52 +364,59 @@ const BulletinBody = ({ bulletinData, header }) => {
                     {/* 6. CONDUITE */}
                     <tr className="border-b border-black font-bold uppercase bg-transparent text-[9.5px]">
                         <td className="border-r-2 border-black p-1 text-left font-black pl-2">CONDUITE</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.condP1 || ''}</td>
                         <td className="border-r border-black p-0.5">{results?.condP2 || ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S1 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5"></td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 MAX TJ */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5">{results?.condP3 || ''}</td>
                         <td className="border-r border-black p-0.5">{results?.condP4 || ''}</td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 EXAM MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* S2 TOTAL MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r-2 border-black p-0.5"></td>
                         
-                        <td className={`border-r border-black ${hatchedBg}`}></td> {/* TOT GEN MAX */}
+                        <td className={`border-r border-black ${hatchedBg}`}></td>
                         <td className="border-r border-black p-0.5"></td>
                         
                         <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                     </tr>
 
-                    {/* 7. SIGNATURE - NETTOYÉ */}
-                    <tr className="border-b-2 border-black font-bold uppercase bg-transparent text-[9.5px] h-7">
+                    {/* 7. SIGNATURE */}
+                    <tr className="border-b border-black font-bold uppercase bg-transparent text-[9.5px]">
                         <td className="border-r-2 border-black p-1 text-left font-black pl-2">SIGNATURE</td>
-                        <td className="border-r border-black p-0.5"></td> {/* S1 MAX TJ */}
-                        <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5"></td> {/* S1 EXAM MAX */}
-                        <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5"></td> {/* S1 TOTAL MAX */}
-                        <td className="border-r-2 border-black p-0.5"></td>
                         
-                        <td className="border-r border-black p-0.5"></td> {/* S2 MAX TJ */}
-                        <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5"></td> {/* S2 EXAM MAX */}
-                        <td className="border-r border-black p-0.5"></td>
-                        <td className="border-r border-black p-0.5"></td> {/* S2 TOTAL MAX */}
-                        <td className="border-r-2 border-black p-0.5"></td>
+                        {/* S1: MAX et 1ère P fusionnés */}
+                        <td colSpan={2} className="border-r border-black p-0.5"></td>
                         
-                        <td className="border-r border-black p-0.5"></td> {/* TOT GEN MAX */}
+                        {/* S1: 2ème P */}
                         <td className="border-r border-black p-0.5"></td>
                         
-                        <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                        {/* S1: MAX.EXAM fusionné (2 sous-colonnes) */}
+                        <td colSpan={2} className="border-r border-black p-0.5"></td>
+                        
+                        {/* S1: TOTAL fusionné (2 sous-colonnes) */}
+                        <td colSpan={2} className="border-r-2 border-black p-0.5"></td>
+                        
+                        {/* S2: MAX */}
+                        <td className="border-r border-black p-0.5"></td>
+                        
+                        {/* S2: 3ème P */}
+                        <td className="border-r border-black p-0.5"></td>
+                        
+                        {/* S2: 4ème P */}
+                        <td className="border-r border-black p-0.5"></td>
+                        
+                        {/* S2: De MAX.EXAM jusqu'à la colonne Noire fusionnés (7 colonnes) */}
+                        <td colSpan={7} className="border-r-2 border-black p-0.5"></td>
+                        
+                        {/* NOTE: Les colonnes REPECHAGE % et SIGN. PROF sont déjà absorbées par le rowSpan=6 du bloc Chef d'Etablissement */}
                     </tr>
+
                 </tbody>
             </table>
         </div>

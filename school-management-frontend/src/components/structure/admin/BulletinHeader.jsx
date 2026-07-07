@@ -30,6 +30,20 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
         }
     };
 
+    // 🔴 CORRECTION : Génération intelligente et dynamique du titre selon le format
+    const generateBulletinTitle = () => {
+        const level = studentInfo?.classLevel || "..........";
+        const year = studentInfo?.schoolYear || "..........";
+        
+        if (formatType === 'HUMANITES') {
+            // Pour les humanités, on ajoute le mot "HUMANITÉS" après la classe
+            return `BULLETIN DE LA ${level} HUMANITÉS ANNÉE SCOLAIRE ${year}`.toUpperCase();
+        } else {
+            // Pour le cycle de base (7e et 8e)
+            return `BULLETIN DE LA ${level} CYCLE TERMINAL DE L'ÉDUCATION DE BASE (CTEB) ANNÉE SCOLAIRE ${year}`.toUpperCase();
+        }
+    };
+
     return (
         <div className="w-full text-black font-sans text-[10px] leading-tight print:text-black">
             
@@ -78,7 +92,7 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                         N° ID.
                     </div>
                     <div className="flex-1 flex items-center px-2 bg-white">
-                        {renderCodeBoxes(studentInfo?.matricule, 27)}
+                        {renderCodeBoxes(studentInfo?.nationalId || "", 27)}
                     </div>
                 </div>
 
@@ -133,7 +147,8 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                                 <span className="w-[60px] font-bold uppercase shrink-0">ELEVE</span>
                                 <span className="mx-1 font-bold">:</span>
                                 <span className="uppercase font-bold flex-1 border-b border-dotted border-black/60 pb-0.5 whitespace-nowrap overflow-hidden">
-                                    {studentInfo?.lastName} {studentInfo?.postName} {studentInfo?.firstName}
+                                    {/* Formatage correct du nom (prénom, nom, post-nom) gérant les champs vides */}
+                                    {`${studentInfo?.lastName || ""} ${studentInfo?.postName || ""} ${studentInfo?.firstName || ""}`.trim()}
                                 </span>
                             </div>
                             <div className="flex items-end shrink-0 w-[70px]">
@@ -175,10 +190,10 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                     </div>
                 </div>
 
-                {/* 5. Libellé Central du Bulletin */}
+                {/* 5. Libellé Central du Bulletin généré dynamiquement */}
                 <div className="text-center py-2 bg-white border-b-[1.5px] border-black">
                     <span className="font-sans font-black text-[13px] uppercase tracking-wide">
-                        BULLETIN DE LA {studentInfo?.classLevel || ".........."} {studentInfo?.section ? `${studentInfo.section}` : "CYCLE TERMINAL DE L'EDUCATION DE BASE (CTEB)"} ANNEE SCOLAIRE {studentInfo?.schoolYear || "2024 - 2025"}
+                        {generateBulletinTitle()}
                     </span>
                 </div>
 

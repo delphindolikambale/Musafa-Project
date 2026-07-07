@@ -35,9 +35,7 @@ const BulletinHeaderService = {
                 'Content-Type': 'multipart/form-data' // On force le type pour l'upload
             }
         });
-        
         return response.data;
     }
 };
-
 export default BulletinHeaderService;

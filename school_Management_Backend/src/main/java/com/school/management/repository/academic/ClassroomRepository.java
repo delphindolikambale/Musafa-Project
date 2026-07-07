@@ -28,4 +28,8 @@ public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
 
     // ✅ ADAPTATION MULTI-TENANT : Ajout du prototype de comptage automatique pour le DashboardService
     long countBySchoolId(Long schoolId);
+
+    // ✅ SÉCURISÉ : Récupérer toutes les classes actives d'une école (pour le ComboBox)
+    // Tu peux l'adapter avec d'autres filtres (ex: level_id) si tu veux filtrer par "format"
+    List<Classroom> findBySchoolIdAndActiveTrue(Long schoolId);
 }
