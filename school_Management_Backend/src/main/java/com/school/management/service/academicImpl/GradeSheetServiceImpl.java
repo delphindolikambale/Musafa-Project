@@ -275,12 +275,13 @@ public class GradeSheetServiceImpl implements GradeSheetService {
     @Override
     @Transactional
     public void validatePeriodGradeSheet(Long taId, int period) {
+        Long schoolId = getCurrentSchoolId();
         // ✅ CORRECTION MULTI-TENANT : Récupération sécurisée par école pour empêcher l'exécution de requêtes croisées
-        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, getCurrentSchoolId())
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, schoolId)
                 .orElseThrow(() -> new RuntimeException("Fiche de notes introuvable pour cette période."));
 
         // PROTECTION MULTI-TENANT
-        if (!validation.getTeacherAssignment().getSchool().getId().equals(getCurrentSchoolId())) {
+        if (!validation.getTeacherAssignment().getSchool().getId().equals(schoolId)) {
             throw new AccessDeniedException("❌ Validation refusée : Cette ressource n'appartient pas à votre école.");
         }
 
@@ -288,6 +289,23 @@ public class GradeSheetServiceImpl implements GradeSheetService {
         validation.setValidationDate(LocalDateTime.now());
         validation.setRejectComment(null);
         validationRepository.save(validation);
+
+        // ✅ DIFFUSION DE LA NOTIFICATION EN TEMPS RÉEL AU TITULAIRE VIA WEBSOCKET (Canal Sécurisé Multi-tenant)
+        try {
+            Map<String, Object> notificationPayload = new HashMap<>();
+            notificationPayload.put("type", "BULLETIN_READY_FOR_TITULAIRE");
+            notificationPayload.put("message", "Le Proviseur a visé la fiche de notes. Prête pour le bulletin !");
+            notificationPayload.put("subjectName", validation.getTeacherAssignment().getCourseAssignment().getSubject().getName());
+            notificationPayload.put("classroomName", validation.getTeacherAssignment().getClassroom().getDisplayName());
+            notificationPayload.put("classroomId", validation.getTeacherAssignment().getClassroom().getId());
+            notificationPayload.put("period", period);
+            notificationPayload.put("schoolId", schoolId);
+
+            // Envoi sur le canal filtré de l'établissement pour les titulaires
+            messagingTemplate.convertAndSend("/topic/titulaire-notifications/" + schoolId, notificationPayload);
+        } catch (Exception e) {
+            System.err.println("Erreur lors de l'envoi de la notification au Titulaire : " + e.getMessage());
+        }
     }
 
     @Override
@@ -304,6 +322,41 @@ public class GradeSheetServiceImpl implements GradeSheetService {
 
         validation.setStatus(VisaStatus.REJECTED_BY_PROVISEUR);
         validation.setRejectComment(comment);
+        validationRepository.save(validation);
+    }
+
+    @Override
+    @Transactional
+    public void validateGradeSheetByTitulaire(Long taId, int period) {
+        Long schoolId = getCurrentSchoolId();
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, schoolId)
+                .orElseThrow(() -> new RuntimeException("Fiche de notes introuvable pour cette période."));
+
+        if (!validation.getTeacherAssignment().getSchool().getId().equals(schoolId)) {
+            throw new AccessDeniedException("❌ Action refusée : Cette ressource n'appartient pas à votre école.");
+        }
+
+        if (validation.getStatus() != VisaStatus.VALIDATED_BY_PROVISEUR) {
+            throw new RuntimeException("Action impossible : La fiche doit d'abord être validée par le Proviseur.");
+        }
+
+        validation.setStatus(VisaStatus.VALIDATED_BY_TITULAIRE);
+        validationRepository.save(validation);
+    }
+
+    @Override
+    @Transactional
+    public void reportErrorByTitulaire(Long taId, int period, String comment) {
+        Long schoolId = getCurrentSchoolId();
+        PeriodValidation validation = validationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(taId, period, schoolId)
+                .orElseThrow(() -> new RuntimeException("Fiche de notes introuvable pour cette période."));
+
+        if (!validation.getTeacherAssignment().getSchool().getId().equals(schoolId)) {
+            throw new AccessDeniedException("❌ Action refusée : Cette ressource n'appartient pas à votre école.");
+        }
+
+        validation.setStatus(VisaStatus.ERROR_REPORTED_BY_TITULAIRE);
+        validation.setRejectComment(comment); // Utilisation du champ existant pour stocker le retour d'erreur
         validationRepository.save(validation);
     }
 }

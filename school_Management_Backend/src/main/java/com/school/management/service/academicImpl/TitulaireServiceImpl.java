@@ -10,9 +10,9 @@ import com.school.management.repository.academic.ClassroomRepository;
 import com.school.management.repository.academic.PeriodValidationRepository;
 import com.school.management.repository.academic.TeacherAssignmentRepository;
 import com.school.management.service.academic.TitulaireService;
-import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
-import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
-import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
+import com.school.management.security.services.UserDetailsImpl;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -52,7 +52,6 @@ public class TitulaireServiceImpl implements TitulaireService {
 
     @Override
     public List<ClassroomResponseDTO> getMyClassrooms(Long teacherId, Long academicYearId) {
-        // ✅ CORRECTION MULTI-TENANT : Passage du schoolId pour correspondre à la signature du ClassroomRepository
         return classroomRepository.findByTitulaireIdAndSchoolId(teacherId, getCurrentSchoolId()).stream()
                 .map(this::mapClassroomToResponseDTO)
                 .collect(Collectors.toList());
@@ -60,30 +59,23 @@ public class TitulaireServiceImpl implements TitulaireService {
 
     @Override
     public TitulaireMonitoringResponseDTO getMonitoringForClassroomAndPeriod(Long classroomId, int period, Long academicYearId) {
-        // ✅ CORRECTION MULTI-TENANT : Utilisation du findById sécurisé par école active
         Classroom classroom = classroomRepository.findByIdAndSchoolId(classroomId, getCurrentSchoolId())
                 .orElseThrow(() -> new RuntimeException("Classe introuvable ou accès non autorisé"));
 
-        // 1. Récupérer toutes les affectations de cours pour cette classe et cette année
-        // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode filtrée par schoolId du TeacherAssignmentRepository
         List<TeacherAssignment> assignments = teacherAssignmentRepository.findByClassroomIdAndAcademicYearIdAndSchoolId(classroomId, academicYearId, getCurrentSchoolId());
 
         List<SubjectValidationStatusDTO> subjectStatuses = new ArrayList<>();
         boolean allValidated = true;
 
-        // 2. Pour chaque cours, chercher le statut de validation de la période
         for (TeacherAssignment assignment : assignments) {
-            // ✅ CORRECTION MULTI-TENANT : Utilisation de la méthode filtrée par schoolId du PeriodValidationRepository
             Optional<PeriodValidation> validationOpt = periodValidationRepository.findByTeacherAssignmentIdAndPeriodAndSchoolId(assignment.getId(), period, getCurrentSchoolId());
 
             String currentStatus = validationOpt.map(v -> v.getStatus().name()).orElse("DRAFT");
 
-            // Si au moins un cours n'est pas validé par le proviseur, le bulletin n'est pas prêt
             if (!"VALIDATED_BY_PROVISEUR".equals(currentStatus) && !"VALIDATED_BY_TITULAIRE".equals(currentStatus)) {
                 allValidated = false;
             }
 
-            // MAPPING PROPRE : On passe par CourseAssignment puis Subject pour éviter l'erreur de compilation
             String courseName = "Cours inconnu";
             if (assignment.getCourseAssignment() != null && assignment.getCourseAssignment().getSubject() != null) {
                 courseName = assignment.getCourseAssignment().getSubject().getName();
@@ -101,7 +93,6 @@ public class TitulaireServiceImpl implements TitulaireService {
             subjectStatuses.add(statusDTO);
         }
 
-        // Si la classe n'a aucun cours assigné, elle ne peut pas être prête
         if (assignments.isEmpty()) {
             allValidated = false;
         }
@@ -111,11 +102,11 @@ public class TitulaireServiceImpl implements TitulaireService {
                 .classroomName(classroom.getDisplayName())
                 .period(period)
                 .subjects(subjectStatuses)
-                .isReadyForBulletinGeneration(allValidated)
+                .readyForBulletinGeneration(allValidated) // ✅ Builder corrigé avec le nouveau nom
+                .hasBulletins(false) // ✅ Ajouté pour s'interfacer avec le Frontend sans erreur
                 .build();
     }
 
-    // Méthode utilitaire simple pour mapper la classe
     private ClassroomResponseDTO mapClassroomToResponseDTO(Classroom entity) {
         ClassroomResponseDTO dto = new ClassroomResponseDTO();
         dto.setId(entity.getId());

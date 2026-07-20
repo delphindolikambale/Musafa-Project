@@ -20,7 +20,9 @@ import {
     ShieldCheck
 } from 'lucide-react';
 import schoolConfigService from '../../services/admin/schoolConfigService';
-import titulaireService from '../../services/pedagogieService/titulaireService'; // IMPORT DU SERVICE TITULAIRE
+import titulaireService from '../../services/pedagogieService/titulaireService';
+import { getSystemLogoUrl } from "../../services/multitenantService/SuperAdminSystemService";
+import { websocketService } from '../../services/websocketService'; // ✅ IMPORT DU WEBSOCKET
 
 const TeacherLayout = () => {
     const navigate = useNavigate();
@@ -36,11 +38,24 @@ const TeacherLayout = () => {
     // État pour savoir si l'enseignant est titulaire
     const [isTitulaire, setIsTitulaire] = useState(false);
     
-    // État pour la configuration de l'établissement
+    // État pour la cloche de notification des bulletins
+    const [hasUnreadNotification, setHasUnreadNotification] = useState(false);
+    const [notificationData, setNotificationData] = useState(null); // ✅ Stockage des détails du websocket
+
+    // État pour la boîte de dialogue de déconnexion
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
+    
+    // État pour la configuration de l'établissement (placé dans le Header)
     const [schoolConfig, setSchoolConfig] = useState({
         schoolName: "Institution Éducative",
         logoBase64: null,
         slogan: ""
+    });
+
+    // État pour la configuration globale du Système (placé dans le Sidebar)
+    const [systemConfig, setSystemConfig] = useState({
+        applicationName: "MyAcademia SaaS",
+        logoPath: null
     });
 
     const user = JSON.parse(localStorage.getItem('user')) || {};
@@ -61,7 +76,12 @@ const TeacherLayout = () => {
             titleClasses: "Espace Classes & Évaluations",
             titleTitulaire: "Tableau de Bord Titulaire",
             titleSchedule: "Mon Horaire",
-            titleDefault: "Espace Pédagogique"
+            titleDefault: "Espace Pédagogique",
+            systemSubtitle: "Gestion Scolaire SaaS",
+            logoutConfirmTitle: "Confirmation de déconnexion",
+            logoutConfirmDesc: "Êtes-vous sûr de vouloir vous déconnecter de votre espace enseignant ?",
+            cancel: "Annuler",
+            confirm: "Se déconnecter"
         },
         EN: {
             menuTitle: "Teacher Space",
@@ -77,19 +97,36 @@ const TeacherLayout = () => {
             titleClasses: "Classes & Evaluations Space",
             titleTitulaire: "Titulaire Dashboard",
             titleSchedule: "My Schedule",
-            titleDefault: "Pedagogical Space"
+            titleDefault: "Pedagogical Space",
+            systemSubtitle: "SaaS School Management",
+            logoutConfirmTitle: "Logout Confirmation",
+            logoutConfirmDesc: "Are you sure you want to log out of your teacher space?",
+            cancel: "Cancel",
+            confirm: "Log out"
         }
     };
 
     const currentTexts = translations[lang] || translations.FR;
 
-    // Charger la configuration de l'établissement et le statut de titulaire au montage
+    // Charger les informations du système SaaS
+    const loadSystemInfo = () => {
+        const storedAppName = localStorage.getItem('systemAppName');
+        const storedLogoPath = localStorage.getItem('systemLogoPath');
+        
+        setSystemConfig({
+            applicationName: storedAppName || 'MyAcademia SaaS',
+            logoPath: storedLogoPath || null
+        });
+    };
+
+    // Charger les configurations (École + Système) et le statut de titulaire au montage
     useEffect(() => {
-        const fetchSchoolConfig = async () => {
+        const fetchConfigs = async () => {
+            // Configuration de l'école
             try {
-                const data = await schoolConfigService.getSchoolConfig();
-                if (data && data.schoolName) {
-                    setSchoolConfig(data);
+                const schoolData = await schoolConfigService.getSchoolConfig();
+                if (schoolData && schoolData.schoolName) {
+                    setSchoolConfig(schoolData);
                 }
             } catch (error) {
                 console.error("Erreur lors du chargement de la configuration de l'école:", error);
@@ -97,15 +134,11 @@ const TeacherLayout = () => {
         };
 
         const checkTitulaireStatus = async () => {
-            // CORRECTION : Priorité absolue à l'ID de l'enseignant (teacherId) par rapport à l'ID utilisateur générique
             const teacherId = user.teacherId || user.id; 
-            
-            // Extraction sécurisée de l'ID de l'année académique active si stockée dans le système
             const academicYearId = user.academicYearId || user.currentAcademicYearId || localStorage.getItem('academicYearId') || localStorage.getItem('currentAcademicYearId') || null;
 
             if (teacherId) {
                 try {
-                    // Transmission de l'ID enseignant et de l'année académique pour coller à la logique backend
                     const classrooms = await titulaireService.getMyClassrooms(teacherId, academicYearId);
                     if (classrooms && classrooms.length > 0) {
                         setIsTitulaire(true);
@@ -119,9 +152,75 @@ const TeacherLayout = () => {
             }
         };
 
-        fetchSchoolConfig();
+        fetchConfigs();
         checkTitulaireStatus();
+        loadSystemInfo(); // Chargement immédiat depuis le LocalStorage
+
+        // Écouter les mises à jour du système déclenchées depuis Parametres.jsx
+        window.addEventListener('system-settings-updated', loadSystemInfo);
+        return () => window.removeEventListener('system-settings-updated', loadSystemInfo);
     }, []);
+
+    // -------------------------------------------------------------------------
+    // LOGIQUE DE NOTIFICATION SYSTÈME (BROWSER API VIA WEBSOCKET)
+    // -------------------------------------------------------------------------
+    
+    // Demande la permission une fois au montage du composant
+    useEffect(() => {
+        if ("Notification" in window && Notification.permission !== "granted") {
+            Notification.requestPermission();
+        }
+    }, []);
+
+    const sendNotification = (message) => {
+        if ("Notification" in window && Notification.permission === "granted") {
+            new Notification("MyAcademia ERP", {
+                body: message || "Le Proviseur vient d'envoyer de nouveaux bulletins.",
+                icon: "/favicon.ico" 
+            });
+        }
+    };
+
+    useEffect(() => {
+        // Callback déclenché à la réception d'un message STOMP
+        const handleWebSocketMessage = (data) => {
+            const currentTeacherId = user.teacherId || user.id;
+
+            // On s'assure que la donnée est bien du JSON
+            if (data && typeof data === 'object') {
+                // ✅ Vérification si le message concerne cet enseignant titulaire
+                // L'action peut être REFRESH, BULLETINS_SENT, etc. selon le backend
+                if (Number(data.teacherId) === Number(currentTeacherId) || Number(data.titulaireId) === Number(currentTeacherId)) {
+                    setHasUnreadNotification(true);
+                    setNotificationData(data); // Sauvegarde des données (ex: className, period) pour l'ouverture du dossier
+                    
+                    const notificationMessage = data.message || `Les bulletins de la classe ${data.classroomName || ''} sont disponibles !`;
+                    sendNotification(notificationMessage);
+                }
+            }
+        };
+
+        // On établit la connexion (qui gère l'exponential backoff nativement)
+        websocketService.connect(handleWebSocketMessage);
+
+        // Nettoyage de l'écouteur à la destruction du composant
+        return () => {
+            websocketService.disconnect(handleWebSocketMessage);
+        };
+    }, [user.id, user.teacherId]);
+
+    const handleNotificationClick = () => {
+        setHasUnreadNotification(false);
+        // ✅ Rediriger l'enseignant vers l'espace titulaire en passant le state pour créer/ouvrir le dossier
+        navigate('/enseignant/titulaire', { 
+            state: { 
+                triggerFolderCreation: true, 
+                folderData: notificationData,
+                timestamp: Date.now() // Force le rafraîchissement si on y est déjà
+            } 
+        });
+    };
+    // -------------------------------------------------------------------------
 
     // Gestion synchrone et persistante du thème
     useEffect(() => {
@@ -144,7 +243,12 @@ const TeacherLayout = () => {
         setIsLangDropdownOpen(false);
     };
 
-    const handleLogout = () => {
+    // Gestion de la déconnexion
+    const handleLogoutClick = () => {
+        setShowLogoutModal(true);
+    };
+
+    const confirmLogout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
         navigate('/login');
@@ -194,17 +298,46 @@ const TeacherLayout = () => {
                 />
             )}
 
-            {/* SIDEBAR (Desktop & Mobile) */}
+            {/* MODAL DE CONFIRMATION DE DÉCONNEXION */}
+            {showLogoutModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl max-w-sm w-full p-6 text-center transform scale-100 animate-in zoom-in-95 duration-200">
+                        <div className="w-16 h-16 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 rounded-full flex items-center justify-center mx-auto mb-4 shadow-inner">
+                            <LogOut size={32} strokeWidth={2.5} className="mr-1" />
+                        </div>
+                        <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">
+                            {currentTexts.logoutConfirmTitle}
+                        </h3>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 px-2">
+                            {currentTexts.logoutConfirmDesc}
+                        </p>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => setShowLogoutModal(false)}
+                                className="flex-1 py-3 px-4 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-2xl font-bold text-sm hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                            >
+                                {currentTexts.cancel}
+                            </button>
+                            <button 
+                                onClick={confirmLogout}
+                                className="flex-1 py-3 px-4 bg-red-600 text-white rounded-2xl font-bold text-sm hover:bg-red-700 shadow-lg shadow-red-600/30 transition-all hover:-translate-y-0.5"
+                            >
+                                {currentTexts.confirm}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* SIDEBAR (Desktop & Mobile) - Affichage du Système SaaS */}
             <div className={`
                 fixed inset-y-0 left-0 z-50 lg:relative lg:z-20
                 ${isSidebarOpen ? 'w-72' : 'w-0 lg:w-20'} 
                 ${isMobileOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0'}
                 bg-slate-900 text-white flex flex-col shadow-2xl transition-all duration-300 overflow-hidden
             `}>
-                {/* Effet visuel d'arrière-plan */}
                 <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-blue-600/20 to-transparent pointer-events-none"></div>
                 
-                {/* Bouton de fermeture exclusif pour le Sidebar Mobile */}
                 {isMobileOpen && (
                     <button 
                         onClick={() => setIsMobileOpen(false)}
@@ -214,40 +347,35 @@ const TeacherLayout = () => {
                     </button>
                 )}
 
-                {/* Header Sidebar : Logo & Nom de l'institution */}
+                {/* Header Sidebar : Logo & Nom du Système (SaaS) */}
                 <div className="p-6 flex flex-col items-center border-b border-slate-800/50 relative z-10 min-h-[170px] justify-center">
                     {isSidebarOpen || isMobileOpen ? (
                         <>
-                            <div className="w-20 h-20 bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden border border-slate-700/50 transform hover:scale-105 transition-transform mb-3">
-                                {schoolConfig.logoBase64 ? (
+                            <div className="w-20 h-20 bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg overflow-hidden border border-slate-700/50 transform hover:scale-105 transition-transform mb-3 bg-white">
+                                {systemConfig.logoPath ? (
                                     <img 
-                                        src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
-                                        alt="Logo Institution" 
-                                        className="w-full h-full object-cover"
+                                        src={getSystemLogoUrl(systemConfig.logoPath)} 
+                                        alt="Logo Système" 
+                                        className="w-full h-full object-contain p-1"
                                     />
                                 ) : (
-                                    <GraduationCap size={36} className="text-blue-400" />
+                                    <LayoutDashboard size={36} className="text-blue-600" />
                                 )}
                             </div>
                             <h2 className="text-sm font-black uppercase tracking-wider text-center text-slate-100 line-clamp-2 px-2">
-                                {schoolConfig.schoolName}
+                                {systemConfig.applicationName}
                             </h2>
-                            {schoolConfig.slogan && (
-                                <p className="text-[10px] text-slate-400 text-center italic mt-1 line-clamp-1">
-                                    {schoolConfig.slogan}
-                                </p>
-                            )}
                         </>
                     ) : (
-                        <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shadow-md border border-slate-700/50">
-                            {schoolConfig.logoBase64 ? (
+                        <div className="w-10 h-10 bg-slate-800 rounded-xl flex items-center justify-center shadow-md border border-slate-700/50 overflow-hidden bg-white">
+                            {systemConfig.logoPath ? (
                                 <img 
-                                    src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
-                                    alt="Logo" 
-                                    className="w-full h-full object-cover rounded-xl"
+                                    src={getSystemLogoUrl(systemConfig.logoPath)} 
+                                    alt="Logo Système" 
+                                    className="w-full h-full object-contain p-0.5"
                                 />
                             ) : (
-                                <GraduationCap size={20} className="text-blue-400" />
+                                <LayoutDashboard size={20} className="text-blue-600" />
                             )}
                         </div>
                     )}
@@ -269,7 +397,6 @@ const TeacherLayout = () => {
                         {(isSidebarOpen || isMobileOpen) && <span>{currentTexts.classes}</span>}
                     </NavLink>
 
-                    {/* AFFICHAGE CONDITIONNEL DE L'ONGLET ESPACE TITULAIRE */}
                     {isTitulaire && (
                         <NavLink to="/enseignant/titulaire" className={({ isActive }) => `flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold capitalize tracking-wide transition-all duration-300 ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
                             <ShieldCheck size={20} className="shrink-0" />
@@ -304,7 +431,7 @@ const TeacherLayout = () => {
                         </div>
                     )}
                     
-                    <button onClick={handleLogout} className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-black capitalize tracking-wide text-red-400 hover:bg-red-500 hover:text-white transition-all duration-300 group">
+                    <button onClick={handleLogoutClick} className="w-full flex items-center justify-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-black capitalize tracking-wide text-red-400 hover:bg-red-500 hover:text-white transition-all duration-300 group">
                         <LogOut size={20} className="group-hover:-translate-x-1 transition-transform shrink-0" /> 
                         {(isSidebarOpen || isMobileOpen) && <span>{currentTexts.logout}</span>}
                     </button>
@@ -386,31 +513,51 @@ const TeacherLayout = () => {
                             )}
                         </div>
 
-                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
+                        <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
 
-                        {/* NOTIFICATIONS */}
-                        <button className="relative p-2.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                            <Bell size={19} />
-                            <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900"></span>
+                        {/* NOTIFICATIONS CLOCHE */}
+                        <button 
+                            onClick={handleNotificationClick}
+                            className={`relative p-2.5 transition-colors rounded-xl ${hasUnreadNotification ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-800' : 'text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            title="Notifications"
+                        >
+                            <Bell size={19} className={hasUnreadNotification ? "animate-pulse" : ""} />
+                            {hasUnreadNotification && (
+                                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900 animate-pulse"></span>
+                            )}
                         </button>
                         
                         <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
                         
-                        {/* INFOS COMPTE EN-TÊTE */}
+                        {/* INFOS ÉCOLE EN-TÊTE */}
                         <div className="flex items-center gap-3 text-slate-500 dark:text-slate-400">
-                            <div className="w-8 h-8 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
-                                <User size={15} className="text-blue-600 dark:text-blue-400" />
+                            <div className="hidden sm:flex flex-col text-right max-w-[150px]">
+                                <span className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-200 line-clamp-1" title={schoolConfig?.schoolName}>
+                                    {schoolConfig?.schoolName || "Institution"}
+                                </span>
+                                <span className="text-[8px] font-bold text-emerald-500 dark:text-emerald-400 uppercase tracking-wider line-clamp-1 mt-0.5">
+                                    {schoolConfig?.slogan || "Institution"}
+                                </span>
                             </div>
-                            <div className="hidden sm:flex flex-col text-left">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">{user.username || 'Enseignant'}</span>
-                                <span className="text-[9px] font-bold text-slate-400 tracking-wider">Académie v1.0</span>
+                            <div className="w-10 h-10 md:h-11 md:w-11 bg-white dark:bg-slate-800 rounded-xl overflow-hidden flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 ring-2 ring-emerald-500/10">
+                                {schoolConfig?.logoBase64 ? (
+                                    <img 
+                                        src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
+                                        alt="Logo Ecole" 
+                                        className="w-full h-full object-contain p-0.5"
+                                    />
+                                ) : (
+                                    <span className="text-slate-600 dark:text-slate-300 font-black">
+                                        {schoolConfig?.schoolName ? schoolConfig.schoolName.charAt(0).toUpperCase() : 'S'}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
                 </header>
 
                 {/* ZONE DE CONTENU PRINCIPAL */}
-                <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scroll-smooth bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+                <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 scroll-smooth bg-slate-50 dark:bg-slate-950 transition-colors duration-300 hover-scrollbar">
                     <div className="max-w-[1600px] mx-auto h-full">
                         <Outlet />
                     </div>

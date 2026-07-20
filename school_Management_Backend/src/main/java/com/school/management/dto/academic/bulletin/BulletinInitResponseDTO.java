@@ -14,6 +14,7 @@ import java.util.List;
 public class BulletinInitResponseDTO {
     private Long classroomId;
     private String classroomName;
+    private Long teacherId; // ✅ AJOUT : Identifiant du titulaire nécessaire pour le SSE
     private String titulaireName;
     private Long studentCount;
 

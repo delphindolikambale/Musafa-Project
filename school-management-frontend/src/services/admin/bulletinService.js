@@ -50,3 +50,18 @@ export const getBulletinInitData = async (classroomId, academicYearId, schoolId)
         throw error;
     }
 };
+
+// ✅ NOUVEAU : Fonction pour exécuter l'envoi réel des bulletins au titulaire (avec teacherId)
+export const initializeBulletins = async (classroomId, academicYearId, schoolId, teacherId) => {
+    try {
+        // Remplacer '/initialize' par l'endpoint exact de ton contrôleur Spring Boot si différent
+        const response = await axios.post(`${API_URL}/bulletins/proviseur/initialize`, null, {
+            params: { classroomId, academicYearId, schoolId, teacherId },
+            withCredentials: true
+        });
+        return response.data;
+    } catch (error) {
+        console.error("Erreur lors de l'envoi des bulletins au titulaire", error);
+        throw error;
+    }
+};

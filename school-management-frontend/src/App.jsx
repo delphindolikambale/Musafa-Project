@@ -79,6 +79,10 @@ import TeacherClassesManager from "./components/structure/pedagogie/TeacherClass
 import TitulaireDashboard from "./components/structure/pedagogie/TitulaireDashboard";
 import TitulaireGradeSheetValidation from "./components/structure/pedagogie/TitulaireGradeSheetValidation"; 
 
+// ✅ NOUVEAUX COMPOSANTS POUR LA RÉCEPTION DES BULLETINS
+import ClassBulletinsFolder from "./components/structure/pedagogie/ClassBulletinsFolder";
+import StudentBulletinView from "./components/structure/pedagogie/StudentBulletinView";
+
 import titulaireService from "./services/pedagogieService/titulaireService";
 
 export const ThemeContext = createContext();
@@ -229,6 +233,11 @@ function App() {
                   <Route path="classes" element={<TeacherClassesManager />} />
                   <Route path="titulaire" element={<TitulaireRoute><TitulaireDashboard /></TitulaireRoute>} />
                   <Route path="titulaire/validation-fiche/:assignmentId/:period" element={<TitulaireRoute><TitulaireGradeSheetValidation /></TitulaireRoute>} />
+                  
+                  {/* NOUVELLES ROUTES BULLETINS TITULAIRE */}
+                  <Route path="titulaire/bulletins/:classroomId" element={<TitulaireRoute><ClassBulletinsFolder /></TitulaireRoute>} />
+                  <Route path="titulaire/bulletins/:classroomId/etudiant/:studentId" element={<TitulaireRoute><StudentBulletinView /></TitulaireRoute>} />
+                  
                   <Route index element={<Navigate to="dashboard" />} />
                 </Route>
 

@@ -5,8 +5,10 @@ import com.school.management.model.academic.*;
 import com.school.management.repository.academic.ClassroomRepository;
 import com.school.management.repository.academic.CourseAssignmentRepository;
 import com.school.management.repository.academic.EnrollmentRepository;
+import com.school.management.repository.academic.BulletinRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +22,7 @@ public class BulletinProviseurServiceImpl {
     private final ClassroomRepository classroomRepository;
     private final EnrollmentRepository enrollmentRepository;
     private final CourseAssignmentRepository courseAssignmentRepository;
+    private final BulletinRepository bulletinRepository;
 
     public BulletinInitResponseDTO getBulletinInitData(Long classroomId, Long academicYearId, Long schoolId) {
 
@@ -27,8 +30,11 @@ public class BulletinProviseurServiceImpl {
                 .orElseThrow(() -> new RuntimeException("Classe introuvable ou accès non autorisé"));
 
         String titulaireName = "Non assigné";
+        Long teacherId = null;
+
         if (classroom.getTitulaire() != null) {
             titulaireName = classroom.getTitulaire().getFullName();
+            teacherId = classroom.getTitulaire().getId();
         }
 
         long studentCount = enrollmentRepository.countByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(
@@ -142,6 +148,7 @@ public class BulletinProviseurServiceImpl {
         return BulletinInitResponseDTO.builder()
                 .classroomId(classroom.getId())
                 .classroomName(classroom.getDisplayName())
+                .teacherId(teacherId)
                 .titulaireName(titulaireName)
                 .studentCount(studentCount)
                 .domains(domainDTOs)
@@ -158,11 +165,40 @@ public class BulletinProviseurServiceImpl {
                 .collect(Collectors.toList());
     }
 
-    // --- Helpers Utilitaires ---
+    @Transactional
+    public void initializeBulletins(Long classroomId, Long academicYearId, Long schoolId) {
+        Classroom classroom = classroomRepository.findByIdAndSchoolId(classroomId, schoolId)
+                .orElseThrow(() -> new RuntimeException("Classe introuvable ou accès non autorisé"));
+
+        List<Enrollment> activeEnrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(
+                classroomId, academicYearId, schoolId);
+
+        if (activeEnrollments.isEmpty()) {
+            throw new RuntimeException("Impossible d'initialiser : Aucun élève actif trouvé pour cette classe.");
+        }
+
+        for (Enrollment enrollment : activeEnrollments) {
+            boolean bulletinExists = bulletinRepository.existsByStudentIdAndClassroomIdAndAcademicYearIdAndSchoolId(
+                    enrollment.getStudent().getId(), classroomId, academicYearId, schoolId);
+
+            if (!bulletinExists) {
+                Bulletin newBulletin = Bulletin.builder()
+                        .student(enrollment.getStudent())
+                        .classroom(classroom)
+                        .academicYear(enrollment.getAcademicYear())
+                        .school(classroom.getSchool())
+                        .status("NOUVEAU")
+                        .build();
+
+                bulletinRepository.save(newBulletin);
+            }
+        }
+    }
+
     private SubjectGridDTO mapToSubjectDTO(CourseAssignment a) {
         return SubjectGridDTO.builder()
                 .subjectId(a.getSubject().getId())
-                .subjectName(a.getSubject().getName()) // 🔴 ICI EST GÉRÉ LE NOM DU COURS
+                .subjectName(a.getSubject().getName())
                 .maxP1(a.getMaxP1())
                 .maxP2(a.getMaxP2())
                 .maxExam1(a.getMaxExam1())

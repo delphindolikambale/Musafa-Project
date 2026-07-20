@@ -1,17 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import CashierSidebar from './CashierSidebar';
-import AuthService from '../../services/auth.service';
+import { useSchool } from '../../context/SchoolContext';
+import { ThemeContext } from '../../App'; // Importation du thème
 import { websocketService } from '../../services/websocketService';
-import api from '../../services/api'; // ✅ CORRECTION : Import de l'instance Axios dynamique
-import { Menu, Bell, User } from 'lucide-react';
+import api from '../../services/api'; 
+import { Menu, Bell, Sun, Moon } from 'lucide-react';
 
 const CashierLayout = () => {
     const [notifications, setNotifications] = useState([]);
     const [showNotif, setShowNotif] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const navigate = useNavigate();
-    const currentUser = AuthService.getCurrentUser();
+    
+    // Récupération correcte du contexte de l'école
+    const { schoolConfig, loading: schoolLoading } = useSchool();
+    
+    const themeContext = useContext(ThemeContext);
+    const theme = themeContext?.theme || 'light';
+    const toggleTheme = themeContext?.toggleTheme || (() => {});
 
     const unreadCount = notifications.filter(n => !n.isRead).length;
 
@@ -46,8 +52,6 @@ const CashierLayout = () => {
     useEffect(() => {
         const loadStoredNotifications = async () => {
             try {
-                // ✅ CORRECTION : Utilisation de api.js pour pointer automatiquement
-                // sur localhost en local ou Render en production.
                 const response = await api.get('/v1/notifications');
                 if (response.status === 200) {
                     setNotifications(response.data);
@@ -80,8 +84,12 @@ const CashierLayout = () => {
         return () => websocketService.disconnect(handleGlobalNotifications);
     }, []);
 
+    // Sécurisation de l'affichage du nom de l'école (priorité à name, puis schoolName)
+    const displaySchoolName = schoolConfig?.name || schoolConfig?.schoolName || "Institution Scolaire";
+    const displaySchoolInitial = displaySchoolName.charAt(0).toUpperCase();
+
     return (
-        <div className="flex h-screen bg-[#F8FAFC] overflow-hidden">
+        <div className="flex h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans text-slate-900 dark:text-white overflow-hidden relative transition-colors duration-300">
             <div className={`
                 fixed inset-0 z-[100] lg:relative lg:z-0 lg:flex
                 ${isSidebarOpen ? 'flex' : 'hidden'} 
@@ -92,27 +100,35 @@ const CashierLayout = () => {
             </div>
 
             <div className="flex-1 flex flex-col min-w-0 h-full relative">
-                <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between px-6 lg:px-10 shrink-0 sticky top-0 z-40">
+                <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between px-6 lg:px-10 shrink-0 sticky top-0 z-40 transition-colors duration-300">
                     <div className="flex items-center gap-4">
                         <button 
                             onClick={() => setIsSidebarOpen(true)} 
-                            className="lg:hidden p-2.5 text-slate-600 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-xl transition-all"
+                            className="lg:hidden p-2.5 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/30 dark:hover:bg-blue-900/50 rounded-xl transition-all"
                         >
                             <Menu size={24} />
                         </button>
                         <div className="flex items-center gap-2">
                              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                             <span className="hidden sm:inline-block text-slate-400 text-[10px] font-black uppercase tracking-widest">Système Financier Connecté</span>
+                             <span className="hidden sm:inline-block text-slate-400 dark:text-slate-500 text-[10px] font-black uppercase tracking-widest">Système Financier Connecté</span>
                         </div>
                     </div>
                     
                     <div className="flex items-center gap-3 lg:gap-6">
+                        {/* BOUTON THÈME LIGHT/DARK */}
+                        <button 
+                            onClick={toggleTheme} 
+                            className="p-2.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:text-slate-400 dark:hover:text-blue-400 dark:hover:bg-slate-800 rounded-xl transition-all duration-300"
+                        >
+                            {theme === 'dark' ? <Sun size={20} className="text-amber-400" /> : <Moon size={20} />}
+                        </button>
+
                         <div className="relative">
                             <button onClick={() => setShowNotif(!showNotif)} 
-                                className={`relative p-3 rounded-2xl transition-all ${unreadCount > 0 ? 'bg-blue-50 text-blue-600' : 'bg-slate-50 text-slate-400'} hover:scale-105 active:scale-95`}>
+                                className={`relative p-3 rounded-2xl transition-all ${unreadCount > 0 ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400' : 'bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500'} hover:scale-105 active:scale-95`}>
                                 <Bell size={20} />
                                 {unreadCount > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-bounce">
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white dark:border-slate-900 animate-bounce">
                                         {unreadCount}
                                     </span>
                                 )}
@@ -121,24 +137,24 @@ const CashierLayout = () => {
                             {showNotif && (
                                 <>
                                     <div className="fixed inset-0 z-[70]" onClick={() => setShowNotif(false)}></div>
-                                    <div className="absolute right-0 mt-4 w-[calc(100vw-2rem)] sm:w-85 bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 z-[80] overflow-hidden animate-in fade-in zoom-in slide-in-from-top-2 duration-200">
-                                        <div className="p-5 bg-slate-50/50 flex justify-between items-center border-b border-slate-100">
-                                            <span className="font-black text-[10px] uppercase text-slate-400 tracking-widest">Notifications Flux</span>
+                                    <div className="absolute right-0 mt-4 w-[calc(100vw-2rem)] sm:w-85 bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 z-[80] overflow-hidden animate-in fade-in zoom-in slide-in-from-top-2 duration-200">
+                                        <div className="p-5 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center border-b border-slate-100 dark:border-slate-800">
+                                            <span className="font-black text-[10px] uppercase text-slate-400 dark:text-slate-500 tracking-widest">Notifications Flux</span>
                                             {notifications.length > 0 && (
                                                 <button onClick={() => setNotifications([])} className="text-[10px] font-black text-red-500 hover:underline uppercase">Vider</button>
                                             )}
                                         </div>
-                                        <div className="max-h-[400px] overflow-y-auto">
+                                        <div className="max-h-[400px] overflow-y-auto hover-scrollbar">
                                             {notifications.length === 0 ? (
                                                 <div className="p-12 text-center opacity-30">
-                                                    <p className="text-xs font-bold italic">Aucun nouveau flux</p>
+                                                    <p className="text-xs font-bold italic dark:text-slate-400">Aucun nouveau flux</p>
                                                 </div>
                                             ) : (
                                                 notifications.map((notif) => (
-                                                    <div key={notif.id} className="p-5 border-b border-slate-50 hover:bg-slate-50/50 cursor-pointer transition-all">
-                                                        <p className="text-[11px] font-black text-slate-900 uppercase">{notif.type === 'PRICING' ? '💰 Tarification' : '👤 Inscription'}</p>
-                                                        <p className="text-xs text-slate-600 mt-1 leading-snug">{notif.message || `Nouveau compte: ${notif.studentName}`}</p>
-                                                        <p className="text-[9px] font-bold text-slate-400 mt-2 uppercase">{formatDateTime(notif.createdAt)}</p>
+                                                    <div key={notif.id} className="p-5 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 cursor-pointer transition-all">
+                                                        <p className="text-[11px] font-black text-slate-900 dark:text-slate-200 uppercase">{notif.type === 'PRICING' ? '💰 Tarification' : '👤 Inscription'}</p>
+                                                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-snug">{notif.message || `Nouveau compte: ${notif.studentName}`}</p>
+                                                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 mt-2 uppercase">{formatDateTime(notif.createdAt)}</p>
                                                     </div>
                                                 ))
                                             )}
@@ -148,19 +164,30 @@ const CashierLayout = () => {
                             )}
                         </div>
 
-                        <div className="flex items-center gap-3 pl-4 border-l border-slate-100">
-                            <div className="hidden md:block text-right">
-                                <p className="text-xs font-black text-slate-900 leading-none">{currentUser?.username}</p>
-                                <p className="text-[9px] font-bold text-emerald-500 uppercase mt-1">Caisse 01</p>
+                        {/* PROFIL ÉCOLE (A la place du profil Caissier) */}
+                        <div className="flex items-center gap-3 pl-4 border-l border-slate-200 dark:border-slate-700 transition-colors">
+                            <div className="hidden md:block text-right max-w-[150px]">
+                                <p className="text-xs font-black text-slate-900 dark:text-slate-100 leading-none truncate" title={displaySchoolName}>
+                                    {schoolLoading ? "Chargement..." : displaySchoolName}
+                                </p>
+                                <p className="text-[9px] font-bold text-emerald-500 dark:text-emerald-400 uppercase mt-1">Institution Scolaire</p>
                             </div>
-                            <div className="h-11 w-11 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl border-2 border-blue-500/30 flex items-center justify-center text-white text-sm font-black shadow-lg">
-                                {currentUser?.username ? currentUser.username.charAt(0).toUpperCase() : <User size={18}/>}
+                            <div className="h-10 w-10 md:h-11 md:w-11 shrink-0 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 text-sm font-black shadow-sm overflow-hidden ring-2 ring-emerald-500/10">
+                                {schoolConfig?.logoBase64 ? (
+                                    <img 
+                                        src={schoolConfig.logoBase64.startsWith('data:') ? schoolConfig.logoBase64 : `data:image/png;base64,${schoolConfig.logoBase64}`} 
+                                        alt="School Logo" 
+                                        className="w-full h-full object-contain p-0.5" 
+                                    />
+                                ) : (
+                                    <span>{displaySchoolInitial}</span>
+                                )}
                             </div>
                         </div>
                     </div>
                 </header>
 
-                <main className="flex-1 overflow-y-auto p-4 lg:p-10 bg-[#F8FAFC]">
+                <main className="flex-1 overflow-y-auto p-4 lg:p-10 bg-[#F8FAFC] dark:bg-slate-950 transition-colors hover-scrollbar">
                     <div className="max-w-7xl mx-auto">
                         <Outlet />
                     </div>

@@ -1,19 +1,180 @@
-import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Download, Printer, Filter, ChevronLeft, ChevronRight, Plus, Table } from 'lucide-react';
-import GrilleHoraireCursus from './GrilleHoraireCursus';
+import React, { useState, useEffect } from 'react';
+import { Calendar as CalendarIcon, Download, Printer, Clock } from 'lucide-react';
+import Swal from 'sweetalert2';
+import scheduleSlotService from '../../../services/pedagogieService/scheduleSlotService';
+import hourSlotService from '../../../services/pedagogieService/hourSlotService'; 
+import ScheduleCalendar from './ScheduleCalendar'; // ✅ CORRECTION : Importation locale correcte (voisins dans le dossier pedagogie)
+import ScheduleFormModal from './ScheduleFormModal';
+import { ClassroomService } from '../../../services/classroomService'; 
 
 const ScheduleManagement = () => {
-  const [currentView, setCurrentView] = useState('calendar'); // 'calendar' ou 'grille'
-  
-  const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
-  const hours = ['08h00', '10h00', '12h00', '14h00', '16h00'];
+  const [scheduleData, setScheduleData] = useState([]);
+  const [classrooms, setClassrooms] = useState([]);
+  const [selectedClassroom, setSelectedClassroom] = useState(''); 
+  const [hoursConfig, setHoursConfig] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedSlotInfo, setSelectedSlotInfo] = useState(null);
 
-  // Vue Grille Horaire Officielle
-  if (currentView === 'grille') {
-    return <GrilleHoraireCursus onBack={() => setCurrentView('calendar')} />;
-  }
+  const schoolId = JSON.parse(localStorage.getItem('user'))?.schoolId || 1;
+  const currentAcademicYearId = localStorage.getItem('currentAcademicYearId') || 1;
 
-  // Vue par défaut (Calendrier)
+  useEffect(() => {
+    fetchClassrooms();
+    fetchHoursConfig();
+  }, []);
+
+  useEffect(() => {
+    if (selectedClassroom) {
+      fetchSchedule();
+    }
+  }, [selectedClassroom]);
+
+  const fetchClassrooms = async () => {
+    try {
+      const res = await ClassroomService.getAll(currentAcademicYearId);
+      const classesData = res.data ? res.data : res;
+      setClassrooms(classesData || []);
+      if (classesData && classesData.length > 0) setSelectedClassroom(classesData[0].id);
+    } catch (error) {
+      console.error("Erreur chargement classes", error);
+    }
+  };
+
+  const fetchHoursConfig = async () => {
+    try {
+      const data = await hourSlotService.getSchoolHourSlots(schoolId);
+      setHoursConfig(data.data ? data.data : data);
+    } catch (error) {
+      console.error("Erreur lors du chargement des tranches horaires", error);
+    }
+  };
+
+  const fetchSchedule = async () => {
+    setIsLoading(true);
+    try {
+      const data = await scheduleSlotService.getClassroomSchedule(schoolId, selectedClassroom, currentAcademicYearId);
+      setScheduleData(data);
+    } catch (error) {
+      Swal.fire({
+        icon: 'error',
+        title: 'Erreur',
+        text: 'Impossible de charger l\'emploi du temps.',
+        confirmButtonColor: '#3085d6'
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // HAUTE SÉCURITÉ : Génération et vérification de doublons de libellés
+  const handleCreateHourSlot = async () => {
+    const nextSlotNumber = hoursConfig.length + 1;
+
+    const { value: label } = await Swal.fire({
+      title: 'Ajouter une tranche horaire',
+      html: `
+        <div class="text-left space-y-2">
+          <p class="text-xs font-bold text-blue-600 uppercase bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg">
+            Créneau automatique : N°${nextSlotNumber}
+          </p>
+          <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mt-3">
+            Libellé des heures (ex: 08h00 - 08h50)
+          </label>
+          <input id="swal-hour-label" class="swal2-input w-full m-0 focus:ring-2 focus:ring-blue-500" placeholder="Ex: 08h00 - 08h50">
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Enregistrer',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#2563eb',
+      preConfirm: () => {
+        const inputVal = document.getElementById('swal-hour-label').value.trim();
+        
+        if (!inputVal) {
+          Swal.showValidationMessage('Veuillez saisir un libellé');
+          return false;
+        }
+
+        const normalizedInput = inputVal.replace(/\s+/g, '').toLowerCase();
+        
+        const isDuplicate = hoursConfig.some(h => 
+          h.label.replace(/\s+/g, '').toLowerCase() === normalizedInput
+        );
+
+        if (isDuplicate) {
+          Swal.showValidationMessage(`Sécurité : La tranche "${inputVal}" existe déjà !`);
+          return false;
+        }
+
+        return inputVal;
+      }
+    });
+
+    if (label) {
+      try {
+        await hourSlotService.addHourSlot({
+          label: label,
+          slotNumber: nextSlotNumber,
+          schoolId: schoolId
+        });
+        Swal.fire('Succès', 'La tranche horaire a été ajoutée.', 'success');
+        fetchHoursConfig();
+      } catch (error) {
+        Swal.fire('Erreur', 'Impossible d\'ajouter la tranche horaire.', 'error');
+      }
+    }
+  };
+
+  const handleCellClick = (dayOfWeek, hourSlotId, hourSlotNumber, hourSlotLabel) => {
+    if (!selectedClassroom) {
+      Swal.fire('Attention', 'Veuillez sélectionner une classe d\'abord.', 'warning');
+      return;
+    }
+    // Mode CRÉATION
+    setSelectedSlotInfo({ isEditing: false, dayOfWeek, hourSlotId, hourSlotNumber, hourSlotLabel });
+    setIsModalOpen(true);
+  };
+
+  const handleEditSlot = (slotContent) => {
+    // Mode MODIFICATION
+    setSelectedSlotInfo({
+      isEditing: true,
+      slotId: slotContent.id,
+      dayOfWeek: slotContent.dayOfWeek,
+      hourSlotId: slotContent.hourSlotId,
+      hourSlotNumber: slotContent.hourSlot,
+      hourSlotLabel: slotContent.hourSlotLabel,
+      subjectId: slotContent.subjectId,
+      teacherId: slotContent.teacherId
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteSlot = async (slotId) => {
+    const result = await Swal.fire({
+      title: 'Êtes-vous sûr ?',
+      text: "Ce créneau sera définitivement supprimé !",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Oui, supprimer',
+      cancelButtonText: 'Annuler'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await scheduleSlotService.deleteSlot(schoolId, slotId);
+        Swal.fire('Supprimé !', 'Le créneau a été retiré.', 'success');
+        fetchSchedule(); 
+      } catch (error) {
+        Swal.fire('Erreur', error.response?.data?.message || 'Échec de la suppression.', 'error');
+      }
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex flex-col lg:flex-row justify-between gap-6 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
@@ -23,19 +184,27 @@ const ScheduleManagement = () => {
           </div>
           <div>
             <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Gestion des Horaires</h2>
-            <div className="flex items-center gap-4 mt-2">
-              <button className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300 transition-colors"><ChevronLeft size={20} /></button>
-              <span className="text-sm font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest">Semaine du 20 Avril 2026</span>
-              <button className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md text-slate-600 dark:text-slate-300 transition-colors"><ChevronRight size={20} /></button>
+            <div className="flex flex-wrap items-center gap-4 mt-2">
+              <select 
+                value={selectedClassroom}
+                onChange={(e) => setSelectedClassroom(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border-none text-sm font-bold text-slate-700 dark:text-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 p-2"
+              >
+                <option value="" disabled>Sélectionner une classe</option>
+                {classrooms.map(c => (
+                  <option key={c.id} value={c.id}>{c.displayName || c.name}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
+        
         <div className="flex flex-wrap items-center gap-3">
           <button 
-            onClick={() => setCurrentView('grille')}
-            className="flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 px-5 py-3 rounded-xl font-black text-xs uppercase tracking-widest border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-all"
+            onClick={handleCreateHourSlot}
+            className="flex items-center gap-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-950/30 dark:text-emerald-400 px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 transition-all"
           >
-            <Table size={18} /> Grille Horaire
+            <Clock size={18} /> + Tranche Horaire
           </button>
           <button className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-700 transition-all">
             <Printer size={18} /> Imprimer
@@ -46,41 +215,39 @@ const ScheduleManagement = () => {
         </div>
       </div>
 
-      {/* Grille de l'emploi du temps */}
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 overflow-hidden p-2 transition-colors">
-        <div className="overflow-x-auto">
-          <div className="min-w-[800px]">
-            <div className="grid grid-cols-7 bg-slate-50 dark:bg-slate-800/50 rounded-2xl mb-2 transition-colors">
-              <div className="p-4 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center border-r border-slate-100 dark:border-slate-800">Heures</div>
-              {days.map(day => (
-                <div key={day} className="p-4 text-[10px] font-black text-slate-800 dark:text-slate-200 uppercase tracking-widest text-center">{day}</div>
-              ))}
-            </div>
-
-            {hours.map((time, i) => (
-              <div key={i} className="grid grid-cols-7 border-b border-slate-50 dark:border-slate-800/50 last:border-none transition-colors">
-                <div className="p-6 text-xs font-black text-slate-400 dark:text-slate-500 text-center bg-slate-50/30 dark:bg-slate-800/30 flex items-center justify-center border-r border-slate-50 dark:border-slate-800 italic">{time}</div>
-                {days.map((_, j) => (
-                  <div key={j} className="p-2 min-h-[120px] group cursor-pointer hover:bg-blue-50/20 dark:hover:bg-blue-900/10 transition-all relative">
-                    {(i === 0 && j === 0) || (i === 2 && j === 3) ? (
-                      <div className="h-full w-full bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-3 text-white shadow-md">
-                        <p className="text-[9px] font-black uppercase opacity-70">MATH101</p>
-                        <p className="text-[11px] font-bold mt-1 leading-tight">Calcul Intégral</p>
-                        <p className="text-[9px] mt-2 font-medium opacity-80">Local: Salle 04</p>
-                        <p className="text-[9px] font-black mt-1 uppercase tracking-tighter">M. Vianney</p>
-                      </div>
-                    ) : (
-                      <div className="h-full w-full border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-center group-hover:border-blue-200 dark:group-hover:border-blue-800 transition-colors">
-                        <Plus size={14} className="text-slate-200 dark:text-slate-700 group-hover:text-blue-300 dark:group-hover:text-blue-500" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
+      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-sm border border-slate-100 dark:border-slate-800 p-4 transition-colors">
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
           </div>
-        </div>
+        ) : (
+          <ScheduleCalendar 
+            scheduleData={scheduleData} 
+            onCellClick={handleCellClick} 
+            onEditSlot={handleEditSlot}
+            onDeleteSlot={handleDeleteSlot} 
+            hours={hoursConfig}
+            onAddHourRequest={handleCreateHourSlot}
+          />
+        )}
       </div>
+
+      {isModalOpen && (
+        <ScheduleFormModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          slotInfo={selectedSlotInfo}
+          classroomId={selectedClassroom}
+          schoolId={schoolId}
+          academicYearId={currentAcademicYearId}
+          scheduleData={scheduleData}
+          onSuccess={() => {
+            fetchSchedule();
+            setIsModalOpen(false);
+            Swal.fire('Succès', 'Opération réussie.', 'success');
+          }}
+        />
+      )}
     </div>
   );
 };

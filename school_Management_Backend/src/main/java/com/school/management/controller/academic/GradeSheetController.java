@@ -53,7 +53,7 @@ public class GradeSheetController {
         return ResponseEntity.ok(gradeSheetService.getPendingGradeSheetsForProviseur(academicYearId));
     }
 
-    // --- NOUVEAU : Endpoint de Validation par le Proviseur ---
+    // --- Endpoint de Validation par le Proviseur ---
     @PostMapping("/assignment/{taId}/period/{period}/validate")
     public ResponseEntity<String> validateGradeSheet(@PathVariable Long taId, @PathVariable int period) {
         try {
@@ -64,7 +64,7 @@ public class GradeSheetController {
         }
     }
 
-    // --- ADAPTÉ : Endpoint de Rejet par le Proviseur avec motif reçu dans le corps JSON (RequestBody) ---
+    // --- Endpoint de Rejet par le Proviseur avec motif reçu dans le corps JSON ---
     @PostMapping("/assignment/{taId}/period/{period}/reject")
     public ResponseEntity<String> rejectGradeSheet(
             @PathVariable Long taId,
@@ -77,6 +77,35 @@ public class GradeSheetController {
             }
             gradeSheetService.rejectPeriodGradeSheet(taId, period, comment);
             return ResponseEntity.ok("La fiche de notes a été rejetée et renvoyée à l'enseignant.");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // --- NOUVEAU : Endpoint de Validation finale par le Titulaire ---
+    @PostMapping("/assignment/{taId}/period/{period}/titulaire-validate")
+    public ResponseEntity<String> validateByTitulaire(@PathVariable Long taId, @PathVariable int period) {
+        try {
+            gradeSheetService.validateGradeSheetByTitulaire(taId, period);
+            return ResponseEntity.ok("La fiche de notes a été validée au bulletin avec succès par le Titulaire.");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    // --- NOUVEAU : Endpoint de Signalement d'erreur par le Titulaire ---
+    @PostMapping("/assignment/{taId}/period/{period}/titulaire-reject")
+    public ResponseEntity<String> rejectByTitulaire(
+            @PathVariable Long taId,
+            @PathVariable int period,
+            @RequestBody Map<String, String> payload) {
+        try {
+            String comment = payload != null ? payload.get("comment") : null;
+            if (comment == null || comment.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body("Le motif de l'erreur (champ 'comment') est obligatoire.");
+            }
+            gradeSheetService.reportErrorByTitulaire(taId, period, comment);
+            return ResponseEntity.ok("L'erreur a été signalée avec succès.");
         } catch (RuntimeException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         }

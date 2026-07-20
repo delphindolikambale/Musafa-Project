@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
     ShieldCheck, 
@@ -11,10 +11,16 @@ import {
     PlayCircle,
     BookOpen,
     Eye,
-    ChevronRight
+    X,
+    XCircle,
+    AlertTriangle,
+    BellRing,
+    FolderOpen
 } from 'lucide-react';
 import titulaireService from '../../../services/pedagogieService/titulaireService';
 import api from '../../../services/api';
+// Importation du WebSocket centralisé pour utiliser l'architecture STOMP/SockJS
+import { websocketService } from '../../../services/websocketService';
 
 const TitulaireDashboard = () => {
     const navigate = useNavigate();
@@ -23,51 +29,92 @@ const TitulaireDashboard = () => {
     const [activeYear, setActiveYear] = useState(null);
     const [myClassrooms, setMyClassrooms] = useState([]);
     
-    // Filtres sélectionnés
     const [selectedClassroom, setSelectedClassroom] = useState(null);
     const [selectedPeriod, setSelectedPeriod] = useState(1);
-    
-    // Données de suivi (La matrice)
     const [monitoringData, setMonitoringData] = useState(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-    // Utilisateur connecté
-    const user = JSON.parse(localStorage.getItem('user')) || {};
+    const toastTimeoutRef = useRef(null); // ✅ Ajout du gestionnaire de timeout pour éviter les fuites mémoire
 
-    // 1. Initialisation : Charger l'année active et les classes du titulaire
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [modalState, setModalState] = useState({
+        isOpen: false,
+        type: 'confirm', 
+        title: '',
+        message: ''
+    });
+
+    const [toastState, setToastState] = useState({
+        show: false,
+        message: '',
+        type: 'info'
+    });
+
+    const getUser = () => {
+        try {
+            return JSON.parse(localStorage.getItem('user')) || {};
+        } catch (e) {
+            return {};
+        }
+    };
+    const user = getUser();
+
+    // ✅ Fonction de Toast sécurisée
+    const showToast = (message, type = 'info', duration = 6000) => {
+        setToastState({ show: true, message, type });
+        if (toastTimeoutRef.current) {
+            clearTimeout(toastTimeoutRef.current);
+        }
+        toastTimeoutRef.current = setTimeout(() => {
+            setToastState(prev => ({ ...prev, show: false }));
+        }, duration);
+    };
+
+    // Nettoyage du composant au démontage
     useEffect(() => {
+        return () => {
+            if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        };
+    }, []);
+
+    useEffect(() => {
+        let isMounted = true;
+
         const initDashboard = async () => {
             setLoading(true);
             try {
-                // Récupérer l'année active
                 const yearRes = await api.get('/academic-years/active');
-                if (yearRes.status === 200 && yearRes.data) {
+                if (yearRes.status === 200 && yearRes.data && isMounted) {
                     const currentYear = yearRes.data;
                     setActiveYear(currentYear);
 
-                    // CORRECTION : Alignement avec App.jsx pour cibler l'ID Enseignant réel
                     const teacherId = user.teacherId || user.id;
                     
                     if (teacherId) {
                         const classesRes = await titulaireService.getMyClassrooms(teacherId, currentYear.id);
-                        setMyClassrooms(classesRes || []);
-                        
-                        if (classesRes && classesRes.length > 0) {
-                            setSelectedClassroom(classesRes[0]); // Sélection par défaut de la première classe trouvée
+                        if (isMounted) {
+                            setMyClassrooms(classesRes || []);
+                            if (classesRes && classesRes.length > 0) {
+                                setSelectedClassroom(classesRes[0]);
+                            }
                         }
                     }
                 }
             } catch (error) {
                 console.error("Erreur d'initialisation de l'espace titulaire:", error);
+                if (isMounted) showToast("Impossible de charger les données initiales. Veuillez vérifier votre connexion.", "error");
             } finally {
-                setLoading(false);
+                if (isMounted) setLoading(false);
             }
         };
 
         initDashboard();
+        return () => { isMounted = false; };
     }, []);
 
-    // 2. Recharger la matrice lorsque la classe ou la période change
     useEffect(() => {
+        let isMounted = true;
+
         const fetchMonitoring = async () => {
             if (!selectedClassroom || !activeYear) return;
             
@@ -78,19 +125,53 @@ const TitulaireDashboard = () => {
                     selectedPeriod, 
                     activeYear.id
                 );
-                setMonitoringData(data);
+                if (isMounted) setMonitoringData(data);
             } catch (error) {
                 console.error("Erreur lors du chargement du suivi:", error);
-                setMonitoringData(null);
+                if (isMounted) {
+                    setMonitoringData(null);
+                    showToast("Erreur lors de la récupération de la matrice de suivi.", "error");
+                }
             } finally {
-                setFetchingMatrix(false);
+                if (isMounted) setFetchingMatrix(false);
             }
         };
 
         fetchMonitoring();
-    }, [selectedClassroom, selectedPeriod, activeYear]);
+        return () => { isMounted = false; };
+    }, [selectedClassroom, selectedPeriod, activeYear, refreshTrigger]);
 
-    // Formatage visuel des statuts
+    useEffect(() => {
+        const teacherId = user.teacherId || user.id;
+        const schoolId = user.schoolId || 1; 
+
+        if (!teacherId || !schoolId) return;
+
+        // ✅ Utilisation d'un Topic dynamique au lieu d'une connexion WebSocket native brute
+        // Cela permet de profiter de la persistance STOMP/SockJS configurée pour Render
+        const topic = `/topic/bulletins/titulaire/${schoolId}/${teacherId}`;
+
+        const handleWebSocketMessage = (data) => {
+            let messageAffiche = "Nouveau message concernant les bulletins.";
+            if (data && data.message) {
+                messageAffiche = data.message;
+            } else if (typeof data === 'string') {
+                messageAffiche = data;
+            }
+
+            showToast(messageAffiche, 'info');
+            setRefreshTrigger(prev => prev + 1);
+        };
+
+        // Souscription via notre service centralisé
+        websocketService.subscribeToTopic(topic, handleWebSocketMessage);
+
+        return () => {
+            // Nettoyage de l'abonnement lors de la destruction du composant
+            websocketService.unsubscribeFromTopic(topic, handleWebSocketMessage);
+        };
+    }, []);
+
     const getStatusBadge = (status) => {
         switch (status) {
             case 'VALIDATED_BY_PROVISEUR':
@@ -111,7 +192,7 @@ const TitulaireDashboard = () => {
                         <Clock size={14} /> Chez le Proviseur
                     </span>
                 );
-            default: // DRAFT ou autre
+            default:
                 return (
                     <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 rounded-full text-xs font-black uppercase">
                         <AlertCircle size={14} /> Non soumis
@@ -126,11 +207,56 @@ const TitulaireDashboard = () => {
         return new Date(dateString).toLocaleDateString('fr-FR', options);
     };
 
-    const handleGenerateBulletins = () => {
+    const triggerGenerateBulletins = () => {
         if (!monitoringData?.readyForBulletinGeneration) return;
         
-        // Logique future : Appel au backend pour générer et clôturer les bulletins
-        alert(`Génération des bulletins en cours pour la classe ${selectedClassroom.displayName} (Période ${selectedPeriod})...\n\nCette action sera connectée au futur BulletinService.`);
+        setModalState({
+            isOpen: true,
+            type: 'confirm',
+            title: 'Génération des Bulletins',
+            message: `Êtes-vous sûr de vouloir générer et clôturer les bulletins pour la classe ${selectedClassroom.displayName} à la Période ${selectedPeriod} ? Cette action calculera les totaux et figera les cotes pour cette période.`
+        });
+    };
+
+    const confirmGeneration = async () => {
+        setIsGenerating(true);
+        setModalState(prev => ({ ...prev, isOpen: false })); 
+
+        try {
+            await titulaireService.generateBulletins(
+                selectedClassroom.id, 
+                selectedPeriod, 
+                activeYear.id
+            );
+            
+            const data = await titulaireService.getMonitoring(
+                selectedClassroom.id, 
+                selectedPeriod, 
+                activeYear.id
+            );
+            setMonitoringData(data);
+
+            setModalState({
+                isOpen: true,
+                type: 'success',
+                title: 'Génération Réussie',
+                message: `Les bulletins de la classe ${selectedClassroom.displayName} pour la Période ${selectedPeriod} ont été générés avec succès.`
+            });
+        } catch (error) {
+            console.error("Erreur lors de la génération des bulletins:", error);
+            setModalState({
+                isOpen: true,
+                type: 'error',
+                title: 'Échec de la Génération',
+                message: "Un problème est survenu lors de la génération des bulletins. Veuillez vérifier que toutes les fiches sont validées ou contacter l'assistance."
+            });
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    const closeModal = () => {
+        setModalState(prev => ({ ...prev, isOpen: false }));
     };
 
     if (loading) {
@@ -144,7 +270,6 @@ const TitulaireDashboard = () => {
         );
     }
 
-    // Vue si l'enseignant n'est titulaire d'aucune classe
     if (myClassrooms.length === 0) {
         return (
             <div className="p-6 h-[80vh] flex items-center justify-center">
@@ -163,9 +288,38 @@ const TitulaireDashboard = () => {
     }
 
     return (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
             
-            {/* EN-TÊTE ET FILTRES */}
+            {toastState.show && (
+                <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className={`bg-white dark:bg-slate-800 border-l-4 shadow-xl rounded-xl p-4 flex items-start gap-4 w-80 ${
+                        toastState.type === 'error' ? 'border-red-500' : 'border-emerald-500'
+                    }`}>
+                        <div className={`p-2.5 rounded-full shrink-0 ${
+                            toastState.type === 'error' 
+                                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+                                : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                        }`}>
+                            {toastState.type === 'error' ? <AlertCircle size={20} /> : <BellRing size={20} className="animate-pulse" />}
+                        </div>
+                        <div className="flex-1 mt-0.5">
+                            <h4 className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest mb-1">
+                                {toastState.type === 'error' ? 'Erreur Système' : 'Nouvelle Action Requise'}
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
+                                {toastState.message}
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => setToastState({show: false, message: '', type: 'info'})} 
+                            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 mt-0.5"
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                     <div className="flex items-center gap-4">
@@ -181,7 +335,6 @@ const TitulaireDashboard = () => {
                     </div>
                 </div>
 
-                {/* Barre de filtres */}
                 <div className="flex flex-wrap gap-4 items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Classe :</span>
@@ -223,7 +376,36 @@ const TitulaireDashboard = () => {
                 </div>
             </div>
 
-            {/* MATRICE DE SUIVI */}
+            {(monitoringData?.bulletinsGenerated || monitoringData?.bulletinsReady || monitoringData?.hasBulletins) && selectedClassroom && (
+                <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+                    <div className="bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border border-emerald-200 dark:border-emerald-800/50 rounded-[2.5rem] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between shadow-sm gap-6">
+                        <div className="flex items-center gap-5">
+                            <div className="p-5 bg-emerald-100 dark:bg-emerald-800/50 rounded-2xl text-emerald-600 dark:text-emerald-400 shadow-inner">
+                                <FolderOpen size={40} />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-3 mb-1">
+                                    <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
+                                        Dossier : {selectedClassroom.displayName}
+                                    </h2>
+                                    <span className="px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-full">Nouveau</span>
+                                </div>
+                                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                                    Bulletins rassemblés de la Période {selectedPeriod}. Le dossier est prêt pour consultation.
+                                </p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => navigate(`/enseignant/titulaire/bulletins/${selectedClassroom.id}`)}
+                            className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-sm font-black uppercase transition-all shadow-lg shadow-emerald-200 dark:shadow-emerald-900/20 hover:scale-105"
+                        >
+                            <Eye size={18} />
+                            Ouvrir le dossier
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800 relative min-h-[400px]">
                 
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800 gap-4">
@@ -232,19 +414,20 @@ const TitulaireDashboard = () => {
                         État d'avancement des fiches de cotes
                     </h3>
 
-                    {/* Bouton d'action principal conditionné par le backend */}
-                    <button 
-                        onClick={handleGenerateBulletins}
-                        disabled={!monitoringData?.readyForBulletinGeneration}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase transition-all shadow-lg ${
-                            monitoringData?.readyForBulletinGeneration 
-                                ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 dark:shadow-blue-900/20 hover:scale-105' 
-                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
-                        }`}
-                    >
-                        {monitoringData?.readyForBulletinGeneration ? <PlayCircle size={18} /> : <AlertCircle size={18} />}
-                        Générer les Bulletins (P{selectedPeriod})
-                    </button>
+                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
+                        <button 
+                            onClick={triggerGenerateBulletins}
+                            disabled={!monitoringData?.readyForBulletinGeneration || isGenerating}
+                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase transition-all shadow-lg ${
+                                monitoringData?.readyForBulletinGeneration && !isGenerating
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 dark:shadow-blue-900/20 hover:scale-105' 
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
+                            }`}
+                        >
+                            {isGenerating ? <Loader2 size={18} className="animate-spin" /> : (monitoringData?.readyForBulletinGeneration ? <PlayCircle size={18} /> : <AlertCircle size={18} />)}
+                            Générer les Bulletins (P{selectedPeriod})
+                        </button>
+                    </div>
                 </div>
 
                 {fetchingMatrix ? (
@@ -312,6 +495,64 @@ const TitulaireDashboard = () => {
                     </div>
                 )}
             </div>
+
+            {modalState.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+                        
+                        <div className={`p-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700/60 ${
+                            modalState.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20' : 
+                            modalState.type === 'error' ? 'bg-red-50 dark:bg-red-900/20' : 
+                            'bg-blue-50 dark:bg-blue-900/20'
+                        }`}>
+                            {modalState.type === 'confirm' && <AlertTriangle className="text-blue-600 dark:text-blue-400" size={24} />}
+                            {modalState.type === 'success' && <CheckCircle className="text-emerald-600 dark:text-emerald-400" size={24} />}
+                            {modalState.type === 'error' && <XCircle className="text-red-600 dark:text-red-400" size={24} />}
+                            
+                            <h3 className="font-bold text-slate-900 dark:text-white text-lg">
+                                {modalState.title}
+                            </h3>
+                            
+                            <button onClick={closeModal} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="p-6">
+                            <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                                {modalState.message}
+                            </p>
+                        </div>
+
+                        <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex justify-end gap-3">
+                            {modalState.type === 'confirm' ? (
+                                <>
+                                    <button 
+                                        onClick={closeModal}
+                                        className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button 
+                                        onClick={confirmGeneration}
+                                        className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors flex items-center gap-2"
+                                    >
+                                        {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <PlayCircle size={16} />}
+                                        Oui, Générer
+                                    </button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={closeModal}
+                                    className="px-5 py-2.5 text-xs font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-sm transition-colors"
+                                >
+                                    Fermer
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

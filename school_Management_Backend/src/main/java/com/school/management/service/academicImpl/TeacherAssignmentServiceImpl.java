@@ -221,7 +221,6 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
 
         // 1. Récupérer tous les élèves actifs inscrits dans cette classe
-        // ✅ CORRECTION MULTI-TENANT : Adaptation du nom de la méthode et ajout du paramètre getCurrentSchoolId()
         List<Enrollment> enrollments = enrollmentRepository.findByClassroomIdAndAcademicYearIdAndSchoolIdAndActiveTrue(
                 ta.getClassroom().getId(), ta.getAcademicYear().getId(), getCurrentSchoolId());
 
@@ -230,7 +229,6 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
         }
 
         // 2. Récupérer toutes les évaluations créées pour cette affectation
-        // ✅ CORRECTION MULTI-TENANT : Adaptation de la méthode pour respecter la signature sécurisée du repository
         List<EvaluationTask> tasks = evaluationTaskRepository.findByTeacherAssignmentIdAndSchoolId(teacherAssignmentId, getCurrentSchoolId());
         if (tasks.isEmpty()) {
             return 0.0;
@@ -268,7 +266,9 @@ public class TeacherAssignmentServiceImpl implements TeacherAssignmentService {
                 .id(entity.getId())
                 .teacherId(entity.getTeacher().getId())
                 .teacherFullName(entity.getTeacher().getFirstName() + " " + entity.getTeacher().getLastName())
+                .teacherMatricule(entity.getTeacher().getSchoolRegistrationNumber()) // ✅ AJOUT : Liaison indispensable du matricule
                 .courseAssignmentId(entity.getCourseAssignment().getId())
+                .subjectId(entity.getCourseAssignment().getSubject().getId()) // ✅ AJOUT : Corrige la valeur 'null' renvoyée dans la console
                 .subjectName(entity.getCourseAssignment().getSubject().getName())
                 .classroomId(entity.getClassroom().getId())
                 .classroomName(entity.getClassroom().getDisplayName())

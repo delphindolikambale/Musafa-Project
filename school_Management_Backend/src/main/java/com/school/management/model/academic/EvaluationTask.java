@@ -36,7 +36,7 @@ public class EvaluationTask {
     @JoinColumn(name = "academic_year_id")
     private AcademicYear academicYear;
 
-    // ✅ MULTI-TENANT : Isolation explicite de la tâche d'évaluation
+    // MULTI-TENANT : Isolation explicite de la tâche d'évaluation
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "school_id", nullable = false)
     private School school;

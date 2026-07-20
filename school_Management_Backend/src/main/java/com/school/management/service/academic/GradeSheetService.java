@@ -18,7 +18,11 @@ public interface GradeSheetService {
 
     List<PendingGradeSheetDTO> getPendingGradeSheetsForProviseur(Long academicYearId);
 
-    // --- NOUVEAU : Actions du Proviseur ---
+    // --- Actions du Proviseur ---
     void validatePeriodGradeSheet(Long teacherAssignmentId, int period);
     void rejectPeriodGradeSheet(Long teacherAssignmentId, int period, String comment);
+
+    // --- NOUVEAU : Actions de l'enseignant Titulaire ---
+    void validateGradeSheetByTitulaire(Long teacherAssignmentId, int period);
+    void reportErrorByTitulaire(Long teacherAssignmentId, int period, String comment);
 }

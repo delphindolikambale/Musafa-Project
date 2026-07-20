@@ -40,10 +40,11 @@ const SuperAdminSystemService = {
     // 🔓 ENDPOINTS PUBLICS : Sans authentification requise
     // =========================================================================
 
-    // ✅ NOUVEAU : Récupération publique des paramètres
+    // ✅ CORRECTION : Utilisation d'axios pur pour éviter l'injection du token élève
+    // qui pourrait causer un conflit de rôle avec Spring Security sur ce contrôleur.
     getPublicSettings: async () => {
         try {
-            const response = await api.get('/system-admin/public/settings');
+            const response = await axios.get(`${API_BASE_URL}/system-admin/public/settings`);
             return response.data;
         } catch (error) {
             throw error.response?.data || error.message;

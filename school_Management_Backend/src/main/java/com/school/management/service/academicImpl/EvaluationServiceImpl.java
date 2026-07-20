@@ -31,12 +31,12 @@ public class EvaluationServiceImpl implements EvaluationService {
     private final PeriodValidationRepository validationRepository;
 
     /**
-     * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SECURISÉ
+     * EXTRACTION DU CONTEXTE MULTI-TENANT SECURISÉ
      */
     private UserDetailsImpl getCurrentUser() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof String) {
-            throw new AccessDeniedException("❌ Session invalide ou expirée.");
+            throw new AccessDeniedException("Session invalide ou expirée.");
         }
         return (UserDetailsImpl) principal;
     }

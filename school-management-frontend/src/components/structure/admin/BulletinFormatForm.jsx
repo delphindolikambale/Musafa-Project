@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutTemplate, CheckCircle2, ShieldAlert, Printer, Loader2 } from 'lucide-react';
+import { LayoutTemplate, CheckCircle2, ShieldAlert, Printer, Loader2, Send, AlertTriangle, XCircle, X } from 'lucide-react';
 import BulletinApercuContainer from './BulletinApercuContainer';
 import BulletinHeaderService from "../../../services/admin/bulletinHeaderService";
-import { getClassesForProviseur, getBulletinInitData } from "../../../services/admin/bulletinService";
+import { getClassesForProviseur, getBulletinInitData, initializeBulletins } from "../../../services/admin/bulletinService";
 import academicYearService from "../../../services/academicYearService";
 
 // 🔴 CORRECTION : Données par défaut vidées pour éviter l'affichage de fausses informations
@@ -69,6 +69,17 @@ const BulletinFormatForm = () => {
     
     // État pour l'année académique active
     const [activeYear, setActiveYear] = useState(null);
+    
+    // État pour le chargement de l'envoi/initialisation des bulletins
+    const [isInitializing, setIsInitializing] = useState(false);
+
+    // NOUVEAU : État pour la gestion de la boîte de dialogue (Modale)
+    const [modalState, setModalState] = useState({
+        isOpen: false,
+        type: 'confirm', // 'confirm', 'success', 'error'
+        title: '',
+        message: ''
+    });
 
     // TODO: À lier au Contexte d'Authentification (Extraction du JWT)
     const currentSchoolId = 1; 
@@ -118,7 +129,6 @@ const BulletinFormatForm = () => {
             // Requête 2 : Année Active
             try {
                 const yearRes = await academicYearService.getActiveYear();
-                // Gestion sécurisée selon le format de retour de l'API (avec ou sans .data)
                 const yearData = yearRes.data ? yearRes.data : yearRes;
                 setActiveYear(yearData);
             } catch (error) {
@@ -145,7 +155,6 @@ const BulletinFormatForm = () => {
 
     // 3. Chargement de l'initialisation du bulletin lors du choix d'une classe
     useEffect(() => {
-        // La condition !activeYear a été retirée pour éviter le blocage global de l'interface
         if (!selectedClassroomId) {
             setBulletinInitData(null);
             return;
@@ -153,7 +162,6 @@ const BulletinFormatForm = () => {
         const fetchInitData = async () => {
             setLoadingInit(true);
             try {
-                // Fallback sécurisé : si l'année active n'est pas chargée, on utilise 1 par défaut
                 const yearId = activeYear ? activeYear.id : 1;
                 const data = await getBulletinInitData(selectedClassroomId, yearId, currentSchoolId);
                 setBulletinInitData(data);
@@ -185,17 +193,19 @@ const BulletinFormatForm = () => {
         return true;
     });
 
+    // Remplacement des espaces par des espaces insécables (\u00A0) pour forcer le texte sur une seule ligne
+    const formattedSchoolYear = activeYear?.name ? activeYear.name.replace(/\s+/g, '\u00A0') : "..........";
+
     // Injection dynamique de l'année scolaire et préservation des champs vides
     const dynamicStudentInfo = bulletinInitData ? {
         ...mockStudentInfo, 
         classLevel: bulletinInitData.classroomName,
         titulaireName: bulletinInitData.titulaireName,
         studentCount: bulletinInitData.studentCount,
-        // ADAPTATION : Utilisation des espaces insécables (\u00A0) pour solidariser l'année scolaire
-        schoolYear: activeYear?.name ? activeYear.name.replace(/\s+/g, '\u00A0') : ".........."
+        schoolYear: formattedSchoolYear
     } : { 
         ...mockStudentInfo, 
-        schoolYear: activeYear?.name ? activeYear.name.replace(/\s+/g, '\u00A0') : ".........." 
+        schoolYear: formattedSchoolYear 
     };
 
     // Aplatissement de TOUS les cours pour le format Humanités.
@@ -225,14 +235,67 @@ const BulletinFormatForm = () => {
         results: {} 
     } : mockBulletins[selectedFormat];
 
-    const handleSubmit = (e) => {
+    const handleSubmitPrint = (e) => {
         e.preventDefault();
-        console.log("Format et Classe prêts pour impression :", selectedFormat, selectedClassroomId);
         window.print();
     };
 
+    // NOUVEAU : Déclenchement de la Modale de confirmation
+    const triggerInitialization = () => {
+        if (!selectedClassroomId || !activeYear) return;
+        
+        const selectedClass = classes.find(c => c.id.toString() === selectedClassroomId)?.name || "cette classe";
+        const titulaire = bulletinInitData?.titulaireName || "l'enseignant";
+
+        setModalState({
+            isOpen: true,
+            type: 'confirm',
+            title: 'Confirmation d\'Envoi',
+            message: `Êtes-vous sûr de vouloir générer les bulletins de ${selectedClass} pour l'année ${activeYear.name} ? Une fois générés, les bulletins seront envoyés à ${titulaire} pour la saisie des notes.`
+        });
+    };
+
+    // NOUVEAU : Exécution réelle de l'API après confirmation
+    const confirmInitialization = async () => {
+        setIsInitializing(true);
+        // Fermer la modale temporairement pendant le chargement pour éviter les doubles clics
+        setModalState(prev => ({ ...prev, isOpen: false })); 
+
+        try {
+            // 🔴 AJOUT CRUCIAL : Récupération dynamique de l'ID du titulaire depuis les données d'initialisation
+            const teacherId = bulletinInitData?.teacherId; 
+            
+            // On passe teacherId comme 4ème paramètre à la fonction initializeBulletins
+            await initializeBulletins(selectedClassroomId, activeYear.id, currentSchoolId, teacherId);
+            
+            const selectedClass = classes.find(c => c.id.toString() === selectedClassroomId)?.name || "la classe";
+            const titulaire = bulletinInitData?.titulaireName || "l'enseignant titulaire";
+
+            setModalState({
+                isOpen: true,
+                type: 'success',
+                title: 'Envoi Réussi',
+                message: `Les bulletins des ${bulletinInitData?.studentCount || ''} élèves de ${selectedClass} ont été envoyés avec succès à ${titulaire}.`
+            });
+        } catch (error) {
+            console.error("Erreur lors de l'initialisation des bulletins:", error);
+            setModalState({
+                isOpen: true,
+                type: 'error',
+                title: 'Échec de l\'Envoi',
+                message: "Un problème est survenu lors de la génération et de l'envoi des bulletins. Veuillez réessayer ultérieurement ou contacter l'assistance."
+            });
+        } finally {
+            setIsInitializing(false);
+        }
+    };
+
+    const closeModal = () => {
+        setModalState(prev => ({ ...prev, isOpen: false }));
+    };
+
     return (
-        <div className="min-h-screen bg-slate-50 dark:bg-slate-900/40 p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-300">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900/40 p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-300 relative">
             
             {/* ADAPTATION CSS : Forcer les grands titres à s'afficher sur une ligne stricte sans wrap */}
             <style>{`
@@ -255,7 +318,7 @@ const BulletinFormatForm = () => {
                 }
             `}</style>
 
-            <form onSubmit={handleSubmit} className="max-w-7xl mx-auto space-y-8">
+            <form onSubmit={handleSubmitPrint} className="max-w-7xl mx-auto space-y-8 relative z-10">
                 
                 {/* EN-TÊTE DE LA PAGE */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700/60">
@@ -356,7 +419,6 @@ const BulletinFormatForm = () => {
                         </span>
                     </div>
                     <div className="p-4 sm:p-8 bg-slate-100 dark:bg-slate-900/40 flex justify-center overflow-x-auto">
-                        {/* ADAPTATION: Ajout de 'bulletin-apercu-wrapper' et 'min-w-[210mm]' pour bloquer la compression A4 */}
                         <div className="transform scale-[0.95] origin-top transition-all duration-300 bulletin-apercu-wrapper shrink-0 min-w-[210mm] print:min-w-0 print:w-full">
                             {loadingHeader || loadingInit ? (
                                 <div className="flex items-center justify-center p-10"><Loader2 className="animate-spin text-emerald-500 w-8 h-8" /></div>
@@ -373,29 +435,107 @@ const BulletinFormatForm = () => {
 
                 {/* ALERTES ET ACTIONS FINALES */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-2xl text-blue-800 dark:text-blue-300 shadow-sm print:hidden">
-                    <div className="flex items-start gap-3">
+                    <div className="flex items-start gap-3 flex-1">
                         <ShieldAlert size={20} className="shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
                         <div className="text-xs font-medium leading-relaxed">
                             <span className="font-bold block mb-0.5">Norme d'Impression :</span> 
-                            Les ombres de surélévation (shadows) et arrière-plans d'aperçu sont automatiquement purgés lors du tirage pour assurer un rendu monochrome ou couleur optimal conforme aux directives du Ministère.
+                            Les ombres de surélévation (shadows) et arrière-plans d'aperçu sont purgés lors du tirage.
                         </div>
                     </div>
                     
-                    <button
-                        type="submit"
-                        disabled={!selectedClassroomId}
-                        className={`w-full sm:w-auto px-6 py-3 font-bold text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all duration-200 ${
-                            selectedClassroomId 
-                                ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white' 
-                                : 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
-                        }`}
-                    >
-                        <Printer size={16} />
-                        Sauvegarder & Imprimer
-                    </button>
-                </div>
+                    {/* BOUTONS D'ACTION (Générer et Imprimer) */}
+                    <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                        <button
+                            type="button"
+                            onClick={triggerInitialization}
+                            disabled={!selectedClassroomId || isInitializing}
+                            className={`w-full sm:w-auto px-5 py-3 font-bold text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all duration-200 ${
+                                selectedClassroomId && !isInitializing
+                                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                                    : 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
+                            }`}
+                        >
+                            {isInitializing ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+                            Envoyer au Titulaire
+                        </button>
 
+                        <button
+                            type="submit"
+                            disabled={!selectedClassroomId}
+                            className={`w-full sm:w-auto px-5 py-3 font-bold text-xs uppercase tracking-wider rounded-xl shadow-md flex items-center justify-center gap-2 transition-all duration-200 ${
+                                selectedClassroomId 
+                                    ? 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white' 
+                                    : 'bg-slate-300 dark:bg-slate-700 text-slate-500 cursor-not-allowed'
+                            }`}
+                        >
+                            <Printer size={16} />
+                            Imprimer l'Aperçu
+                        </button>
+                    </div>
+                </div>
             </form>
+
+            {/* --- MODALE DYNAMIQUE INFORMATIVE --- */}
+            {modalState.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm print:hidden transition-opacity">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
+                        
+                        {/* En-tête de la Modale */}
+                        <div className={`p-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700/60 ${
+                            modalState.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20' : 
+                            modalState.type === 'error' ? 'bg-red-50 dark:bg-red-900/20' : 
+                            'bg-blue-50 dark:bg-blue-900/20'
+                        }`}>
+                            {modalState.type === 'confirm' && <AlertTriangle className="text-blue-600 dark:text-blue-400" size={24} />}
+                            {modalState.type === 'success' && <CheckCircle2 className="text-emerald-600 dark:text-emerald-400" size={24} />}
+                            {modalState.type === 'error' && <XCircle className="text-red-600 dark:text-red-400" size={24} />}
+                            
+                            <h3 className="font-bold text-slate-900 dark:text-white text-lg">
+                                {modalState.title}
+                            </h3>
+                            
+                            <button onClick={closeModal} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Corps de la Modale */}
+                        <div className="p-6">
+                            <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
+                                {modalState.message}
+                            </p>
+                        </div>
+
+                        {/* Pied de la Modale / Actions */}
+                        <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex justify-end gap-3">
+                            {modalState.type === 'confirm' ? (
+                                <>
+                                    <button 
+                                        onClick={closeModal}
+                                        className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+                                    >
+                                        Annuler
+                                    </button>
+                                    <button 
+                                        onClick={confirmInitialization}
+                                        className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors flex items-center gap-2"
+                                    >
+                                        <Send size={16} />
+                                        Oui, Envoyer au Titulaire
+                                    </button>
+                                </>
+                            ) : (
+                                <button 
+                                    onClick={closeModal}
+                                    className="px-5 py-2.5 text-xs font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-sm transition-colors"
+                                >
+                                    Fermer
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

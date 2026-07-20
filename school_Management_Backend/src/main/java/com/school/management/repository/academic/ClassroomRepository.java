@@ -22,6 +22,9 @@ public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
 
     Optional<Classroom> findByTitulaireIdAndSchoolId(Long titulaireId, Long schoolId);
 
+    // ✅ AJOUT POUR LE SERVICE DES BULLETINS : Récupérer les classes actives d'un titulaire
+    List<Classroom> findByTitulaireIdAndSchoolIdAndActiveTrue(Long titulaireId, Long schoolId);
+
     List<Classroom> findAllBySchoolId(Long schoolId);
 
     Optional<Classroom> findByIdAndSchoolId(Long id, Long schoolId);

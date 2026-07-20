@@ -2,6 +2,8 @@ package com.school.management.repository.academic;
 
 import com.school.management.model.academic.TeacherAssignment;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -16,4 +18,19 @@ public interface TeacherAssignmentRepository extends JpaRepository<TeacherAssign
 
     // Pour vérifier si un cours dans une classe a déjà un enseignant au sein de l'établissement
     Optional<TeacherAssignment> findByCourseAssignmentIdAndClassroomIdAndSchoolId(Long courseId, Long classroomId, Long schoolId);
+
+    /**
+     * ✅ AJOUT POUR LA VALIDATION MULTI-TENANT DES QUOTAS DANS LE SERVICE DES HORAIRES
+     * Permet de trouver l'affectation via l'ID de la matière (Subject) imbriquée dans CourseAssignment
+     */
+    @Query("SELECT t FROM TeacherAssignment t WHERE t.school.id = :schoolId " +
+            "AND t.classroom.id = :classroomId " +
+            "AND t.courseAssignment.subject.id = :subjectId " +
+            "AND t.academicYear.id = :academicYearId")
+    Optional<TeacherAssignment> findBySchoolIdAndClassroomIdAndSubjectIdAndAcademicYearId(
+            @Param("schoolId") Long schoolId,
+            @Param("classroomId") Long classroomId,
+            @Param("subjectId") Long subjectId,
+            @Param("academicYearId") Long academicYearId
+    );
 }
