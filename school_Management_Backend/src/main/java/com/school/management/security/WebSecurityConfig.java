@@ -84,7 +84,7 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 "http://127.0.0.1:*"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"));
+        configuration.setAllowedHeaders(List.of("*")); // ✅ Permet tous les en-têtes HTTP pour éviter les blocages CORS Preflight
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -103,8 +103,13 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
                         auth
+                                // ✅ 1. Requetes Preflight CORS
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                                // ✅ 2. Endpoints totalement publics
                                 .requestMatchers("/api/auth/**").permitAll()
+                                .requestMatchers("/api/public/**").permitAll()
+                                .requestMatchers("/api/system-admin/public/**").permitAll()
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
                                 .requestMatchers("/api/resources/**").permitAll()
@@ -112,12 +117,11 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                                 .requestMatchers("/favicon.ico").permitAll()
                                 .requestMatchers("/storage/**", "/uploads/**").permitAll()
 
-                                // ✅ ADAPTATION : Ouverture de toutes les routes publiques (englobe /schools et /settings)
-                                .requestMatchers("/api/system-admin/public/**").permitAll()
-
+                                // ✅ 3. Endpoints réservés aux Administrateurs Système et École
                                 .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
-                                .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM")
+                                .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM", "ROLE_ADMIN", "ADMIN")
 
+                                // ✅ 4. Endpoints Métier Authentifiés
                                 .requestMatchers("/api/academic/**", "/api/config/**", "/api/v1/admin/school-config").authenticated()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").authenticated()
                                 .requestMatchers("/api/specialities/**", "/api/teacher-assignments/**", "/api/archives/**").authenticated()

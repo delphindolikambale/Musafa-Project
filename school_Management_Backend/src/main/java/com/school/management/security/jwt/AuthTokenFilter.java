@@ -57,10 +57,10 @@ public class AuthTokenFilter extends OncePerRequestFilter {
                         }
 
                         String path = request.getRequestURI();
-                        // ✅ EXCEPTION : On identifie si la requête concerne l'authentification ou l'activation de licence
-                        boolean isAuthOrActivationRoute = path.contains("/api/auth/") || path.contains("/activate");
+                        // ✅ EXCEPTION : On élargit les routes d'onboarding/anciennes autorisées
+                        boolean isAuthOrActivationRoute = path.contains("/api/auth/") || path.contains("/activate") || path.contains("/public/") || path.contains("/ws/");
                         boolean isSchoolAdmin = userPrincipal.getAuthorities().stream()
-                                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ADMIN"));
+                                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN") || a.getAuthority().equals("ADMIN") || a.getAuthority().equals("ROLE_ADMIN_SYSTEM") || a.getAuthority().equals("ADMIN_SYSTEM"));
 
                         // 2. L'établissement doit être actif sur la plateforme
                         if (!userPrincipal.getSchool().isActive()) {
@@ -99,7 +99,12 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     private String parseJwt(HttpServletRequest request) {
         String headerAuth = request.getHeader("Authorization");
         if (StringUtils.hasText(headerAuth) && headerAuth.toLowerCase().startsWith("bearer ")) {
-            return headerAuth.substring(7);
+            String token = headerAuth.substring(7).trim();
+            // ✅ Nettoyage des guillemets doubles si le token en contient
+            if (token.startsWith("\"") && token.endsWith("\"") && token.length() > 1) {
+                token = token.substring(1, token.length() - 1);
+            }
+            return token;
         }
         return null;
     }
