@@ -172,9 +172,13 @@ public class SchoolServiceImpl implements SchoolService {
         } else if (sub != null && activate && sub.getEndDate().isAfter(LocalDate.now())) {
             sub.setStatus(SubscriptionStatus.ACTIF);
             school.setSubscriptionActive(true);
+            school.setSchoolConfigured(true); // ✅ CORRECTION : L'activation manuelle par le SuperAdmin débloque isSchoolConfigured
             subscriptionRepository.saveAndFlush(sub);
         } else {
             school.setSubscriptionActive(false);
+            if (activate) {
+                school.setSchoolConfigured(true); // ✅ Garantie que la configuration passe à TRUE lors de l'activation
+            }
         }
 
         School updated = schoolRepository.saveAndFlush(school);
@@ -219,10 +223,10 @@ public class SchoolServiceImpl implements SchoolService {
     @Override
     @Transactional
     public void activateSchool(String schoolCode, String activationCode) {
-        School school = schoolRepository.findByCode(schoolCode.toUpperCase())
+        School school = schoolRepository.findByCode(schoolCode.toUpperCase().trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Aucun établissement enregistré sous le code : " + schoolCode));
 
-        if (school.getActivationCode() == null || !school.getActivationCode().equals(activationCode)) {
+        if (school.getActivationCode() == null || !school.getActivationCode().trim().equalsIgnoreCase(activationCode.trim())) {
             throw new IllegalArgumentException("Le code secret d'activation est incorrect ou a expiré.");
         }
 
@@ -347,13 +351,10 @@ public class SchoolServiceImpl implements SchoolService {
         return settingsRepository.save(settings);
     }
 
-    // ✅ LA SOLUTION MAGIQUE EST ICI : On restaure l'intelligence du DTO !
     private SchoolResponseDTO mapToResponseDTO(School school, Subscription sub) {
         String statusStr = "AUCUN";
         if (sub != null) {
             statusStr = sub.getStatus().name();
-            // Si la BDD contient un code d'activation pour cette école, c'est que le SuperAdmin a encaissé l'argent.
-            // On force le statut DTO à "EN_ATTENTE_ACTIVATION" pour déclencher l'affichage frontend vert/jaune !
             if (school.getActivationCode() != null && !school.getActivationCode().isEmpty()) {
                 statusStr = "EN_ATTENTE_ACTIVATION";
             }
