@@ -66,7 +66,6 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
                 classroomName, periodId, classroomName, periodId, teacherId, schoolId, LocalDateTime.now().toString()
         );
 
-        // ✅ CORRECTION : Routage dynamique vers le topic écouté par le TitulaireDashboard.jsx
         String dynamicTopic = String.format("/topic/bulletins/titulaire/%d/%d", schoolId, teacherId);
         messagingTemplate.convertAndSend(dynamicTopic, payload);
     }
@@ -104,7 +103,6 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
         if (academicYearId != null && schoolId != null) {
             bulletins = bulletinRepository.findByClassroomIdAndAcademicYearIdAndSchoolId(classroomId, academicYearId, schoolId);
         } else {
-            // ✅ Fallback robuste pour éviter de crasher l'interface utilisateur en cas d'absence de filtres
             bulletins = bulletinRepository.findByClassroomId(classroomId);
         }
 

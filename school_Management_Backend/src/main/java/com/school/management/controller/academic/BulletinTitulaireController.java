@@ -34,7 +34,7 @@ public class BulletinTitulaireController {
         }
     }
 
-    // Endpoint pour récupérer les dossiers de bulletins du Titulaire
+    // Endpoint pour récupérer les dossiers de bulletins de la classe du Titulaire
     @GetMapping("/folders")
     public ResponseEntity<List<BulletinFolderDTO>> getBulletinFolders(
             @RequestParam Long teacherId,

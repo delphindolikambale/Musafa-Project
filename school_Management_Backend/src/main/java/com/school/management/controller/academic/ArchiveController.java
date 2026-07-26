@@ -31,7 +31,7 @@ public class ArchiveController {
 
     private final ArchiveService archiveService;
 
-    // ✅ Vérifiez que c'est bien ici que vos fichiers sont stockés lors de l'inscription
+
     private final Path rootLocation = Paths.get("storage/archives");
 
     @PostConstruct

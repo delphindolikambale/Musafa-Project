@@ -1,10 +1,12 @@
 package com.school.management.repository.financial;
 
 import com.school.management.model.financial.StudentPayment;
+import com.school.management.model.enums.Currency; // ✅ Assurez-vous du bon chemin de l'enum
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -28,4 +30,9 @@ public interface StudentPaymentRepository extends JpaRepository<StudentPayment, 
 
     @Query("SELECT p FROM StudentPayment p WHERE p.school.id = :schoolId")
     List<StudentPayment> findAllBySchoolId(@Param("schoolId") Long schoolId);
+
+    // ✅ NOUVELLE MÉTHODE : Calculer le total encaissé selon la devise et l'école
+    // (Note: Si votre champ s'appelle différemment que "amountPaid", ajustez-le ici)
+    @Query("SELECT SUM(p.amountPaid) FROM StudentPayment p WHERE p.currency = :currency AND p.school.id = :schoolId")
+    BigDecimal sumAmountPaidByCurrencyAndSchoolId(@Param("currency") Currency currency, @Param("schoolId") Long schoolId);
 }

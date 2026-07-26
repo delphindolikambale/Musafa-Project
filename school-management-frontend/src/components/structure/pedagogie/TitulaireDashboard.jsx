@@ -15,11 +15,11 @@ import {
     XCircle,
     AlertTriangle,
     BellRing,
-    FolderOpen
+    Folder,
+    Printer
 } from 'lucide-react';
 import titulaireService from '../../../services/pedagogieService/titulaireService';
 import api from '../../../services/api';
-// Importation du WebSocket centralisé pour utiliser l'architecture STOMP/SockJS
 import { websocketService } from '../../../services/websocketService';
 
 const TitulaireDashboard = () => {
@@ -34,7 +34,7 @@ const TitulaireDashboard = () => {
     const [monitoringData, setMonitoringData] = useState(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-    const toastTimeoutRef = useRef(null); // ✅ Ajout du gestionnaire de timeout pour éviter les fuites mémoire
+    const toastTimeoutRef = useRef(null);
 
     const [isGenerating, setIsGenerating] = useState(false);
     const [modalState, setModalState] = useState({
@@ -59,7 +59,17 @@ const TitulaireDashboard = () => {
     };
     const user = getUser();
 
-    // ✅ Fonction de Toast sécurisée
+    // Fonction pour jouer le son de notification
+    const playNotificationSound = () => {
+        try {
+            // Assurez-vous d'avoir un fichier audio à cet emplacement dans votre dossier public
+            const audio = new Audio('/sounds/notification.mp3');
+            audio.play().catch(e => console.warn("L'autoplay audio a été bloqué par le navigateur:", e));
+        } catch (error) {
+            console.error("Erreur lors de la lecture du son :", error);
+        }
+    };
+
     const showToast = (message, type = 'info', duration = 6000) => {
         setToastState({ show: true, message, type });
         if (toastTimeoutRef.current) {
@@ -70,7 +80,6 @@ const TitulaireDashboard = () => {
         }, duration);
     };
 
-    // Nettoyage du composant au démontage
     useEffect(() => {
         return () => {
             if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
@@ -102,7 +111,7 @@ const TitulaireDashboard = () => {
                 }
             } catch (error) {
                 console.error("Erreur d'initialisation de l'espace titulaire:", error);
-                if (isMounted) showToast("Impossible de charger les données initiales. Veuillez vérifier votre connexion.", "error");
+                if (isMounted) showToast("Impossible de charger les données initiales.", "error");
             } finally {
                 if (isMounted) setLoading(false);
             }
@@ -147,8 +156,6 @@ const TitulaireDashboard = () => {
 
         if (!teacherId || !schoolId) return;
 
-        // ✅ Utilisation d'un Topic dynamique au lieu d'une connexion WebSocket native brute
-        // Cela permet de profiter de la persistance STOMP/SockJS configurée pour Render
         const topic = `/topic/bulletins/titulaire/${schoolId}/${teacherId}`;
 
         const handleWebSocketMessage = (data) => {
@@ -159,15 +166,15 @@ const TitulaireDashboard = () => {
                 messageAffiche = data;
             }
 
+            // DÉCLENCHEMENT DU SON ET DE LA NOTIFICATION VISUELLE
+            playNotificationSound();
             showToast(messageAffiche, 'info');
             setRefreshTrigger(prev => prev + 1);
         };
 
-        // Souscription via notre service centralisé
         websocketService.subscribeToTopic(topic, handleWebSocketMessage);
 
         return () => {
-            // Nettoyage de l'abonnement lors de la destruction du composant
             websocketService.unsubscribeFromTopic(topic, handleWebSocketMessage);
         };
     }, []);
@@ -264,7 +271,7 @@ const TitulaireDashboard = () => {
             <div className="flex h-[80vh] items-center justify-center">
                 <div className="text-center">
                     <Loader2 className="animate-spin text-emerald-600 mb-4 mx-auto" size={48} />
-                    <p className="text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest text-xs">Vérification de vos classes...</p>
+                    <p className="text-slate-500 font-bold uppercase tracking-widest text-xs">Vérification de vos classes...</p>
                 </div>
             </div>
         );
@@ -279,8 +286,7 @@ const TitulaireDashboard = () => {
                     </div>
                     <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 mb-2">Accès Restreint</h2>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Vous n'êtes actuellement désigné(e) comme titulaire d'aucune classe pour l'année scolaire active. 
-                        Veuillez contacter le Proviseur si cela est une erreur.
+                        Vous n'êtes actuellement désigné(e) comme titulaire d'aucune classe pour l'année scolaire active.
                     </p>
                 </div>
             </div>
@@ -290,21 +296,22 @@ const TitulaireDashboard = () => {
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
             
+            {/* NOTIFICATION VISUELLE (TOAST) */}
             {toastState.show && (
                 <div className="fixed top-6 right-6 z-50 animate-in fade-in slide-in-from-top-4 duration-500">
                     <div className={`bg-white dark:bg-slate-800 border-l-4 shadow-xl rounded-xl p-4 flex items-start gap-4 w-80 ${
-                        toastState.type === 'error' ? 'border-red-500' : 'border-emerald-500'
+                        toastState.type === 'error' ? 'border-red-500' : 'border-blue-500'
                     }`}>
                         <div className={`p-2.5 rounded-full shrink-0 ${
                             toastState.type === 'error' 
-                                ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
-                                : 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                ? 'bg-red-100 text-red-600 dark:bg-red-900/30'
+                                : 'bg-blue-100 text-blue-600 dark:bg-blue-900/30'
                         }`}>
                             {toastState.type === 'error' ? <AlertCircle size={20} /> : <BellRing size={20} className="animate-pulse" />}
                         </div>
                         <div className="flex-1 mt-0.5">
                             <h4 className="text-[11px] font-black text-slate-800 dark:text-slate-100 uppercase tracking-widest mb-1">
-                                {toastState.type === 'error' ? 'Erreur Système' : 'Nouvelle Action Requise'}
+                                {toastState.type === 'error' ? 'Erreur Système' : 'Notification Fiches'}
                             </h4>
                             <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                                 {toastState.message}
@@ -320,6 +327,7 @@ const TitulaireDashboard = () => {
                 </div>
             )}
 
+            {/* EN-TÊTE ET FILTRES */}
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
                     <div className="flex items-center gap-4">
@@ -345,8 +353,8 @@ const TitulaireDashboard = () => {
                                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
                                     selectedClassroom?.id === cls.id 
                                         ? 'bg-emerald-600 text-white shadow-md' 
-                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50 dark:hover:bg-slate-700'
-                                } border border-transparent dark:border-slate-700`}
+                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50'
+                                } border border-transparent`}
                             >
                                 {cls.displayName}
                             </button>
@@ -365,9 +373,9 @@ const TitulaireDashboard = () => {
                                 onClick={() => setSelectedPeriod(p)}
                                 className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black transition-all ${
                                     selectedPeriod === p 
-                                        ? 'bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 shadow-md' 
-                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'
-                                } border border-transparent dark:border-slate-700`}
+                                        ? 'bg-slate-800 text-white shadow-md' 
+                                        : 'bg-white text-slate-600 hover:bg-slate-200'
+                                } border border-transparent`}
                             >
                                 P{p}
                             </button>
@@ -376,36 +384,49 @@ const TitulaireDashboard = () => {
                 </div>
             </div>
 
+            {/* NOUVELLE INTERFACE : DOSSIER DES BULLETINS (Inspirée des visuels Préfet) */}
             {(monitoringData?.bulletinsGenerated || monitoringData?.bulletinsReady || monitoringData?.hasBulletins) && selectedClassroom && (
                 <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                    <div className="bg-gradient-to-r from-emerald-50 to-white dark:from-emerald-900/20 dark:to-slate-900 border border-emerald-200 dark:border-emerald-800/50 rounded-[2.5rem] p-6 md:p-8 flex flex-col md:flex-row items-center justify-between shadow-sm gap-6">
-                        <div className="flex items-center gap-5">
-                            <div className="p-5 bg-emerald-100 dark:bg-emerald-800/50 rounded-2xl text-emerald-600 dark:text-emerald-400 shadow-inner">
-                                <FolderOpen size={40} />
+                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 px-2">
+                        <Folder className="text-blue-500" size={24} /> Archives & Dossiers
+                    </h2>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {/* Carte Dossier structurée comme sur l'interface Préfet */}
+                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative hover:shadow-md transition-shadow group flex flex-col justify-between min-h-[220px]">
+                            
+                            <div className="absolute top-6 right-6 bg-slate-50 dark:bg-slate-800 text-slate-400 font-black text-[10px] uppercase px-3 py-1.5 rounded-lg tracking-wider border border-slate-100 dark:border-slate-700">
+                                DOSSIER
                             </div>
+
                             <div>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h2 className="text-xl font-black text-slate-800 dark:text-slate-100">
-                                        Dossier : {selectedClassroom.displayName}
-                                    </h2>
-                                    <span className="px-2.5 py-1 bg-emerald-600 text-white text-[10px] font-black uppercase rounded-full">Nouveau</span>
+                                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                    <Folder size={32} />
                                 </div>
-                                <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
-                                    Bulletins rassemblés de la Période {selectedPeriod}. Le dossier est prêt pour consultation.
-                                </p>
+                                <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 leading-tight">
+                                    Bulletins : {selectedClassroom.displayName}
+                                </h3>
+                                <div className="flex items-center gap-2 mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">
+                                    <FileText size={16} className="text-slate-400" />
+                                    <span>Période {selectedPeriod} clôturée</span>
+                                </div>
                             </div>
+
+                            <div className="mt-6 flex gap-3">
+                                <button 
+                                    onClick={() => navigate(`/enseignant/titulaire/bulletins/${selectedClassroom.id}`)}
+                                    className="flex-1 flex justify-center items-center gap-2 px-4 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-black uppercase transition-colors"
+                                >
+                                    <Printer size={16} /> Imprimer / Ouvrir
+                                </button>
+                            </div>
+
                         </div>
-                        <button 
-                            onClick={() => navigate(`/enseignant/titulaire/bulletins/${selectedClassroom.id}`)}
-                            className="w-full md:w-auto flex items-center justify-center gap-2 px-8 py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-sm font-black uppercase transition-all shadow-lg shadow-emerald-200 dark:shadow-emerald-900/20 hover:scale-105"
-                        >
-                            <Eye size={18} />
-                            Ouvrir le dossier
-                        </button>
                     </div>
                 </div>
             )}
 
+            {/* TABLEAU DE SUIVI DES FICHES */}
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800 relative min-h-[400px]">
                 
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800 gap-4">
@@ -496,6 +517,7 @@ const TitulaireDashboard = () => {
                 )}
             </div>
 
+            {/* MODALE DE CONFIRMATION DE GÉNÉRATION */}
             {modalState.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
                     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">

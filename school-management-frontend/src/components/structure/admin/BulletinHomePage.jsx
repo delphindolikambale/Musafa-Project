@@ -4,13 +4,13 @@ import BulletinFormatForm from './BulletinFormatForm';
 import BulletinHeaderForm from './BulletinHeaderForm';
 
 const BulletinHomePage = () => {
-    // État pour gérer l'affichage : 'menu' (accueil), 'header' (en-tête), 'format' (maquettes)
+    // État pour gérer la navigation interne : 'menu' (hub), 'header' (en-tête), 'format' (maquettes)
     const [activeView, setActiveView] = useState('menu');
 
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900/40 p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-300">
             
-            {/* VUE PRINCIPALE : LE MENU (HUB) */}
+            {/* VUE PRINCIPALE : LE HUB DE CONFIGURATION */}
             {activeView === 'menu' && (
                 <div className="max-w-5xl mx-auto space-y-8">
                     
@@ -29,10 +29,10 @@ const BulletinHomePage = () => {
                         </div>
                     </div>
 
-                    {/* Les 2 Boutons/Cartes de navigation */}
+                    {/* Cartes de navigation */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         
-                        {/* Bouton 1 : En-tête */}
+                        {/* Option 1 : En-tête Bulletin */}
                         <button 
                             onClick={() => setActiveView('header')}
                             className="group relative flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:border-blue-500 transition-all duration-300 overflow-hidden text-left w-full"
@@ -53,10 +53,10 @@ const BulletinHomePage = () => {
                             </div>
                         </button>
 
-                        {/* Bouton 2 : Format */}
+                        {/* Option 2 : Format / Structure */}
                         <button 
                             onClick={() => setActiveView('format')}
-                            className="group relative flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:emerald-500 transition-all duration-300 overflow-hidden text-left w-full hover:border-emerald-500"
+                            className="group relative flex flex-col items-center justify-center p-10 bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:border-emerald-500 transition-all duration-300 overflow-hidden text-left w-full"
                         >
                             <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 dark:bg-emerald-900/20 rounded-bl-[100px] -z-0 transition-transform group-hover:scale-110"></div>
                             <div className="z-10 flex flex-col items-center text-center space-y-4">
@@ -78,7 +78,7 @@ const BulletinHomePage = () => {
                 </div>
             )}
 
-            {/* VUE 2 : CONFIGURATION DU FORMAT */}
+            {/* VUE : CONFIGURATION DU FORMAT */}
             {activeView === 'format' && (
                 <div className="animate-fadeIn">
                     <button 
@@ -91,7 +91,7 @@ const BulletinHomePage = () => {
                 </div>
             )}
 
-            {/* VUE 3 : CONFIGURATION DE L'EN-TÊTE */}
+            {/* VUE : CONFIGURATION DE L'EN-TÊTE */}
             {activeView === 'header' && (
                 <div className="animate-fadeIn">
                     <button 
@@ -100,7 +100,6 @@ const BulletinHomePage = () => {
                     >
                         <ArrowLeft size={16} /> Retour au menu
                     </button>
-                    
                     <BulletinHeaderForm />
                 </div>
             )}

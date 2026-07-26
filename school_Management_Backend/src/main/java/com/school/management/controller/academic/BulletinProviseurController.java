@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -44,8 +45,8 @@ public class BulletinProviseurController {
     }
 
     /**
-     * Endpoint 3 : Initialise et génère les bulletins vierges pour la classe.
-     * Cette action débloque l'espace du titulaire.
+     * Endpoint 3 : Initialise et génère la maquette générale du bulletin pour la classe.
+     * Transmet le dossier au Titulaire et émet une notification WebSocket en temps réel.
      */
     @PostMapping("/initialize")
     public ResponseEntity<String> initializeBulletinsForClass(
@@ -54,27 +55,31 @@ public class BulletinProviseurController {
             @RequestParam Long schoolId,
             @RequestParam(required = false) Long teacherId) {
 
-        // 1. Logique métier en base de données
+        // 1. Logique métier en base de données : création des fiches bulletins
         bulletinProviseurService.initializeBulletins(classroomId, academicYearId, schoolId);
 
         // 2. Notification temps réel au Titulaire via WebSocket (STOMP)
         if (teacherId != null) {
             String payload = String.format(
-                    "{\"message\": \"De nouveaux bulletins ont été générés par le Proviseur. Veuillez rafraîchir ou consulter votre tableau de bord.\", " +
+                    "{" +
+                            "\"message\": \"Le Proviseur vient de vous transmettre la maquette générale des bulletins pour votre classe.\", " +
                             "\"action\": \"REFRESH\", " +
                             "\"type\": \"BULLETINS_DISPATCHED\", " +
                             "\"classroomId\": %d, " +
-                            "\"teacherId\": %d}",
-                    classroomId, teacherId
+                            "\"teacherId\": %d, " +
+                            "\"schoolId\": %d, " +
+                            "\"timestamp\": \"%s\"" +
+                            "}",
+                    classroomId, teacherId, schoolId, LocalDateTime.now().toString()
             );
 
-            // ✅ CORRECTION : Routage dynamique vers le topic écouté par le TitulaireDashboard.jsx
+            // Routage dynamique vers le topic écouté par le Titulaire
             String dynamicTopic = String.format("/topic/bulletins/titulaire/%d/%d", schoolId, teacherId);
             messagingTemplate.convertAndSend(dynamicTopic, payload);
         } else {
             System.err.println("Avertissement: teacherId manquant. La base de données est mise à jour, mais la notification WebSocket n'a pas pu être envoyée.");
         }
 
-        return ResponseEntity.ok().body("{\"message\": \"Bulletins générés et envoyés au titulaire avec succès.\"}");
+        return ResponseEntity.ok().body("{\"message\": \"La maquette générale du bulletin a été générée et transmise au titulaire avec succès.\"}");
     }
 }

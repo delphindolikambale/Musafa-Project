@@ -1,12 +1,11 @@
-import axios from 'axios';
+import api from '../api';
 
-const API_URL = 'http://localhost:8080/api';
-
+/**
+ * Service gérant la récupération et l'initialisation des bulletins (Proviseur & Éléves)
+ */
 export const getBulletinHeader = async () => {
     try {
-        const response = await axios.get(`${API_URL}/bulletin-headers`, {
-            withCredentials: true
-        });
+        const response = await api.get('/bulletin-headers');
         return response.data;
     } catch (error) {
         console.error("Erreur lors de la récupération de l'en-tête", error);
@@ -16,52 +15,55 @@ export const getBulletinHeader = async () => {
 
 export const getStudentBulletin = async (studentId, yearId) => {
     try {
-        const response = await axios.get(`${API_URL}/bulletins/student/${studentId}/year/${yearId}`);
+        const response = await api.get(`/bulletins/student/${studentId}/year/${yearId}`);
         return response.data;
     } catch (error) {
-        console.error("Erreur lors de la génération du bulletin", error);
+        console.error("Erreur lors de la génération du bulletin de l'élève", error);
         throw error;
     }
 };
 
-// ✅ AJOUTS SAAS MULTI-TENANT : Endpoints du Proviseur sécurisés par école
+/**
+ * Récupère la liste des classes actives pour le ComboBox du Proviseur
+ */
 export const getClassesForProviseur = async (schoolId) => {
     try {
-        const response = await axios.get(`${API_URL}/bulletins/proviseur/classes`, {
-            params: { schoolId },
-            withCredentials: true
+        const response = await api.get('/bulletins/proviseur/classes', {
+            params: { schoolId }
         });
         return response.data;
     } catch (error) {
-        console.error("Erreur lors de la récupération des classes", error);
+        console.error("Erreur lors de la récupération des classes du proviseur", error);
         throw error;
     }
 };
 
+/**
+ * Récupère la maquette générale du bulletin (Effectif, Titulaire, Maxima P1, P2, EX1, S1, P3, P4, EX2, S2, MAX GEN)
+ */
 export const getBulletinInitData = async (classroomId, academicYearId, schoolId) => {
     try {
-        const response = await axios.get(`${API_URL}/bulletins/proviseur/init-data`, {
-            params: { classroomId, academicYearId, schoolId },
-            withCredentials: true
+        const response = await api.get('/bulletins/proviseur/init-data', {
+            params: { classroomId, academicYearId, schoolId }
         });
         return response.data;
     } catch (error) {
-        console.error("Erreur lors de l'initialisation du bulletin", error);
+        console.error("Erreur lors du chargement de la maquette générale du bulletin", error);
         throw error;
     }
 };
 
-// ✅ NOUVEAU : Fonction pour exécuter l'envoi réel des bulletins au titulaire (avec teacherId)
+/**
+ * Valide et transmet la maquette générale du bulletin de la classe au Titulaire (avec alerte WebSocket)
+ */
 export const initializeBulletins = async (classroomId, academicYearId, schoolId, teacherId) => {
     try {
-        // Remplacer '/initialize' par l'endpoint exact de ton contrôleur Spring Boot si différent
-        const response = await axios.post(`${API_URL}/bulletins/proviseur/initialize`, null, {
-            params: { classroomId, academicYearId, schoolId, teacherId },
-            withCredentials: true
+        const response = await api.post('/bulletins/proviseur/initialize', null, {
+            params: { classroomId, academicYearId, schoolId, teacherId }
         });
         return response.data;
     } catch (error) {
-        console.error("Erreur lors de l'envoi des bulletins au titulaire", error);
+        console.error("Erreur lors de l'envoi de la maquette du bulletin au titulaire", error);
         throw error;
     }
 };
