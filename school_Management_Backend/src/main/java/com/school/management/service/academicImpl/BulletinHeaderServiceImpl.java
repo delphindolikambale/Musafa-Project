@@ -5,20 +5,14 @@ import com.school.management.dto.academic.BulletinHeaderResponseDTO;
 import com.school.management.model.academic.BulletinHeader;
 import com.school.management.repository.academic.BulletinHeaderRepository;
 import com.school.management.service.academic.BulletinHeaderService;
-import com.school.management.security.services.UserDetailsImpl; // ✅ AJOUT
-import org.springframework.security.core.context.SecurityContextHolder; // ✅ AJOUT
-import org.springframework.security.access.AccessDeniedException; // ✅ AJOUT
+import com.school.management.security.services.UserDetailsImpl;
+import com.school.management.service.academic.storage.FileStorageService;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.AccessDeniedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -26,9 +20,7 @@ import java.util.UUID;
 public class BulletinHeaderServiceImpl implements BulletinHeaderService {
 
     private final BulletinHeaderRepository repository;
-
-    // Utilisation du dossier "storage" pour harmoniser avec votre WebConfig
-    private final String UPLOAD_DIR = "storage/bulletin-headers/";
+    private final FileStorageService fileStorageService;
 
     /**
      * ✅ EXTRACTION DU CONTEXTE MULTI-TENANT SÉCURISÉ
@@ -76,40 +68,19 @@ public class BulletinHeaderServiceImpl implements BulletinHeaderService {
         header.setSchoolCode(requestDTO.getSchoolCode());
         header.setSchool(getCurrentUser().getSchool()); // ✅ MULTI-TENANT : Liaison obligatoire avec l'école courante
 
-        // Gestion de l'upload des images
+        // Gestion de l'upload des images via le service de stockage abstrait
         if (flagImage != null && !flagImage.isEmpty()) {
-            header.setFlagImagePath(saveImage(flagImage, "flag_"));
+            header.setFlagImagePath(fileStorageService.storeFile(flagImage, "bulletin-headers", "flag_" + getCurrentSchoolId() + "_"));
         }
         if (ministryLogo != null && !ministryLogo.isEmpty()) {
-            header.setMinistryLogoPath(saveImage(ministryLogo, "ministry_"));
+            header.setMinistryLogoPath(fileStorageService.storeFile(ministryLogo, "bulletin-headers", "ministry_" + getCurrentSchoolId() + "_"));
         }
         if (watermarkLogo != null && !watermarkLogo.isEmpty()) {
-            header.setWatermarkLogoPath(saveImage(watermarkLogo, "watermark_"));
+            header.setWatermarkLogoPath(fileStorageService.storeFile(watermarkLogo, "bulletin-headers", "watermark_" + getCurrentSchoolId() + "_"));
         }
 
         BulletinHeader savedHeader = repository.save(header);
         return mapToResponseDTO(savedHeader);
-    }
-
-    // Méthode utilitaire robuste pour sauvegarder physiquement les images
-    private String saveImage(MultipartFile file, String prefix) {
-        try {
-            Path uploadPath = Paths.get(UPLOAD_DIR);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
-
-            // Génération d'un nom unique pour éviter les conflits d'écrasement inter-écoles
-            String fileName = prefix + getCurrentSchoolId() + "_" + UUID.randomUUID() + "_" + file.getOriginalFilename();
-            Path filePath = uploadPath.resolve(fileName);
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
-
-            // On retourne le chemin relatif qui sera utilisé par l'API pour servir l'image
-            return UPLOAD_DIR + fileName;
-
-        } catch (IOException e) {
-            throw new RuntimeException("Erreur lors de la sauvegarde de l'image de l'en-tête : " + e.getMessage());
-        }
     }
 
     private BulletinHeaderResponseDTO mapToResponseDTO(BulletinHeader entity) {
