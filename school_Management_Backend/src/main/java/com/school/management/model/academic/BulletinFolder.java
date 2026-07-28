@@ -4,25 +4,21 @@ import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
-import com.school.management.model.academic.Classroom;
-import com.school.management.model.academic.AcademicYear;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Entity
-@Table(name = "bulletins")
+@Table(name = "bulletin_folders")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Bulletin {
+public class BulletinFolder {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "student_id", nullable = false)
-    private Student student;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "classroom_id", nullable = false)
@@ -36,12 +32,10 @@ public class Bulletin {
     @JoinColumn(name = "school_id", nullable = false)
     private School school;
 
-    // NOUVEAU: Rattachement au dossier physique
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "folder_id")
-    private BulletinFolder folder;
+    private String folderName;
+    private String status; // Ex: NOUVEAU, EN_COURS, COMPLET
+    private LocalDateTime createdAt;
 
-    @Column(name = "status")
-    @Builder.Default
-    private String status = "INITIALIZED";
+    @OneToMany(mappedBy = "folder", cascade = CascadeType.ALL)
+    private List<Bulletin> bulletins;
 }

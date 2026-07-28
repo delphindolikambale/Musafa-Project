@@ -22,17 +22,16 @@ public interface ClassroomRepository extends JpaRepository<Classroom, Long> {
 
     Optional<Classroom> findByTitulaireIdAndSchoolId(Long titulaireId, Long schoolId);
 
-    // ✅ AJOUT POUR LE SERVICE DES BULLETINS : Récupérer les classes actives d'un titulaire
     List<Classroom> findByTitulaireIdAndSchoolIdAndActiveTrue(Long titulaireId, Long schoolId);
 
     List<Classroom> findAllBySchoolId(Long schoolId);
 
     Optional<Classroom> findByIdAndSchoolId(Long id, Long schoolId);
 
-    // ✅ ADAPTATION MULTI-TENANT : Ajout du prototype de comptage automatique pour le DashboardService
     long countBySchoolId(Long schoolId);
 
-    // ✅ SÉCURISÉ : Récupérer toutes les classes actives d'une école (pour le ComboBox)
-    // Tu peux l'adapter avec d'autres filtres (ex: level_id) si tu veux filtrer par "format"
+    // ✅ NOUVEAU : Comptage exact des classes actives pour le Tableau de bord Pédagogique
+    long countBySchoolIdAndActiveTrue(Long schoolId);
+
     List<Classroom> findBySchoolIdAndActiveTrue(Long schoolId);
 }

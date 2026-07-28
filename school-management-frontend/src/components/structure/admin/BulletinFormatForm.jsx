@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { LayoutTemplate, CheckCircle2, ShieldAlert, Printer, Loader2, Send, AlertTriangle, XCircle, X } from 'lucide-react';
 import BulletinApercuContainer from './BulletinApercuContainer';
 import BulletinHeaderService from "../../../services/admin/bulletinHeaderService";
 import { getClassesForProviseur, getBulletinInitData, initializeBulletins } from "../../../services/admin/bulletinService";
 import academicYearService from "../../../services/academicYearService";
 
-// 🔴 CORRECTION : Données par défaut vidées pour éviter l'affichage de fausses informations
+// Données par défaut vidées pour éviter l'affichage de fausses informations
 const mockStudentInfo = {
     firstName: "",
     lastName: "",
@@ -54,6 +54,33 @@ const mockBulletins = {
     }
 };
 
+const formatsVisuels = [
+    {
+        id: '7eme_eb',
+        title: "Format 7ème Année (EB)",
+        description: "Grille officielle Éducation de Base. Regroupement par Domaines (Sciences, Langues, Développement Humain, Arts) selon la maquette terminale.",
+        level: "education_base",
+        badge: "Éducation de Base",
+        formatType: '7EME_EB'
+    },
+    {
+        id: '8eme_eb',
+        title: "Format 8ème Année (EB)",
+        description: "Structure Éducation de Base comprenant les synthèses d'orientation et la colonne certifiée pour le test national TENASOSP.",
+        level: "education_base",
+        badge: "Éducation de Base",
+        formatType: '8EME_EB'
+    },
+    {
+        id: 'humanites',
+        title: "Format Humanités (3e à 6e)",
+        description: "Structure standardisée du Secondaire. Répartition stricte avec lignes de Maxima transversales en tête de chaque section de cours.",
+        level: "secondaire",
+        badge: "Humanités",
+        formatType: 'HUMANITES'
+    }
+];
+
 const BulletinFormatForm = () => {
     const [selectedFormat, setSelectedFormat] = useState('7eme_eb');
     const [selectedLevel, setSelectedLevel] = useState('tous');
@@ -73,209 +100,231 @@ const BulletinFormatForm = () => {
     // État pour le chargement de l'envoi/initialisation des bulletins
     const [isInitializing, setIsInitializing] = useState(false);
 
-    // NOUVEAU : État pour la gestion de la boîte de dialogue (Modale)
+    // État pour la gestion de la boîte de dialogue (Modale)
     const [modalState, setModalState] = useState({
         isOpen: false,
-        type: 'confirm', // 'confirm', 'success', 'error'
+        type: 'confirm', // 'confirm', 'success', 'error', 'warning'
         title: '',
         message: ''
     });
 
-    // TODO: À lier au Contexte d'Authentification (Extraction du JWT)
-    const currentSchoolId = 1; 
-
-    const formatsVisuels = [
-        {
-            id: '7eme_eb',
-            title: "Format 7ème Année (EB)",
-            description: "Grille officielle Éducation de Base. Regroupement par Domaines (Sciences, Langues, Développement Humain, Arts) selon la maquette terminale.",
-            level: "education_base",
-            badge: "Éducation de Base",
-            formatType: '7EME_EB'
-        },
-        {
-            id: '8eme_eb',
-            title: "Format 8ème Année (EB)",
-            description: "Structure Éducation de Base comprenant les synthèses d'orientation et la colonne certifiée pour le test national TENASOSP.",
-            level: "education_base",
-            badge: "Éducation de Base",
-            formatType: '8EME_EB'
-        },
-        {
-            id: 'humanites',
-            title: "Format Humanités (3e à 6e)",
-            description: "Structure standardisée du Secondaire. Répartition stricte avec lignes de Maxima transversales en tête de chaque section de cours.",
-            level: "secondaire",
-            badge: "Humanités",
-            formatType: 'HUMANITES'
+    // Récupération dynamique du School ID depuis le stockage local ou secours à 1
+    const currentSchoolId = useMemo(() => {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+            try {
+                const parsed = JSON.parse(storedUser);
+                return parsed.schoolId || parsed.school?.id || 1;
+            } catch (e) {
+                return 1;
+            }
         }
-    ];
+        return 1;
+    }, []);
 
-    const filteredFormats = selectedLevel === 'tous' 
-        ? formatsVisuels 
-        : formatsVisuels.filter(f => f.level === selectedLevel);
+    const filteredFormats = useMemo(() => {
+        return selectedLevel === 'tous' 
+            ? formatsVisuels 
+            : formatsVisuels.filter(f => f.level === selectedLevel);
+    }, [selectedLevel]);
 
-    // 1. Récupération de l'en-tête et de l'année active (Requêtes découplées pour la robustesse)
+    // 1. Récupération de l'en-tête et de l'année active
     useEffect(() => {
+        let isMounted = true;
         const fetchInitialData = async () => {
-            // Requête 1 : En-tête
             try {
                 const headerRes = await BulletinHeaderService.getHeader();
-                setHeaderData(headerRes);
+                if (isMounted) setHeaderData(headerRes);
             } catch (error) {
                 console.error("Erreur lors de la récupération de l'en-tête du bulletin:", error);
             }
 
-            // Requête 2 : Année Active
             try {
                 const yearRes = await academicYearService.getActiveYear();
-                const yearData = yearRes.data ? yearRes.data : yearRes;
-                setActiveYear(yearData);
+                const yearData = yearRes?.data ? yearRes.data : yearRes;
+                if (isMounted) setActiveYear(yearData);
             } catch (error) {
                 console.error("Erreur lors de la récupération de l'année active:", error);
             } finally {
-                setLoadingHeader(false);
+                if (isMounted) setLoadingHeader(false);
             }
         };
         fetchInitialData();
+        return () => { isMounted = false; };
     }, []);
 
     // 2. Récupération des classes de l'école (Multi-Tenant)
     useEffect(() => {
+        let isMounted = true;
         const fetchClasses = async () => {
             try {
                 const data = await getClassesForProviseur(currentSchoolId);
-                setClasses(data);
+                if (isMounted && Array.isArray(data)) {
+                    setClasses(data);
+                }
             } catch (error) {
                 console.error("Erreur chargement classes:", error);
             }
         };
         fetchClasses();
+        return () => { isMounted = false; };
     }, [currentSchoolId]);
 
     // 3. Chargement de l'initialisation du bulletin lors du choix d'une classe
+    const activeYearId = activeYear?.id;
     useEffect(() => {
         if (!selectedClassroomId) {
             setBulletinInitData(null);
             return;
         }
+        let isMounted = true;
         const fetchInitData = async () => {
             setLoadingInit(true);
             try {
-                const yearId = activeYear ? activeYear.id : 1;
+                const yearId = activeYearId || 1;
                 const data = await getBulletinInitData(selectedClassroomId, yearId, currentSchoolId);
-                setBulletinInitData(data);
+                if (isMounted) setBulletinInitData(data);
             } catch (error) {
                 console.error("Erreur chargement données d'initialisation:", error);
+                if (isMounted) setBulletinInitData(null);
             } finally {
-                setLoadingInit(false);
+                if (isMounted) setLoadingInit(false);
             }
         };
         fetchInitData();
-    }, [selectedClassroomId, activeYear, currentSchoolId]);
+        return () => { isMounted = false; };
+    }, [selectedClassroomId, activeYearId, currentSchoolId]);
 
-    // Réinitialiser la sélection de classe si l'utilisateur change de format de bulletin
+    // Réinitialiser la sélection de classe si l'utilisateur change de format
     useEffect(() => {
         setSelectedClassroomId('');
     }, [selectedFormat]);
 
     // Filtrage dynamique des classes pour le <select> selon le format choisi
-    const filteredDropdownClasses = classes.filter(c => {
-        const classNameStr = c.name.toLowerCase();
-        if (selectedFormat === '7eme_eb') {
-            return classNameStr.includes('7ème') || classNameStr.includes('7eme');
-        } else if (selectedFormat === '8eme_eb') {
-            return classNameStr.includes('8ème') || classNameStr.includes('8eme');
-        } else if (selectedFormat === 'humanites') {
-            return !classNameStr.includes('7ème') && !classNameStr.includes('7eme') && 
-                   !classNameStr.includes('8ème') && !classNameStr.includes('8eme');
-        }
-        return true;
-    });
+    const filteredDropdownClasses = useMemo(() => {
+        return classes.filter(c => {
+            const classNameStr = (c.name || '').toLowerCase();
+            if (selectedFormat === '7eme_eb') {
+                return classNameStr.includes('7è') || classNameStr.includes('7e') || classNameStr.includes('7ème') || classNameStr.includes('7eme');
+            } else if (selectedFormat === '8eme_eb') {
+                return classNameStr.includes('8è') || classNameStr.includes('8e') || classNameStr.includes('8ème') || classNameStr.includes('8eme');
+            } else if (selectedFormat === 'humanites') {
+                const is7 = classNameStr.includes('7è') || classNameStr.includes('7e') || classNameStr.includes('7ème') || classNameStr.includes('7eme');
+                const is8 = classNameStr.includes('8è') || classNameStr.includes('8e') || classNameStr.includes('8ème') || classNameStr.includes('8eme');
+                return !is7 && !is8;
+            }
+            return true;
+        });
+    }, [classes, selectedFormat]);
 
-    // Remplacement des espaces par des espaces insécables (\u00A0) pour forcer le texte sur une seule ligne
+    // Formatage de l'année scolaire
     const formattedSchoolYear = activeYear?.name ? activeYear.name.replace(/\s+/g, '\u00A0') : "..........";
 
-    // Injection dynamique de l'année scolaire et préservation des champs vides
-    const dynamicStudentInfo = bulletinInitData ? {
-        ...mockStudentInfo, 
-        classLevel: bulletinInitData.classroomName,
-        titulaireName: bulletinInitData.titulaireName,
-        studentCount: bulletinInitData.studentCount,
-        schoolYear: formattedSchoolYear
-    } : { 
-        ...mockStudentInfo, 
-        schoolYear: formattedSchoolYear 
-    };
+    // Injection dynamique des informations de l'élève
+    const dynamicStudentInfo = useMemo(() => {
+        if (bulletinInitData) {
+            return {
+                ...mockStudentInfo, 
+                classLevel: bulletinInitData.classroomName || "..........",
+                titulaireName: bulletinInitData.titulaireName || "Non assigné",
+                studentCount: bulletinInitData.studentCount || 0,
+                schoolYear: formattedSchoolYear
+            };
+        }
+        return { 
+            ...mockStudentInfo, 
+            schoolYear: formattedSchoolYear 
+        };
+    }, [bulletinInitData, formattedSchoolYear]);
 
-    // Aplatissement de TOUS les cours pour le format Humanités.
-    const flattenedSubjectsForHumanites = bulletinInitData ? [
-        ...(bulletinInitData.standaloneSubjects || []),
-        ...(bulletinInitData.domains || []).flatMap(d => [
-            ...(d.subjects || []),
-            ...(d.subDomains || []).flatMap(sd => sd.subjects || [])
-        ])
-    ] : [];
+    // Aplatissement des cours pour le format Humanités
+    const flattenedSubjectsForHumanites = useMemo(() => {
+        if (!bulletinInitData) return [];
+        return [
+            ...(bulletinInitData.standaloneSubjects || []),
+            ...(bulletinInitData.domains || []).flatMap(d => [
+                ...(d.subjects || []),
+                ...(d.subDomains || []).flatMap(sd => sd.subjects || [])
+            ])
+        ];
+    }, [bulletinInitData]);
 
-    // On passe directement l'objet bulletinInitData avec l'ajout de notre liste aplatie
-    const dynamicBulletinData = bulletinInitData ? {
-        formatType: formatsVisuels.find(f => f.id === selectedFormat)?.formatType || '7EME_EB',
-        studentCount: bulletinInitData.studentCount,
-        domains: bulletinInitData.domains || [],
-        standaloneSubjects: flattenedSubjectsForHumanites,
-        totalMaxP1: bulletinInitData.totalMaxP1,
-        totalMaxP2: bulletinInitData.totalMaxP2,
-        totalMaxExam1: bulletinInitData.totalMaxExam1,
-        totalMaxS1: bulletinInitData.totalMaxS1,
-        totalMaxP3: bulletinInitData.totalMaxP3,
-        totalMaxP4: bulletinInitData.totalMaxP4,
-        totalMaxExam2: bulletinInitData.totalMaxExam2,
-        totalMaxS2: bulletinInitData.totalMaxS2,
-        totalGeneralMax: bulletinInitData.totalGeneralMax,
-        results: {} 
-    } : mockBulletins[selectedFormat];
+    // Fusion des données d'initialisation et de modèle
+    const dynamicBulletinData = useMemo(() => {
+        if (bulletinInitData) {
+            return {
+                formatType: formatsVisuels.find(f => f.id === selectedFormat)?.formatType || '7EME_EB',
+                studentCount: bulletinInitData.studentCount,
+                domains: bulletinInitData.domains || [],
+                standaloneSubjects: flattenedSubjectsForHumanites,
+                totalMaxP1: bulletinInitData.totalMaxP1,
+                totalMaxP2: bulletinInitData.totalMaxP2,
+                totalMaxExam1: bulletinInitData.totalMaxExam1,
+                totalMaxS1: bulletinInitData.totalMaxS1,
+                totalMaxP3: bulletinInitData.totalMaxP3,
+                totalMaxP4: bulletinInitData.totalMaxP4,
+                totalMaxExam2: bulletinInitData.totalMaxExam2,
+                totalMaxS2: bulletinInitData.totalMaxS2,
+                totalGeneralMax: bulletinInitData.totalGeneralMax,
+                results: {} 
+            };
+        }
+        return mockBulletins[selectedFormat] || mockBulletins['7eme_eb'];
+    }, [bulletinInitData, selectedFormat, flattenedSubjectsForHumanites]);
 
     const handleSubmitPrint = (e) => {
         e.preventDefault();
         window.print();
     };
 
-    // NOUVEAU : Déclenchement de la Modale de confirmation
+    // Déclenchement de la Modale de confirmation avec contrôle du Titulaire
     const triggerInitialization = () => {
         if (!selectedClassroomId || !activeYear) return;
         
-        const selectedClass = classes.find(c => c.id.toString() === selectedClassroomId)?.name || "cette classe";
-        const titulaire = bulletinInitData?.titulaireName || "l'enseignant";
+        const selectedClassObj = classes.find(c => c.id.toString() === selectedClassroomId.toString());
+        const selectedClass = selectedClassObj?.name || "cette classe";
+        const titulaire = bulletinInitData?.titulaireName;
+        const teacherId = bulletinInitData?.teacherId || bulletinInitData?.titulaireId;
+
+        if (!teacherId && (!titulaire || titulaire === "Non assigné")) {
+            setModalState({
+                isOpen: true,
+                type: 'error',
+                title: 'Titulaire Non Assigné',
+                message: `La classe ${selectedClass} n'a pas encore de professeur titulaire assigné. Veuillez désigner un titulaire pour cette classe avant de lui envoyer les bulletins.`
+            });
+            return;
+        }
 
         setModalState({
             isOpen: true,
             type: 'confirm',
             title: 'Confirmation d\'Envoi',
-            message: `Êtes-vous sûr de vouloir générer les bulletins de ${selectedClass} pour l'année ${activeYear.name} ? Une fois générés, les bulletins seront envoyés à ${titulaire} pour la saisie des notes.`
+            message: `Êtes-vous sûr de vouloir générer et transmettre les bulletins de ${selectedClass} pour l'année ${activeYear.name} ? Les bulletins seront transmis à ${titulaire} pour l'ouverture du dossier de saisie.`
         });
     };
 
-    // NOUVEAU : Exécution réelle de l'API après confirmation
+    // Exécution de l'API d'initialisation et de notification
     const confirmInitialization = async () => {
         setIsInitializing(true);
-        // Fermer la modale temporairement pendant le chargement pour éviter les doubles clics
         setModalState(prev => ({ ...prev, isOpen: false })); 
 
         try {
-            // 🔴 AJOUT CRUCIAL : Récupération dynamique de l'ID du titulaire depuis les données d'initialisation
-            const teacherId = bulletinInitData?.teacherId; 
+            const teacherId = bulletinInitData?.teacherId || bulletinInitData?.titulaireId;
+            const yearId = activeYear?.id || 1;
             
-            // On passe teacherId comme 4ème paramètre à la fonction initializeBulletins
-            await initializeBulletins(selectedClassroomId, activeYear.id, currentSchoolId, teacherId);
+            // Appel vers le backend Spring Boot
+            await initializeBulletins(selectedClassroomId, yearId, currentSchoolId, teacherId);
             
-            const selectedClass = classes.find(c => c.id.toString() === selectedClassroomId)?.name || "la classe";
+            const selectedClassObj = classes.find(c => c.id.toString() === selectedClassroomId.toString());
+            const selectedClass = selectedClassObj?.name || "la classe";
             const titulaire = bulletinInitData?.titulaireName || "l'enseignant titulaire";
 
             setModalState({
                 isOpen: true,
                 type: 'success',
                 title: 'Envoi Réussi',
-                message: `Les bulletins des ${bulletinInitData?.studentCount || ''} élèves de ${selectedClass} ont été envoyés avec succès à ${titulaire}.`
+                message: `Les bulletins des ${bulletinInitData?.studentCount || 0} élèves de ${selectedClass} ont été générés et notifiés avec succès à ${titulaire}.`
             });
         } catch (error) {
             console.error("Erreur lors de l'initialisation des bulletins:", error);
@@ -283,7 +332,7 @@ const BulletinFormatForm = () => {
                 isOpen: true,
                 type: 'error',
                 title: 'Échec de l\'Envoi',
-                message: "Un problème est survenu lors de la génération et de l'envoi des bulletins. Veuillez réessayer ultérieurement ou contacter l'assistance."
+                message: "Un problème est survenu lors de la génération et du transfert WebSocket des bulletins. Veuillez vérifier la connexion au serveur puis reessayer."
             });
         } finally {
             setIsInitializing(false);
@@ -297,7 +346,6 @@ const BulletinFormatForm = () => {
     return (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-900/40 p-4 sm:p-6 lg:p-8 font-sans transition-colors duration-300 relative">
             
-            {/* ADAPTATION CSS : Forcer les grands titres à s'afficher sur une ligne stricte sans wrap */}
             <style>{`
                 .bulletin-apercu-wrapper header,
                 .bulletin-apercu-wrapper h1,
@@ -377,18 +425,18 @@ const BulletinFormatForm = () => {
                         <div className="w-full md:w-1/2 flex justify-around p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-800/30">
                             <div className="text-center">
                                 <span className="block text-[11px] font-bold text-emerald-600/80 dark:text-emerald-400/80 uppercase tracking-wider mb-1">Effectif Total</span>
-                                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{bulletinInitData.studentCount} <span className="text-sm font-semibold">élèves</span></span>
+                                <span className="text-2xl font-black text-emerald-700 dark:text-emerald-400">{bulletinInitData.studentCount || 0} <span className="text-sm font-semibold">élèves</span></span>
                             </div>
                             <div className="w-px bg-emerald-200 dark:bg-emerald-800/50"></div>
                             <div className="text-center">
                                 <span className="block text-[11px] font-bold text-emerald-600/80 dark:text-emerald-400/80 uppercase tracking-wider mb-1">Titulaire</span>
-                                <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-1 block">{bulletinInitData.titulaireName}</span>
+                                <span className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-1 block">{bulletinInitData.titulaireName || "Non assigné"}</span>
                             </div>
                         </div>
                     )}
                 </div>
 
-                {/* SÉLECTEUR DE FORMAT (BOUTONS) */}
+                {/* SÉLECTEUR DE FORMAT */}
                 <div className="flex flex-wrap gap-3 print:hidden">
                     {filteredFormats.map((format) => {
                         const isSelected = selectedFormat === format.id;
@@ -433,17 +481,16 @@ const BulletinFormatForm = () => {
                     </div>
                 </div>
 
-                {/* ALERTES ET ACTIONS FINALES */}
+                {/* ACTIONS ET BANDEAU */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 p-5 bg-blue-50/50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-2xl text-blue-800 dark:text-blue-300 shadow-sm print:hidden">
                     <div className="flex items-start gap-3 flex-1">
                         <ShieldAlert size={20} className="shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
                         <div className="text-xs font-medium leading-relaxed">
                             <span className="font-bold block mb-0.5">Norme d'Impression :</span> 
-                            Les ombres de surélévation (shadows) et arrière-plans d'aperçu sont purgés lors du tirage.
+                            Les ombres de surélévation et arrière-plans d'aperçu sont purges lors du tirage imprimante.
                         </div>
                     </div>
                     
-                    {/* BOUTONS D'ACTION (Générer et Imprimer) */}
                     <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                         <button
                             type="button"
@@ -475,12 +522,11 @@ const BulletinFormatForm = () => {
                 </div>
             </form>
 
-            {/* --- MODALE DYNAMIQUE INFORMATIVE --- */}
+            {/* --- MODALE INFORMATIVE ET DE CONFIRMATION --- */}
             {modalState.isOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm print:hidden transition-opacity">
                     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
                         
-                        {/* En-tête de la Modale */}
                         <div className={`p-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700/60 ${
                             modalState.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20' : 
                             modalState.type === 'error' ? 'bg-red-50 dark:bg-red-900/20' : 
@@ -499,14 +545,12 @@ const BulletinFormatForm = () => {
                             </button>
                         </div>
 
-                        {/* Corps de la Modale */}
                         <div className="p-6">
                             <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
                                 {modalState.message}
                             </p>
                         </div>
 
-                        {/* Pied de la Modale / Actions */}
                         <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex justify-end gap-3">
                             {modalState.type === 'confirm' ? (
                                 <>
@@ -527,7 +571,7 @@ const BulletinFormatForm = () => {
                             ) : (
                                 <button 
                                     onClick={closeModal}
-                                    className="px-5 py-2.5 text-xs font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-sm transition-colors"
+                                    className="px-5 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-sm transition-colors"
                                 >
                                     Fermer
                                 </button>

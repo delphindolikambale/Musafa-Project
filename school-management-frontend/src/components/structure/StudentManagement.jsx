@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useContext } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom'; // ✅ AJOUT de useLocation
+import { useNavigate, useLocation } from 'react-router-dom';
 import { studentService } from '../../services/studentService';
 import AddStudentForm from '../structure/AddStudentForm';
-import { ThemeContext } from '../../App'; // Import du contexte
+import { ThemeContext } from '../../App'; 
 import { Users, UserCheck, UserPlus, Printer, Search, FolderOpen, Edit3, Trash2, GraduationCap, Calendar, MapPin, ShieldAlert } from 'lucide-react';
 
 const StudentManagement = () => {
@@ -10,7 +10,7 @@ const StudentManagement = () => {
     const isDark = theme === 'dark';
     
     const navigate = useNavigate();
-    const location = useLocation(); // ✅ Permet de connaître le chemin actuel (ex: /prefet/eleves)
+    const location = useLocation(); 
     
     const [students, setStudents] = useState([]);
     const [showForm, setShowForm] = useState(false);
@@ -57,7 +57,6 @@ const StudentManagement = () => {
         printWindow.print();
     };
 
-    // ✅ NOUVELLE FONCTION : Redirection intelligente vers le module Inscriptions selon le rôle (Admin vs Préfet)
     const handleNavigateToEnrollment = () => {
         if (location.pathname.startsWith('/prefet')) {
             navigate('/prefet/inscriptions');
@@ -66,7 +65,6 @@ const StudentManagement = () => {
         }
     };
 
-    // Filtrage et tri intelligent : Les élèves ajoutés récemment apparaissent en premier lieu
     const filteredAndSorted = students
         .filter(s => {
             const fullSearch = `${s.lastName} ${s.postName} ${s.firstName}`.toLowerCase();
@@ -74,41 +72,45 @@ const StudentManagement = () => {
                    (s.matricule && s.matricule.toLowerCase().includes(searchTerm.toLowerCase()));
         })
         .slice()
-        .reverse(); // Inverse l'ordre pour mettre les derniers ajouts en haut de la liste
+        .reverse();
 
-    // Styles dynamiques
     const bgMain = isDark ? "bg-[#0F172A]" : "bg-[#f8fafc]";
-    const cardStyle = isDark ? "bg-[#1E293B] border-slate-700 text-white" : "bg-white border-slate-100 text-slate-900";
+    const cardStyle = isDark ? "bg-[#1E293B] border-slate-700/60 text-white" : "bg-white border-slate-100 text-slate-900";
 
     return (
         <div className={`p-4 md:p-8 min-h-screen font-sans transition-colors duration-300 ${bgMain}`}>
             
-            {/* CARDS STATISTIQUES AVEC ICONES PROFESSIONNELLES */}
+            {/* CARDS STATISTIQUES HARMONISÉES AVEC DASHBOARD ADMIN */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-8 no-print">
                 <StatCard 
-                    label="Effectif Total" 
+                    title="Effectif Total" 
                     value={students.length} 
-                    color="bg-gradient-to-br from-blue-700 to-indigo-900" 
-                    icon={<Users size={24} className="text-white" />} 
+                    icon={<Users size={20} />} 
+                    borderColor="border-l-blue-600"
+                    iconBgColor={isDark ? "bg-blue-900/30" : "bg-blue-50"}
+                    iconColor={isDark ? "text-blue-400" : "text-blue-600"}
                     isDark={isDark} 
                 />
                 <StatCard 
-                    label="Garçons" 
+                    title="Garçons" 
                     value={students.filter(s => s.gender === 'MASCULIN').length} 
-                    color="bg-gradient-to-br from-blue-500 to-blue-700" 
-                    icon={<UserCheck size={24} className="text-white" />} 
+                    icon={<UserCheck size={20} />} 
+                    borderColor="border-l-orange-500"
+                    iconBgColor={isDark ? "bg-orange-900/30" : "bg-orange-50"}
+                    iconColor={isDark ? "text-orange-400" : "text-orange-600"}
                     isDark={isDark} 
                 />
                 <StatCard 
-                    label="Filles" 
+                    title="Filles" 
                     value={students.filter(s => s.gender === 'FEMININ').length} 
-                    color="bg-gradient-to-br from-pink-500 to-purple-600" 
-                    icon={<UserPlus size={24} className="text-white" />} 
+                    icon={<UserPlus size={20} />} 
+                    borderColor="border-l-emerald-500"
+                    iconBgColor={isDark ? "bg-emerald-900/30" : "bg-emerald-50"}
+                    iconColor={isDark ? "text-emerald-400" : "text-emerald-600"}
                     isDark={isDark} 
                 />
             </div>
 
-            {/* ACTION ACTIONS ET EN-TÊTE DISPOSÉS PROPREMENT */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-6 no-print">
                 <div>
                     <h1 className={`text-2xl md:text-3xl font-black tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
@@ -117,7 +119,6 @@ const StudentManagement = () => {
                 </div>
                 
                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
-                    {/* BARRE DE RECHERCHE INTEGRÉE */}
                     <div className="relative flex-1 sm:w-64">
                         <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
                         <input 
@@ -125,14 +126,13 @@ const StudentManagement = () => {
                             placeholder="Rechercher un élève..." 
                             className={`w-full border rounded-2xl pl-11 pr-4 py-3 text-sm outline-none shadow-sm transition-all ${
                                 isDark 
-                                    ? 'bg-slate-800 border-slate-700 text-white placeholder-slate-400 focus:border-blue-500' 
+                                    ? 'bg-[#1E293B] border-slate-700/60 text-white placeholder-slate-400 focus:border-blue-500' 
                                     : 'bg-white border-slate-200 text-slate-800 placeholder-slate-400 focus:border-blue-600'
                             }`} 
                             onChange={(e) => setSearchTerm(e.target.value)} 
                         />
                     </div>
                     
-                    {/* GROUPE DE BOUTONS D'ACTION ACTIONNELS */}
                     <div className="flex flex-wrap items-center gap-2">
                         <button 
                             onClick={handlePrintList} 
@@ -144,7 +144,6 @@ const StudentManagement = () => {
                             <span>Imprimer</span>
                         </button>
                         
-                        {/* ✅ MODIFICATION ICI : Utilisation de la nouvelle fonction de redirection intelligente */}
                         <button 
                             onClick={handleNavigateToEnrollment} 
                             className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-2xl shadow-md font-bold text-xs uppercase transition-all transform active:scale-95 flex items-center justify-center gap-2"
@@ -164,13 +163,11 @@ const StudentManagement = () => {
                 </div>
             </div>
 
-            {/* RECONSTRUCTION DU TABLEAU SMART COMPATIBLE TOUT THÈME */}
             <div id="printable-area" className={`rounded-[2.5rem] shadow-sm border overflow-hidden transition-all ${cardStyle}`}>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left border-collapse min-w-[800px]">
                         <thead>
-                            {/* BORDURE DE REMPLISSAGE DÉGRADÉ BLEU ET BLEU DE NUIT */}
-                            <tr className="bg-gradient-to-r from-blue-900 to-indigo-950 text-white">
+                            <tr className="bg-gradient-to-r from-[#0F172A] to-blue-900 text-white">
                                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest border-b border-indigo-950/20">Matricule</th>
                                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest border-b border-indigo-950/20">Élève</th>
                                 <th className="px-6 py-5 text-[10px] font-black uppercase tracking-widest text-center border-b border-indigo-950/20">N° National</th>
@@ -241,11 +238,10 @@ const StudentManagement = () => {
                 </div>
             </div>
 
-            {/* FICHE INDIVIDUELLE RESPONSIVE MODALE */}
             {selectedStudent && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-                    <div className={`${isDark ? 'bg-slate-800 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'} border rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transform transition-all`}>
-                        <div className="bg-gradient-to-r from-blue-900 to-indigo-950 p-6 text-white flex justify-between items-center shrink-0">
+                    <div className={`${isDark ? 'bg-[#1E293B] text-white border-slate-700/60' : 'bg-white text-slate-900 border-slate-200'} border rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transform transition-all`}>
+                        <div className="bg-gradient-to-r from-[#0F172A] to-blue-900 p-6 text-white flex justify-between items-center shrink-0">
                             <h2 className="text-sm font-black uppercase tracking-wider flex items-center gap-2"><FolderOpen size={16} /> Fiche de l'élève</h2>
                             <button onClick={() => setSelectedStudent(null)} className="text-2xl leading-none text-slate-300 hover:text-white transition-colors">&times;</button>
                         </div>
@@ -276,11 +272,10 @@ const StudentManagement = () => {
                 </div>
             )}
 
-            {/* FORMULAIRE D'INSCRIPTION / MODIFICATION MODALE */}
             {showForm && (
                 <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-                    <div className={`${isDark ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'} border rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transform transition-all`}>
-                        <div className={`p-6 border-b flex justify-between items-center shrink-0 ${isDark ? 'border-slate-700' : 'border-slate-100'}`}>
+                    <div className={`${isDark ? 'bg-[#1E293B] border-slate-700/60' : 'bg-white border-slate-200'} border rounded-[2.5rem] w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col transform transition-all`}>
+                        <div className={`p-6 border-b flex justify-between items-center shrink-0 ${isDark ? 'border-slate-700/50' : 'border-slate-100'}`}>
                             <h2 className={`font-black uppercase text-xs tracking-wider ${isDark ? 'text-blue-400' : 'text-blue-900'}`}>
                                 {editingStudent ? "Modification des données" : "Formulaire d'inscription"}
                             </h2>
@@ -296,16 +291,27 @@ const StudentManagement = () => {
     );
 };
 
-// COMPOSANT COMPLEMENTAIRE: CARTES DE STATISTIQUES REPENSIÉES SANS EMOJIS
-const StatCard = ({ label, value, color, icon, isDark }) => (
-    <div className={`${isDark ? 'bg-[#1E293B] border-slate-700/60' : 'bg-white border-slate-100'} p-6 rounded-[2rem] shadow-sm border flex items-center gap-5 transition-all duration-200`}>
-        <div className={`h-12 w-12 shrink-0 ${color} rounded-2xl flex items-center justify-center shadow-md`}>
-            {icon}
+// COMPOSANT COMPLEMENTAIRE: STATCARD SYNCHRONISÉ AVEC L'ADMIN
+const StatCard = ({ title, subtitle, value, bottomText, icon, borderColor, iconBgColor, iconColor, isDark }) => (
+    <div className={`p-6 rounded-2xl shadow-sm border-y border-r border-l-[5px] transition-all duration-200 flex items-center justify-between
+        ${isDark ? 'bg-[#1E293B] border-y-slate-700/60 border-r-slate-700/60' : 'bg-white border-y-slate-100 border-r-slate-100'} 
+        ${borderColor} hover:shadow-md`}
+    >
+      <div className="flex flex-col justify-center">
+        <h3 className={`text-[11px] font-black uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+          {title}
+        </h3>
+        {subtitle && <p className={`text-[10px] font-medium mt-0.5 mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{subtitle}</p>}
+        
+        <div className={`text-3xl font-black ${subtitle ? 'mt-1' : 'mt-2'} ${isDark ? 'text-white' : 'text-slate-800'}`}>
+          {value}
         </div>
-        <div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{label}</p>
-            <p className={`text-2xl font-black ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{value}</p>
-        </div>
+        
+        {bottomText && <p className={`text-[10px] font-bold mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{bottomText}</p>}
+      </div>
+      <div className={`h-12 w-12 rounded-full flex items-center justify-center shrink-0 ${iconBgColor} ${iconColor}`}>
+        {icon}
+      </div>
     </div>
 );
 

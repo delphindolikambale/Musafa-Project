@@ -34,7 +34,9 @@ public interface TeacherRepository extends JpaRepository<Teacher, Long> {
     @Query("SELECT t FROM Teacher t WHERE t.user.id = :userId AND t.school.id = :schoolId")
     Optional<Teacher> findByUserIdAndSchoolId(@Param("userId") Long userId, @Param("schoolId") Long schoolId);
 
-    // ✅ NOUVEAU : Comptages pour les statistiques (Effectifs et Genre)
     long countBySchoolId(Long schoolId);
     long countByGenderIgnoreCaseAndSchoolId(String gender, Long schoolId);
+
+    // ✅ NOUVEAU : Récupération des 5 derniers enseignants enregistrés dans l'établissement
+    List<Teacher> findTop5BySchoolIdOrderByIdDesc(Long schoolId);
 }

@@ -103,7 +103,7 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
                         auth
-                                // ✅ 1. Requetes Preflight CORS
+                                // ✅ 1. Requêtes Preflight CORS
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                                 // ✅ 2. Endpoints totalement publics
@@ -121,10 +121,12 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                                 .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM", "ROLE_ADMIN", "ADMIN")
 
-                                // ✅ 4. Endpoints Métier Authentifiés
+                                // ✅ 4. Endpoints Métier Authentifiés (Ajout explicite de la route des notifications et pédagogie)
+                                .requestMatchers("/api/notifications/**").authenticated()
                                 .requestMatchers("/api/academic/**", "/api/config/**", "/api/v1/admin/school-config").authenticated()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").authenticated()
                                 .requestMatchers("/api/specialities/**", "/api/teacher-assignments/**", "/api/archives/**").authenticated()
+                                .requestMatchers("/api/pedagogy/**", "/api/pedagogie/**").authenticated()
 
                                 .anyRequest().authenticated()
                 );

@@ -11,7 +11,6 @@ import java.util.List;
 @Repository
 public interface SubjectRepository extends JpaRepository<Subject, Long> {
 
-    // ✅ ADAPTATION MULTI-TENANT : Intégration du paramètre schoolId pour bloquer toute fuite inter-établissements
     @Query("SELECT s FROM Subject s " +
             "LEFT JOIN s.section sec " +
             "LEFT JOIN s.option opt " +
@@ -28,7 +27,6 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
             @Param("schoolId") Long schoolId
     );
 
-    // ✅ ADAPTATION MULTI-TENANT : Double validation avec l'école courante pour l'espace étudiant
     @Query("SELECT s FROM Subject s " +
             "LEFT JOIN s.section sec " +
             "LEFT JOIN s.option opt " +
@@ -43,6 +41,8 @@ public interface SubjectRepository extends JpaRepository<Subject, Long> {
             "AND e.academicYear.id = s.academicYear.id")
     List<Subject> findSubjectsByStudentUserId(@Param("userId") Long userId, @Param("schoolId") Long schoolId);
 
-    // ✅ ADAPTATION MULTI-TENANT : Liste filtrée par école
     List<Subject> findAllBySchoolId(Long schoolId);
+
+    // ✅ NOUVEAU : Comptage du nombre total de cours enregistrés dans l'établissement
+    long countBySchoolId(Long schoolId);
 }

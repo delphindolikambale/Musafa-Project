@@ -26,7 +26,7 @@ public class JwtUtils {
     @Value("${school.app.jwtExpirationMs}")
     private int jwtExpirationMs;
 
-    // ✅ NOUVEAU : Injection pour vérifier dynamiquement l'état d'onboarding de l'utilisateur
+    // ✅ Injection pour vérifier dynamiquement l'état d'onboarding de l'utilisateur
     @Autowired
     private com.school.management.repository.auth.UserRepository userRepository;
 
@@ -39,7 +39,7 @@ public class JwtUtils {
 
         Long schoolId = (userPrincipal.getSchool() != null) ? userPrincipal.getSchool().getId() : null;
 
-        // ✅ NOUVEAU : Récupération en BDD pour injecter la contrainte de changement de mot de passe dans le Token
+        // ✅ Récupération en BDD pour injecter la contrainte de changement de mot de passe dans le Token
         boolean mustChangePassword = userRepository.findByUsername(userPrincipal.getUsername())
                 .map(com.school.management.model.auth.User::isMustChangePassword)
                 .orElse(false);
@@ -47,7 +47,7 @@ public class JwtUtils {
         return Jwts.builder()
                 .setSubject((userPrincipal.getUsername()))
                 .claim("schoolId", schoolId)
-                // ✅ NOUVEAU : Claim lu par le Guard de routage React
+                // ✅ Claim lu par le Guard de routage React
                 .claim("mustChangePassword", mustChangePassword)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))

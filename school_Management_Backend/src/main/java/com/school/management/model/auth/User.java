@@ -65,8 +65,8 @@ public class User {
     @Column(name = "default_password_hashed")
     private String defaultPasswordHashed;
 
-    // ✅ Rattachement de l'utilisateur à une école spécifique
-    @ManyToOne(fetch = FetchType.LAZY)
+    // ✅ CORRECTION CRITIQUE : Passage en EAGER pour garantir le chargement de l'école dans le contexte de sécurité JWT
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "school_id", nullable = true)
     private School school;
 

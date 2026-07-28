@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { 
     BookOpen, 
@@ -22,7 +22,7 @@ import {
 import schoolConfigService from '../../services/admin/schoolConfigService';
 import titulaireService from '../../services/pedagogieService/titulaireService';
 import { getSystemLogoUrl } from "../../services/multitenantService/SuperAdminSystemService";
-import { websocketService } from '../../services/websocketService'; // ✅ IMPORT DU WEBSOCKET
+import { websocketService } from '../../services/websocketService';
 
 const TeacherLayout = () => {
     const navigate = useNavigate();
@@ -40,27 +40,40 @@ const TeacherLayout = () => {
     
     // État pour la cloche de notification des bulletins
     const [hasUnreadNotification, setHasUnreadNotification] = useState(false);
-    const [notificationData, setNotificationData] = useState(null); // ✅ Stockage des détails du websocket
+    const [notificationData, setNotificationData] = useState(null);
 
     // État pour la boîte de dialogue de déconnexion
     const [showLogoutModal, setShowLogoutModal] = useState(false);
     
-    // État pour la configuration de l'établissement (placé dans le Header)
+    // État pour la configuration de l'établissement
     const [schoolConfig, setSchoolConfig] = useState({
         schoolName: "Institution Éducative",
         logoBase64: null,
         slogan: ""
     });
 
-    // État pour la configuration globale du Système (placé dans le Sidebar)
+    // État pour la configuration globale du Système
     const [systemConfig, setSystemConfig] = useState({
         applicationName: "MyAcademia SaaS",
         logoPath: null
     });
 
-    const user = JSON.parse(localStorage.getItem('user')) || {};
+    // Mémorisation de l'utilisateur stocké
+    const user = useMemo(() => {
+        try {
+            return JSON.parse(localStorage.getItem('user')) || {};
+        } catch (e) {
+            console.error("Erreur lors de la lecture de l'utilisateur en localStorage:", e);
+            return {};
+        }
+    }, []);
 
-    // Dictionnaire de traduction basique
+    // Consolidation robuste de l'identifiant de l'enseignant / titulaire
+    const currentTeacherId = useMemo(() => {
+        return user.teacherId || user.titulaireId || user.userId || user.id || user.personnelId || null;
+    }, [user]);
+
+    // Dictionnaire de traduction
     const translations = {
         FR: {
             menuTitle: "Espace Enseignant",
@@ -119,10 +132,56 @@ const TeacherLayout = () => {
         });
     };
 
-    // Charger les configurations (École + Système) et le statut de titulaire au montage
+    // Notification navigateur native
+    const sendNotification = useCallback((message) => {
+        if ("Notification" in window && Notification.permission === "granted") {
+            try {
+                new Notification("MyAcademia ERP - Titulaire", {
+                    body: message || "De nouveaux bulletins sont disponibles dans votre espace.",
+                    icon: "/favicon.ico" 
+                });
+            } catch (e) {
+                console.error("Erreur lors de l'envoi de la notification native:", e);
+            }
+        }
+    }, []);
+
+    // Vérification initiale des notifications/dossiers non lus via HTTP (Fallback persistant)
+    const checkPendingNotifications = useCallback(async (teacherId, academicYearId) => {
+        try {
+            // 1. Vérifier s'il y a une notification non traitée stockée localement
+            const pendingLocal = sessionStorage.getItem('pending_bulletin_notification');
+            if (pendingLocal) {
+                const parsedLocal = JSON.parse(pendingLocal);
+                if (parsedLocal && parsedLocal.folderData) {
+                    setHasUnreadNotification(true);
+                    setNotificationData(parsedLocal.folderData);
+                    return;
+                }
+            }
+
+            // 2. Appel API de vérification auprès du service titulaire (s'il existe une méthode dédiée)
+            if (titulaireService && typeof titulaireService.getUnreadNotifications === 'function') {
+                const unreadList = await titulaireService.getUnreadNotifications(teacherId, academicYearId);
+                if (unreadList && unreadList.length > 0) {
+                    const latestNotification = unreadList[0];
+                    setHasUnreadNotification(true);
+                    setNotificationData(latestNotification);
+                    sessionStorage.setItem('pending_bulletin_notification', JSON.stringify({
+                        triggerFolderCreation: true,
+                        folderData: latestNotification,
+                        timestamp: Date.now()
+                    }));
+                }
+            }
+        } catch (error) {
+            console.warn("Vérification des notifications en attente via API ignorée ou non disponible:", error);
+        }
+    }, []);
+
+    // Chargement initial des configs, statut Titulaire et notifications persistance
     useEffect(() => {
         const fetchConfigs = async () => {
-            // Configuration de l'école
             try {
                 const schoolData = await schoolConfigService.getSchoolConfig();
                 if (schoolData && schoolData.schoolName) {
@@ -134,14 +193,15 @@ const TeacherLayout = () => {
         };
 
         const checkTitulaireStatus = async () => {
-            const teacherId = user.teacherId || user.id; 
             const academicYearId = user.academicYearId || user.currentAcademicYearId || localStorage.getItem('academicYearId') || localStorage.getItem('currentAcademicYearId') || null;
 
-            if (teacherId) {
+            if (currentTeacherId) {
                 try {
-                    const classrooms = await titulaireService.getMyClassrooms(teacherId, academicYearId);
+                    const classrooms = await titulaireService.getMyClassrooms(currentTeacherId, academicYearId);
                     if (classrooms && classrooms.length > 0) {
                         setIsTitulaire(true);
+                        // Vérifier si des bulletins en attente existent pour ce titulaire
+                        checkPendingNotifications(currentTeacherId, academicYearId);
                     } else {
                         setIsTitulaire(false);
                     }
@@ -154,75 +214,100 @@ const TeacherLayout = () => {
 
         fetchConfigs();
         checkTitulaireStatus();
-        loadSystemInfo(); // Chargement immédiat depuis le LocalStorage
+        loadSystemInfo();
 
-        // Écouter les mises à jour du système déclenchées depuis Parametres.jsx
         window.addEventListener('system-settings-updated', loadSystemInfo);
         return () => window.removeEventListener('system-settings-updated', loadSystemInfo);
-    }, []);
+    }, [currentTeacherId, user.academicYearId, user.currentAcademicYearId, checkPendingNotifications]);
 
-    // -------------------------------------------------------------------------
-    // LOGIQUE DE NOTIFICATION SYSTÈME (BROWSER API VIA WEBSOCKET)
-    // -------------------------------------------------------------------------
-    
-    // Demande la permission une fois au montage du composant
+    // Demande de permission pour les notifications navigateur
     useEffect(() => {
-        if ("Notification" in window && Notification.permission !== "granted") {
+        if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
             Notification.requestPermission();
         }
     }, []);
 
-    const sendNotification = (message) => {
-        if ("Notification" in window && Notification.permission === "granted") {
-            new Notification("MyAcademia ERP", {
-                body: message || "Le Proviseur vient d'envoyer de nouveaux bulletins.",
-                icon: "/favicon.ico" 
-            });
-        }
-    };
-
+    // WebSocket : Réception en temps réel des notifications de bulletins envoyés par le Proviseur
     useEffect(() => {
-        // Callback déclenché à la réception d'un message STOMP
         const handleWebSocketMessage = (data) => {
-            const currentTeacherId = user.teacherId || user.id;
-
-            // On s'assure que la donnée est bien du JSON
-            if (data && typeof data === 'object') {
-                // ✅ Vérification si le message concerne cet enseignant titulaire
-                // L'action peut être REFRESH, BULLETINS_SENT, etc. selon le backend
-                if (Number(data.teacherId) === Number(currentTeacherId) || Number(data.titulaireId) === Number(currentTeacherId)) {
-                    setHasUnreadNotification(true);
-                    setNotificationData(data); // Sauvegarde des données (ex: className, period) pour l'ouverture du dossier
-                    
-                    const notificationMessage = data.message || `Les bulletins de la classe ${data.classroomName || ''} sont disponibles !`;
-                    sendNotification(notificationMessage);
+            let parsedData = data;
+            if (typeof data === 'string') {
+                try {
+                    parsedData = JSON.parse(data);
+                } catch (e) {
+                    console.error("Erreur lors du parsing du message WebSocket:", e);
+                    return;
                 }
+            }
+
+            if (!parsedData) return;
+
+            // Dépaquetage si les données sont enveloppées dans une sous-propriété (payload, body ou data)
+            const payload = parsedData.payload || parsedData.data || parsedData.body || parsedData;
+
+            // Extraction multi-propriétés du destinataire
+            const targetTeacherId = payload.teacherId || payload.titulaireId || payload.recipientId || payload.userId;
+
+            // Vérification si le message est destiné au titulaire actuellement connecté
+            const isTargetedToMe = !targetTeacherId || Number(targetTeacherId) === Number(currentTeacherId);
+
+            // Détection si le message concerne un envoi de bulletins
+            const isBulletinNotification = 
+                payload.type === 'BULLETIN_SENT' || 
+                payload.type === 'BULLETIN_TRANSFER' ||
+                payload.action === 'NEW_BULLETINS' ||
+                payload.folderData ||
+                payload.classroomName ||
+                (payload.message && payload.message.toLowerCase().includes('bulletin'));
+
+            if (isTargetedToMe && isBulletinNotification) {
+                setHasUnreadNotification(true);
+                setNotificationData(payload);
+
+                // Sauvegarder dans sessionStorage pour persister le besoin de création de dossier
+                sessionStorage.setItem('pending_bulletin_notification', JSON.stringify({
+                    triggerFolderCreation: true,
+                    folderData: payload,
+                    timestamp: Date.now()
+                }));
+                
+                const notificationMessage = payload.message || `Les bulletins de la classe ${payload.classroomName || ''} ont été transmis par le Proviseur !`;
+                sendNotification(notificationMessage);
             }
         };
 
-        // On établit la connexion (qui gère l'exponential backoff nativement)
         websocketService.connect(handleWebSocketMessage);
 
-        // Nettoyage de l'écouteur à la destruction du composant
         return () => {
             websocketService.disconnect(handleWebSocketMessage);
         };
-    }, [user.id, user.teacherId]);
+    }, [currentTeacherId, sendNotification]);
 
+    // Traitement lors du clic sur la Cloche de Notification
     const handleNotificationClick = () => {
         setHasUnreadNotification(false);
-        // ✅ Rediriger l'enseignant vers l'espace titulaire en passant le state pour créer/ouvrir le dossier
+
+        // Récupération des données complètes de notification
+        const activeData = notificationData || (() => {
+            try {
+                const stored = sessionStorage.getItem('pending_bulletin_notification');
+                return stored ? JSON.parse(stored).folderData : null;
+            } catch (e) {
+                return null;
+            }
+        })();
+
+        // Rediriger l'enseignant vers l'espace titulaire pour déclencher la création/ouverture du dossier BulletinFolder
         navigate('/enseignant/titulaire', { 
             state: { 
                 triggerFolderCreation: true, 
-                folderData: notificationData,
-                timestamp: Date.now() // Force le rafraîchissement si on y est déjà
+                folderData: activeData,
+                timestamp: Date.now() 
             } 
         });
     };
-    // -------------------------------------------------------------------------
 
-    // Gestion synchrone et persistante du thème
+    // Gestion synchrone du thème clair/sombre
     useEffect(() => {
         const root = window.document.documentElement;
         if (theme === 'dark') {
@@ -243,7 +328,6 @@ const TeacherLayout = () => {
         setIsLangDropdownOpen(false);
     };
 
-    // Gestion de la déconnexion
     const handleLogoutClick = () => {
         setShowLogoutModal(true);
     };
@@ -251,6 +335,7 @@ const TeacherLayout = () => {
     const confirmLogout = () => {
         localStorage.removeItem('user');
         localStorage.removeItem('token');
+        sessionStorage.removeItem('pending_bulletin_notification');
         navigate('/login');
     };
 
@@ -262,7 +347,6 @@ const TeacherLayout = () => {
         return currentTexts.titleDefault;
     };
 
-    // Rendu du drapeau dynamique
     const renderFlag = (currentLang) => {
         if (currentLang === 'FR') {
             return (
@@ -329,7 +413,7 @@ const TeacherLayout = () => {
                 </div>
             )}
 
-            {/* SIDEBAR (Desktop & Mobile) - Affichage du Système SaaS */}
+            {/* SIDEBAR */}
             <div className={`
                 fixed inset-y-0 left-0 z-50 lg:relative lg:z-20
                 ${isSidebarOpen ? 'w-72' : 'w-0 lg:w-20'} 
@@ -398,9 +482,15 @@ const TeacherLayout = () => {
                     </NavLink>
 
                     {isTitulaire && (
-                        <NavLink to="/enseignant/titulaire" className={({ isActive }) => `flex items-center gap-3 px-4 py-3.5 rounded-2xl text-sm font-bold capitalize tracking-wide transition-all duration-300 ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
-                            <ShieldCheck size={20} className="shrink-0" />
-                            {(isSidebarOpen || isMobileOpen) && <span>{currentTexts.titulaire}</span>}
+                        <NavLink to="/enseignant/titulaire" className={({ isActive }) => `flex items-center justify-between px-4 py-3.5 rounded-2xl text-sm font-bold capitalize tracking-wide transition-all duration-300 ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 translate-x-1' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                            <div className="flex items-center gap-3">
+                                <ShieldCheck size={20} className="shrink-0" />
+                                {(isSidebarOpen || isMobileOpen) && <span>{currentTexts.titulaire}</span>}
+                            </div>
+                            {/* Pastille indiquant des dossiers/bulletins non traites meme dans le menu */}
+                            {hasUnreadNotification && (isSidebarOpen || isMobileOpen) && (
+                                <span className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse ring-2 ring-slate-900"></span>
+                            )}
                         </NavLink>
                     )}
 
@@ -423,7 +513,7 @@ const TeacherLayout = () => {
                                 <User size={16} />
                             </div>
                             <div className="truncate">
-                                <p className="text-xs font-bold text-slate-200 truncate">{user.username || 'Enseignant'}</p>
+                                <p className="text-xs font-bold text-slate-200 truncate">{user.username || user.name || 'Enseignant'}</p>
                                 <p className="text-[10px] text-emerald-400 flex items-center gap-1">
                                     <span className="w-1 h-1 bg-emerald-400 rounded-full animate-pulse"></span>{currentTexts.online}
                                 </p>
@@ -457,7 +547,6 @@ const TeacherLayout = () => {
                 {/* HEADER SUPERIEUR */}
                 <header className="h-20 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between px-4 sm:px-8 z-30 sticky top-0 transition-colors duration-300">
                     
-                    {/* Contrôles d'ouverture/fermeture & Titre */}
                     <div className="flex items-center gap-4">
                         <button 
                             onClick={() => setIsMobileOpen(!isMobileOpen)} 
@@ -472,7 +561,6 @@ const TeacherLayout = () => {
                         </div>
                     </div>
                     
-                    {/* Actions de droite */}
                     <div className="flex items-center gap-3 sm:gap-4">
                         
                         {/* SÉLECTEUR DE THÈME */}
@@ -484,7 +572,7 @@ const TeacherLayout = () => {
                             {theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}
                         </button>
 
-                        {/* SÉLECTEUR DE LANGUE DYNAMIQUE */}
+                        {/* SÉLECTEUR DE LANGUE */}
                         <div className="relative">
                             <button 
                                 onClick={() => setIsLangDropdownOpen(!isLangDropdownOpen)}
@@ -515,15 +603,15 @@ const TeacherLayout = () => {
 
                         <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
 
-                        {/* NOTIFICATIONS CLOCHE */}
+                        {/* NOTIFICATIONS CLOCHE 🔔 */}
                         <button 
                             onClick={handleNotificationClick}
                             className={`relative p-2.5 transition-colors rounded-xl ${hasUnreadNotification ? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-slate-800' : 'text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                             title="Notifications"
                         >
-                            <Bell size={19} className={hasUnreadNotification ? "animate-pulse" : ""} />
+                            <Bell size={19} className={hasUnreadNotification ? "animate-bounce" : ""} />
                             {hasUnreadNotification && (
-                                <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900 animate-pulse"></span>
+                                <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-red-500 rounded-full ring-2 ring-white dark:ring-slate-900 animate-pulse"></span>
                             )}
                         </button>
                         

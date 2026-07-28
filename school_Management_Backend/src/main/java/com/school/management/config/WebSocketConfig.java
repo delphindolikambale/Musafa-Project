@@ -22,14 +22,15 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // 1. Endpoint standard pour les clients WebSocket natifs (prioritaire et plus rapide)
-        registry.addEndpoint("/ws")
+        // ✅ CORRECTION 404 : Ajout du sous-chemin /ws/bulletins appelé par le client
+        registry.addEndpoint("/ws", "/ws/bulletins")
                 .setAllowedOriginPatterns("*");
 
         // 2. Endpoint de secours avec SockJS (indispensable pour traverser les serveurs de routage de Render)
-        registry.addEndpoint("/ws")
+        registry.addEndpoint("/ws", "/ws/bulletins")
                 .setAllowedOriginPatterns("*")
                 .withSockJS()
-                // ✅ Gardien d'activité : Le serveur envoie un battement de coeur toutes les 10 secondes.
+                // Gardien d'activité : Le serveur envoie un battement de coeur toutes les 10 secondes.
                 // Cela empêche le routeur de Render de fermer la connexion pour cause d'inactivité.
                 .setHeartbeatTime(10000);
     }

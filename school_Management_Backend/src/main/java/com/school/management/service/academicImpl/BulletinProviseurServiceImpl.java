@@ -6,10 +6,13 @@ import com.school.management.repository.academic.ClassroomRepository;
 import com.school.management.repository.academic.CourseAssignmentRepository;
 import com.school.management.repository.academic.EnrollmentRepository;
 import com.school.management.repository.academic.BulletinRepository;
+import com.school.management.repository.academic.BulletinFolderRepository;
+import com.school.management.repository.academic.TeacherBulletinNotificationRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -23,6 +26,8 @@ public class BulletinProviseurServiceImpl {
     private final EnrollmentRepository enrollmentRepository;
     private final CourseAssignmentRepository courseAssignmentRepository;
     private final BulletinRepository bulletinRepository;
+    private final BulletinFolderRepository bulletinFolderRepository;
+    private final TeacherBulletinNotificationRepository notificationRepository;
 
     public BulletinInitResponseDTO getBulletinInitData(Long classroomId, Long academicYearId, Long schoolId) {
 
@@ -177,22 +182,57 @@ public class BulletinProviseurServiceImpl {
             throw new RuntimeException("Impossible d'initialiser : Aucun élève actif trouvé pour cette classe.");
         }
 
-        for (Enrollment enrollment : activeEnrollments) {
-            boolean bulletinExists = bulletinRepository.existsByStudentIdAndClassroomIdAndAcademicYearIdAndSchoolId(
-                    enrollment.getStudent().getId(), classroomId, academicYearId, schoolId);
+        // Création ou récupération du Dossier Physique
+        BulletinFolder folder = bulletinFolderRepository.findByClassroomIdAndAcademicYearIdAndSchoolId(classroomId, academicYearId, schoolId)
+                .orElseGet(() -> {
+                    BulletinFolder newFolder = BulletinFolder.builder()
+                            .classroom(classroom)
+                            .academicYear(activeEnrollments.get(0).getAcademicYear())
+                            .school(classroom.getSchool())
+                            .folderName("Maquette Annuelle - " + classroom.getDisplayName())
+                            .status("TRANSMIS")
+                            .createdAt(LocalDateTime.now())
+                            .build();
+                    return bulletinFolderRepository.save(newFolder);
+                });
 
-            if (!bulletinExists) {
-                Bulletin newBulletin = Bulletin.builder()
-                        .student(enrollment.getStudent())
-                        .classroom(classroom)
-                        .academicYear(enrollment.getAcademicYear())
-                        .school(classroom.getSchool())
-                        .status("NOUVEAU")
-                        .build();
-
-                bulletinRepository.save(newBulletin);
-            }
+        if (!"TRANSMIS".equals(folder.getStatus()) && !"COMPLET".equals(folder.getStatus())) {
+            folder.setStatus("TRANSMIS");
+            bulletinFolderRepository.save(folder);
         }
+
+        for (Enrollment enrollment : activeEnrollments) {
+            Bulletin bulletin = bulletinRepository.findByStudentIdAndClassroomIdAndAcademicYearIdAndSchoolId(
+                            enrollment.getStudent().getId(), classroomId, academicYearId, schoolId)
+                    .orElseGet(() -> Bulletin.builder()
+                            .student(enrollment.getStudent())
+                            .classroom(classroom)
+                            .academicYear(enrollment.getAcademicYear())
+                            .school(classroom.getSchool())
+                            .status("NOUVEAU")
+                            .build());
+
+            // Garantir le rattachement explicite au dossier
+            bulletin.setFolder(folder);
+            bulletinRepository.save(bulletin);
+        }
+    }
+
+    @Transactional
+    public TeacherBulletinNotification createPersistentNotification(Long teacherId, Long schoolId, String classroomName) {
+        if (teacherId == null) return null;
+
+        TeacherBulletinNotification notification = TeacherBulletinNotification.builder()
+                .teacherId(teacherId)
+                .schoolId(schoolId)
+                .title("Nouveau Dossier Reçu")
+                .message("Le Proviseur a généré et transmis la maquette générale des bulletins pour la classe " + classroomName + ".")
+                .actionType("BULLETINS_DISPATCHED")
+                .isRead(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        return notificationRepository.save(notification);
     }
 
     private SubjectGridDTO mapToSubjectDTO(CourseAssignment a) {

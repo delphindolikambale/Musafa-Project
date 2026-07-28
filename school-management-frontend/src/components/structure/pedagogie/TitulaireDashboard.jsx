@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     ShieldCheck, 
     Calendar, 
@@ -8,12 +8,9 @@ import {
     AlertCircle, 
     FileText, 
     Loader2, 
-    PlayCircle,
     BookOpen,
     Eye,
     X,
-    XCircle,
-    AlertTriangle,
     BellRing,
     Folder,
     Printer
@@ -24,45 +21,51 @@ import { websocketService } from '../../../services/websocketService';
 
 const TitulaireDashboard = () => {
     const navigate = useNavigate();
+    const location = useLocation();
+    
+    // États de chargement et de données globales
     const [loading, setLoading] = useState(true);
     const [fetchingMatrix, setFetchingMatrix] = useState(false);
+    const [fetchingFolders, setFetchingFolders] = useState(false);
+    
     const [activeYear, setActiveYear] = useState(null);
     const [myClassrooms, setMyClassrooms] = useState([]);
+    const [bulletinFolders, setBulletinFolders] = useState([]);
     
+    // États de sélection
     const [selectedClassroom, setSelectedClassroom] = useState(null);
     const [selectedPeriod, setSelectedPeriod] = useState(1);
+    
+    // Données de suivi (fiches)
     const [monitoringData, setMonitoringData] = useState(null);
+    
+    // Déclencheur pour rafraîchir les données via WebSocket
     const [refreshTrigger, setRefreshTrigger] = useState(0);
 
     const toastTimeoutRef = useRef(null);
-
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [modalState, setModalState] = useState({
-        isOpen: false,
-        type: 'confirm', 
-        title: '',
-        message: ''
-    });
-
     const [toastState, setToastState] = useState({
         show: false,
         message: '',
         type: 'info'
     });
 
+    // Sécurisation de la récupération des données utilisateur
     const getUser = () => {
         try {
-            return JSON.parse(localStorage.getItem('user')) || {};
+            const storedUser = localStorage.getItem('user');
+            return storedUser ? JSON.parse(storedUser) : {};
         } catch (e) {
+            console.error("Erreur de lecture du localStorage:", e);
             return {};
         }
     };
+    
     const user = getUser();
+    const teacherId = user.teacherId || user.id;
+    const schoolId = user.schoolId || 1;
 
-    // Fonction pour jouer le son de notification
     const playNotificationSound = () => {
         try {
-            // Assurez-vous d'avoir un fichier audio à cet emplacement dans votre dossier public
             const audio = new Audio('/sounds/notification.mp3');
             audio.play().catch(e => console.warn("L'autoplay audio a été bloqué par le navigateur:", e));
         } catch (error) {
@@ -86,6 +89,7 @@ const TitulaireDashboard = () => {
         };
     }, []);
 
+    // 1. Initialisation : Récupération de l'année active et des classes du titulaire
     useEffect(() => {
         let isMounted = true;
 
@@ -96,8 +100,6 @@ const TitulaireDashboard = () => {
                 if (yearRes.status === 200 && yearRes.data && isMounted) {
                     const currentYear = yearRes.data;
                     setActiveYear(currentYear);
-
-                    const teacherId = user.teacherId || user.id;
                     
                     if (teacherId) {
                         const classesRes = await titulaireService.getMyClassrooms(teacherId, currentYear.id);
@@ -119,13 +121,40 @@ const TitulaireDashboard = () => {
 
         initDashboard();
         return () => { isMounted = false; };
-    }, []);
+    }, [teacherId]);
 
+    // 2. Récupération des DOSSIERS DE BULLETINS
+    // Utilisation de activeYear?.id au lieu de activeYear pour éviter des re-rendus inutiles
+    useEffect(() => {
+        let isMounted = true;
+
+        const fetchFolders = async () => {
+            if (!activeYear?.id || !teacherId || !schoolId) return;
+            
+            setFetchingFolders(true);
+            try {
+                const foldersRes = await titulaireService.getBulletinFolders(teacherId, activeYear.id, schoolId);
+                if (isMounted) {
+                    setBulletinFolders(foldersRes || []);
+                }
+            } catch (error) {
+                console.error("Erreur lors de la récupération des dossiers:", error);
+                if (isMounted) showToast("Erreur lors de la récupération des dossiers de bulletins.", "error");
+            } finally {
+                if (isMounted) setFetchingFolders(false);
+            }
+        };
+
+        fetchFolders();
+        return () => { isMounted = false; };
+    }, [activeYear?.id, teacherId, schoolId, refreshTrigger]);
+
+    // 3. Récupération de la MATRICE DE SUIVI des fiches de cotes
     useEffect(() => {
         let isMounted = true;
 
         const fetchMonitoring = async () => {
-            if (!selectedClassroom || !activeYear) return;
+            if (!selectedClassroom?.id || !activeYear?.id) return;
             
             setFetchingMatrix(true);
             try {
@@ -148,12 +177,10 @@ const TitulaireDashboard = () => {
 
         fetchMonitoring();
         return () => { isMounted = false; };
-    }, [selectedClassroom, selectedPeriod, activeYear, refreshTrigger]);
+    }, [selectedClassroom?.id, selectedPeriod, activeYear?.id, refreshTrigger]);
 
+    // 4. Configuration WebSocket pour le rafraîchissement en temps réel
     useEffect(() => {
-        const teacherId = user.teacherId || user.id;
-        const schoolId = user.schoolId || 1; 
-
         if (!teacherId || !schoolId) return;
 
         const topic = `/topic/bulletins/titulaire/${schoolId}/${teacherId}`;
@@ -166,7 +193,6 @@ const TitulaireDashboard = () => {
                 messageAffiche = data;
             }
 
-            // DÉCLENCHEMENT DU SON ET DE LA NOTIFICATION VISUELLE
             playNotificationSound();
             showToast(messageAffiche, 'info');
             setRefreshTrigger(prev => prev + 1);
@@ -177,8 +203,18 @@ const TitulaireDashboard = () => {
         return () => {
             websocketService.unsubscribeFromTopic(topic, handleWebSocketMessage);
         };
-    }, []);
+    }, [teacherId, schoolId]);
 
+    // 5. Gestion du state de navigation
+    useEffect(() => {
+        if (location.state && location.state.action === 'bulletins_generated') {
+            showToast("Nouveaux bulletins générés. Actualisation en cours...", "info");
+            setRefreshTrigger(prev => prev + 1);
+            navigate(location.pathname, { replace: true, state: {} });
+        }
+    }, [location, navigate]);
+
+    // Utilitaires d'affichage
     const getStatusBadge = (status) => {
         switch (status) {
             case 'VALIDATED_BY_PROVISEUR':
@@ -214,58 +250,6 @@ const TitulaireDashboard = () => {
         return new Date(dateString).toLocaleDateString('fr-FR', options);
     };
 
-    const triggerGenerateBulletins = () => {
-        if (!monitoringData?.readyForBulletinGeneration) return;
-        
-        setModalState({
-            isOpen: true,
-            type: 'confirm',
-            title: 'Génération des Bulletins',
-            message: `Êtes-vous sûr de vouloir générer et clôturer les bulletins pour la classe ${selectedClassroom.displayName} à la Période ${selectedPeriod} ? Cette action calculera les totaux et figera les cotes pour cette période.`
-        });
-    };
-
-    const confirmGeneration = async () => {
-        setIsGenerating(true);
-        setModalState(prev => ({ ...prev, isOpen: false })); 
-
-        try {
-            await titulaireService.generateBulletins(
-                selectedClassroom.id, 
-                selectedPeriod, 
-                activeYear.id
-            );
-            
-            const data = await titulaireService.getMonitoring(
-                selectedClassroom.id, 
-                selectedPeriod, 
-                activeYear.id
-            );
-            setMonitoringData(data);
-
-            setModalState({
-                isOpen: true,
-                type: 'success',
-                title: 'Génération Réussie',
-                message: `Les bulletins de la classe ${selectedClassroom.displayName} pour la Période ${selectedPeriod} ont été générés avec succès.`
-            });
-        } catch (error) {
-            console.error("Erreur lors de la génération des bulletins:", error);
-            setModalState({
-                isOpen: true,
-                type: 'error',
-                title: 'Échec de la Génération',
-                message: "Un problème est survenu lors de la génération des bulletins. Veuillez vérifier que toutes les fiches sont validées ou contacter l'assistance."
-            });
-        } finally {
-            setIsGenerating(false);
-        }
-    };
-
-    const closeModal = () => {
-        setModalState(prev => ({ ...prev, isOpen: false }));
-    };
-
     if (loading) {
         return (
             <div className="flex h-[80vh] items-center justify-center">
@@ -292,6 +276,10 @@ const TitulaireDashboard = () => {
             </div>
         );
     }
+
+    const currentClassroomFolders = bulletinFolders
+        .filter(f => f.classroomId === selectedClassroom?.id)
+        .sort((a, b) => a.period - b.period);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
@@ -337,7 +325,7 @@ const TitulaireDashboard = () => {
                         <div>
                             <h1 className="text-2xl font-black text-slate-800 dark:text-slate-100">Supervision Titulaire</h1>
                             <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                Gérez la centralisation des notes
+                                Validation des fiches et gestion des dossiers
                             </p>
                         </div>
                     </div>
@@ -356,7 +344,7 @@ const TitulaireDashboard = () => {
                                         : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-emerald-50'
                                 } border border-transparent`}
                             >
-                                {cls.displayName}
+                                {cls.displayName || cls.name}
                             </button>
                         ))}
                     </div>
@@ -384,47 +372,64 @@ const TitulaireDashboard = () => {
                 </div>
             </div>
 
-            {/* NOUVELLE INTERFACE : DOSSIER DES BULLETINS (Inspirée des visuels Préfet) */}
-            {(monitoringData?.bulletinsGenerated || monitoringData?.bulletinsReady || monitoringData?.hasBulletins) && selectedClassroom && (
-                <div className="animate-in fade-in slide-in-from-top-4 duration-500">
-                    <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 px-2">
-                        <Folder className="text-blue-500" size={24} /> Archives & Dossiers
-                    </h2>
-                    
+            {/* INTERFACE : DOSSIERS DES BULLETINS */}
+            <div className="animate-in fade-in slide-in-from-top-4 duration-500">
+                <h2 className="text-lg font-black text-slate-800 dark:text-slate-100 mb-4 flex items-center gap-2 px-2">
+                    <Folder className="text-blue-500" size={24} /> 
+                    Dossiers de Bulletins Disponibles
+                    {fetchingFolders && <Loader2 className="animate-spin text-blue-500 ml-2" size={16} />}
+                </h2>
+                
+                {currentClassroomFolders.length > 0 && selectedClassroom ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {/* Carte Dossier structurée comme sur l'interface Préfet */}
-                        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative hover:shadow-md transition-shadow group flex flex-col justify-between min-h-[220px]">
-                            
-                            <div className="absolute top-6 right-6 bg-slate-50 dark:bg-slate-800 text-slate-400 font-black text-[10px] uppercase px-3 py-1.5 rounded-lg tracking-wider border border-slate-100 dark:border-slate-700">
-                                DOSSIER
-                            </div>
-
-                            <div>
-                                <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                                    <Folder size={32} />
+                        {currentClassroomFolders.map(folder => (
+                            <div key={folder.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative hover:shadow-md transition-shadow group flex flex-col justify-between min-h-[220px]">
+                                
+                                <div className="absolute top-6 right-6 bg-slate-50 dark:bg-slate-800 text-slate-400 font-black text-[10px] uppercase px-3 py-1.5 rounded-lg tracking-wider border border-slate-100 dark:border-slate-700">
+                                    DOSSIER OFFICIEL
                                 </div>
-                                <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 leading-tight">
-                                    Bulletins : {selectedClassroom.displayName}
-                                </h3>
-                                <div className="flex items-center gap-2 mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">
-                                    <FileText size={16} className="text-slate-400" />
-                                    <span>Période {selectedPeriod} clôturée</span>
+
+                                <div>
+                                    <div className="w-16 h-16 bg-blue-50 dark:bg-blue-900/20 text-blue-500 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                                        <Folder size={32} />
+                                    </div>
+                                    <h3 className="text-xl font-black text-slate-800 dark:text-slate-100 leading-tight">
+                                        Bulletins : {folder.classroomName || selectedClassroom.displayName}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-3 text-sm font-bold text-slate-500 dark:text-slate-400">
+                                        <FileText size={16} className="text-slate-400" />
+                                        <span>Période {folder.period} • Généré par le Proviseur</span>
+                                    </div>
+                                    {folder.date && (
+                                        <div className="mt-1 text-xs text-slate-400 font-medium">
+                                            Le {formatDate(folder.date)}
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="mt-6 flex gap-3">
+                                    <button 
+                                        onClick={() => navigate(`/enseignant/titulaire/bulletins/${folder.classroomId}`, { state: { period: folder.period, folderId: folder.id } })}
+                                        className="flex-1 flex justify-center items-center gap-2 px-4 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-black uppercase transition-colors"
+                                    >
+                                        <Printer size={16} /> Consulter / Imprimer
+                                    </button>
                                 </div>
                             </div>
-
-                            <div className="mt-6 flex gap-3">
-                                <button 
-                                    onClick={() => navigate(`/enseignant/titulaire/bulletins/${selectedClassroom.id}`)}
-                                    className="flex-1 flex justify-center items-center gap-2 px-4 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-white text-white dark:text-slate-900 rounded-xl text-xs font-black uppercase transition-colors"
-                                >
-                                    <Printer size={16} /> Imprimer / Ouvrir
-                                </button>
-                            </div>
-
-                        </div>
+                        ))}
                     </div>
-                </div>
-            )}
+                ) : (
+                    <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-8 border border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center opacity-70">
+                        <Folder size={48} className="text-slate-300 mb-4" />
+                        <p className="text-slate-500 font-black uppercase tracking-widest text-sm">
+                            Aucun dossier de bulletins généré pour cette classe
+                        </p>
+                        <p className="text-slate-400 text-xs mt-2 max-w-md">
+                            Une fois que vous aurez validé toutes les fiches, le Proviseur pourra générer le dossier des bulletins. Il apparaîtra automatiquement ici.
+                        </p>
+                    </div>
+                )}
+            </div>
 
             {/* TABLEAU DE SUIVI DES FICHES */}
             <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-sm border border-slate-100 dark:border-slate-800 relative min-h-[400px]">
@@ -432,23 +437,8 @@ const TitulaireDashboard = () => {
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 pb-4 border-b border-slate-100 dark:border-slate-800 gap-4">
                     <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <FileText className="text-emerald-500" size={24} /> 
-                        État d'avancement des fiches de cotes
+                        État d'avancement des fiches de cotes (P{selectedPeriod})
                     </h3>
-
-                    <div className="flex flex-wrap items-center gap-3 w-full md:w-auto justify-end">
-                        <button 
-                            onClick={triggerGenerateBulletins}
-                            disabled={!monitoringData?.readyForBulletinGeneration || isGenerating}
-                            className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-black uppercase transition-all shadow-lg ${
-                                monitoringData?.readyForBulletinGeneration && !isGenerating
-                                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200 dark:shadow-blue-900/20 hover:scale-105' 
-                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed shadow-none'
-                            }`}
-                        >
-                            {isGenerating ? <Loader2 size={18} className="animate-spin" /> : (monitoringData?.readyForBulletinGeneration ? <PlayCircle size={18} /> : <AlertCircle size={18} />)}
-                            Générer les Bulletins (P{selectedPeriod})
-                        </button>
-                    </div>
                 </div>
 
                 {fetchingMatrix ? (
@@ -465,7 +455,7 @@ const TitulaireDashboard = () => {
                                         <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Matière</th>
                                         <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest">Enseignant</th>
                                         <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-center">Statut Fiche</th>
-                                        <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Date Validation</th>
+                                        <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Date Soumission</th>
                                         <th className="py-4 px-4 text-xs font-black text-slate-400 uppercase tracking-widest text-right">Action</th>
                                     </tr>
                                 </thead>
@@ -516,65 +506,6 @@ const TitulaireDashboard = () => {
                     </div>
                 )}
             </div>
-
-            {/* MODALE DE CONFIRMATION DE GÉNÉRATION */}
-            {modalState.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm transition-opacity">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all">
-                        
-                        <div className={`p-5 flex items-center gap-3 border-b border-slate-100 dark:border-slate-700/60 ${
-                            modalState.type === 'success' ? 'bg-emerald-50 dark:bg-emerald-900/20' : 
-                            modalState.type === 'error' ? 'bg-red-50 dark:bg-red-900/20' : 
-                            'bg-blue-50 dark:bg-blue-900/20'
-                        }`}>
-                            {modalState.type === 'confirm' && <AlertTriangle className="text-blue-600 dark:text-blue-400" size={24} />}
-                            {modalState.type === 'success' && <CheckCircle className="text-emerald-600 dark:text-emerald-400" size={24} />}
-                            {modalState.type === 'error' && <XCircle className="text-red-600 dark:text-red-400" size={24} />}
-                            
-                            <h3 className="font-bold text-slate-900 dark:text-white text-lg">
-                                {modalState.title}
-                            </h3>
-                            
-                            <button onClick={closeModal} className="ml-auto text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="p-6">
-                            <p className="text-sm font-medium text-slate-600 dark:text-slate-300 leading-relaxed">
-                                {modalState.message}
-                            </p>
-                        </div>
-
-                        <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700/60 flex justify-end gap-3">
-                            {modalState.type === 'confirm' ? (
-                                <>
-                                    <button 
-                                        onClick={closeModal}
-                                        className="px-4 py-2.5 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
-                                    >
-                                        Annuler
-                                    </button>
-                                    <button 
-                                        onClick={confirmGeneration}
-                                        className="px-5 py-2.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors flex items-center gap-2"
-                                    >
-                                        {isGenerating ? <Loader2 size={16} className="animate-spin" /> : <PlayCircle size={16} />}
-                                        Oui, Générer
-                                    </button>
-                                </>
-                            ) : (
-                                <button 
-                                    onClick={closeModal}
-                                    className="px-5 py-2.5 text-xs font-bold text-white bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 dark:hover:bg-slate-600 rounded-xl shadow-sm transition-colors"
-                                >
-                                    Fermer
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

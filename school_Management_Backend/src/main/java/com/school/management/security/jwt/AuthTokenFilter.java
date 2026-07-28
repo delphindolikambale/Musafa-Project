@@ -97,6 +97,7 @@ public class AuthTokenFilter extends OncePerRequestFilter {
     }
 
     private String parseJwt(HttpServletRequest request) {
+        // 1. Extraction depuis le header Authorization
         String headerAuth = request.getHeader("Authorization");
         if (StringUtils.hasText(headerAuth) && headerAuth.toLowerCase().startsWith("bearer ")) {
             String token = headerAuth.substring(7).trim();
@@ -104,8 +105,26 @@ public class AuthTokenFilter extends OncePerRequestFilter {
             if (token.startsWith("\"") && token.endsWith("\"") && token.length() > 1) {
                 token = token.substring(1, token.length() - 1);
             }
-            return token;
+            if (!token.equalsIgnoreCase("null") && !token.equalsIgnoreCase("undefined") && !token.isBlank()) {
+                return token;
+            }
         }
+
+        // 2. Extraction alternative via paramètre d'URL (utile pour WebSocket, SockJS, SSE et requêtes de secours)
+        String paramToken = request.getParameter("token");
+        if (!StringUtils.hasText(paramToken)) {
+            paramToken = request.getParameter("access_token");
+        }
+        if (StringUtils.hasText(paramToken)) {
+            paramToken = paramToken.trim();
+            if (paramToken.startsWith("\"") && paramToken.endsWith("\"") && paramToken.length() > 1) {
+                paramToken = paramToken.substring(1, paramToken.length() - 1);
+            }
+            if (!paramToken.equalsIgnoreCase("null") && !paramToken.equalsIgnoreCase("undefined") && !paramToken.isBlank()) {
+                return paramToken;
+            }
+        }
+
         return null;
     }
 }

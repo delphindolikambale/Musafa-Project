@@ -11,18 +11,13 @@ import java.util.Optional;
 
 @Repository
 public interface TeacherAssignmentRepository extends JpaRepository<TeacherAssignment, Long> {
-    // ✅ TOUTES LES MÉTHODES INCLUSENT DÉSORMAIS L'ISOLATION STRICTE DE L'ÉCOLE (schoolId)
+
     List<TeacherAssignment> findByAcademicYearIdAndSchoolId(Long yearId, Long schoolId);
     List<TeacherAssignment> findByTeacherIdAndAcademicYearIdAndSchoolId(Long teacherId, Long yearId, Long schoolId);
     List<TeacherAssignment> findByClassroomIdAndAcademicYearIdAndSchoolId(Long classroomId, Long yearId, Long schoolId);
 
-    // Pour vérifier si un cours dans une classe a déjà un enseignant au sein de l'établissement
     Optional<TeacherAssignment> findByCourseAssignmentIdAndClassroomIdAndSchoolId(Long courseId, Long classroomId, Long schoolId);
 
-    /**
-     * ✅ AJOUT POUR LA VALIDATION MULTI-TENANT DES QUOTAS DANS LE SERVICE DES HORAIRES
-     * Permet de trouver l'affectation via l'ID de la matière (Subject) imbriquée dans CourseAssignment
-     */
     @Query("SELECT t FROM TeacherAssignment t WHERE t.school.id = :schoolId " +
             "AND t.classroom.id = :classroomId " +
             "AND t.courseAssignment.subject.id = :subjectId " +
@@ -33,4 +28,10 @@ public interface TeacherAssignmentRepository extends JpaRepository<TeacherAssign
             @Param("subjectId") Long subjectId,
             @Param("academicYearId") Long academicYearId
     );
+
+    // ✅ NOUVEAU : Comptage global des affectations et des cours distincts attribués aux enseignants
+    long countBySchoolId(Long schoolId);
+
+    @Query("SELECT COUNT(DISTINCT ta.courseAssignment.id) FROM TeacherAssignment ta WHERE ta.school.id = :schoolId")
+    long countDistinctAssignedCoursesBySchoolId(@Param("schoolId") Long schoolId);
 }

@@ -1,9 +1,9 @@
 package com.school.management.security.services;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.school.management.controller.academic.AcademicYearController; // ✅ AJOUT : Importation de l'interface de marquage
+import com.school.management.controller.academic.AcademicYearController;
 import com.school.management.model.auth.User;
-import com.school.management.model.multitenant.School; // ✅ AJOUT : Importation de l'entité School
+import com.school.management.model.multitenant.School;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -21,7 +21,7 @@ import java.util.stream.Stream;
  */
 @Getter
 @AllArgsConstructor
-public class UserDetailsImpl implements UserDetails, AcademicYearController.SchoolContextDetails { // ✅ MODIFICATION : Implémentation du contrat d'extraction d'école
+public class UserDetailsImpl implements UserDetails, AcademicYearController.SchoolContextDetails {
 
     private static final long serialVersionUID = 1L;
 
@@ -32,7 +32,7 @@ public class UserDetailsImpl implements UserDetails, AcademicYearController.Scho
     @JsonIgnore // Sécurité : on ne veut jamais que le mot de passe sorte du backend vers le frontend
     private String password;
 
-    // ✅ AJOUT : Le champ school permettant de propager l'école dans le contexte de sécurité
+    // ✅ Le champ school permettant de propager l'école dans le contexte de sécurité
     private School school;
 
     // Liste des rôles convertis en "Authorities" pour Spring
@@ -40,7 +40,6 @@ public class UserDetailsImpl implements UserDetails, AcademicYearController.Scho
 
     public static UserDetailsImpl build(User user) {
         // Conversion adaptative et sécurisée : on génère le rôle avec ET sans le préfixe "ROLE_"
-        // Cela blinde l'application peu importe si vous utilisez .hasRole(), .hasAuthority() ou @PreAuthorize
         List<GrantedAuthority> authorities = user.getRoles().stream()
                 .flatMap(role -> {
                     String roleName = role.getName().name();
@@ -53,7 +52,6 @@ public class UserDetailsImpl implements UserDetails, AcademicYearController.Scho
                 })
                 .collect(Collectors.toList());
 
-        // ✅ MODIFICATION : Passage de user.getSchool() au constructeur pour alimenter le nouveau champ
         return new UserDetailsImpl(
                 user.getId(),
                 user.getUsername(),
@@ -64,7 +62,22 @@ public class UserDetailsImpl implements UserDetails, AcademicYearController.Scho
     }
 
     /**
-     * ✅ AJOUT SÉCURISÉ : Vérifie de manière robuste si l'utilisateur possède le rôle Super Admin
+     * ✅ Implémentation explicite du contrat de l'interface SchoolContextDetails
+     */
+    @Override
+    public School getSchool() {
+        return this.school;
+    }
+
+    /**
+     * ✅ AJOUT SÉCURISÉ : Permet de récupérer directement l'ID de l'école de manière null-safe
+     */
+    public Long getSchoolId() {
+        return this.school != null ? this.school.getId() : null;
+    }
+
+    /**
+     * ✅ Vérifie de manière robuste si l'utilisateur possède le rôle Super Admin
      */
     public boolean isSuperAdminSystem() {
         return authorities.stream()
