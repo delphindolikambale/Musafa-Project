@@ -35,4 +35,15 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
     // ✅ NOUVEAU : Statistiques des réinscriptions pour le tableau de bord
     long countByEnrollmentTypeAndSchoolId(EnrollmentType enrollmentType, Long schoolId);
     long countByEnrollmentTypeAndStudentGenderAndSchoolId(EnrollmentType enrollmentType, Gender gender, Long schoolId);
+
+    // ✅ AJOUT CORRECTIF MULTI-TENANT : Recherche explicite de l'inscription active de l'élève connecté
+    @Query("SELECT e FROM Enrollment e WHERE e.student.user.id = :userId " +
+            "AND e.academicYear.id = :academicYearId " +
+            "AND e.school.id = :schoolId " +
+            "AND e.active = true")
+    Optional<Enrollment> findByStudentUserIdAndAcademicYearIdAndSchoolIdAndActiveTrue(
+            @Param("userId") Long userId,
+            @Param("academicYearId") Long academicYearId,
+            @Param("schoolId") Long schoolId
+    );
 }

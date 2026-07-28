@@ -11,10 +11,12 @@ public interface ScheduleSlotRepository extends JpaRepository<ScheduleSlot, Long
 
     List<ScheduleSlot> findBySchoolIdAndClassroomIdAndAcademicYearId(Long schoolId, Long classroomId, Long academicYearId);
 
-    // Ajout pour récupérer toutes les affectations d'un enseignant peu importe la classe
+    // ✅ NOUVEAU : Récupération de l'emploi du temps du jour spécifique pour une classe
+    List<ScheduleSlot> findBySchoolIdAndClassroomIdAndAcademicYearIdAndDayOfWeek(
+            Long schoolId, Long classroomId, Long academicYearId, DayOfWeek dayOfWeek);
+
     List<ScheduleSlot> findBySchoolIdAndAcademicYearIdAndTeacherId(Long schoolId, Long academicYearId, Long teacherId);
 
-    // Ajustement des signatures de recherche avec hourSlot.id
     boolean existsBySchoolIdAndAcademicYearIdAndDayOfWeekAndHourSlotIdAndTeacherId(Long schoolId, Long academicYearId, DayOfWeek dayOfWeek, Long hourSlotId, Long teacherId);
 
     boolean existsBySchoolIdAndAcademicYearIdAndDayOfWeekAndHourSlotIdAndClassroomId(Long schoolId, Long academicYearId, DayOfWeek dayOfWeek, Long hourSlotId, Long classroomId);
