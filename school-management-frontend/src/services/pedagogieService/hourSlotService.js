@@ -17,6 +17,14 @@ const hourSlotService = {
     return response.data;
   },
 
+  // Modifier une tranche horaire
+  updateHourSlot: async (schoolId, id, slotData) => {
+    const response = await api.put(`${API_URL}/${id}`, slotData, {
+      headers: { 'X-School-Id': schoolId }
+    });
+    return response.data;
+  },
+
   // Supprimer une tranche horaire
   deleteHourSlot: async (schoolId, id) => {
     const response = await api.delete(`${API_URL}/${id}`, {

@@ -1,5 +1,6 @@
 package com.school.management.dto.academic;
 
+import com.school.management.model.enums.DayOfWeek;
 import lombok.Data;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +21,9 @@ public class TeacherResponseDTO {
     private String email;
     private String residentialAddress;
     private boolean active; // Retourne l'état actuel au frontend
+
+    // Journées pédagogiques de l'enseignant
+    private List<DayOfWeek> pedagogicalDays;
 
     // Informations de spécialité adaptées
     private Long domainSpecialityId;

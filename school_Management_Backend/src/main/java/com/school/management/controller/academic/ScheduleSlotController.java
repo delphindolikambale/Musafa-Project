@@ -39,6 +39,14 @@ public class ScheduleSlotController {
         return ResponseEntity.ok(scheduleService.getClassroomSchedule(schoolId, classroomId, academicYearId));
     }
 
+    @GetMapping("/teacher/{teacherId}")
+    public ResponseEntity<List<ScheduleSlotResponseDTO>> getTeacherSchedule(
+            @RequestHeader("X-School-Id") Long schoolId,
+            @PathVariable Long teacherId,
+            @RequestParam Long academicYearId) {
+        return ResponseEntity.ok(scheduleService.getTeacherSchedule(schoolId, teacherId, academicYearId));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSlot(@RequestHeader("X-School-Id") Long schoolId, @PathVariable Long id) {
         scheduleService.deleteSlot(schoolId, id);

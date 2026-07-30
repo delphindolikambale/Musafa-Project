@@ -1,5 +1,6 @@
 package com.school.management.dto.academic;
 
+import com.school.management.model.enums.DayOfWeek;
 import lombok.Data;
 import java.time.LocalDate;
 import java.util.List;
@@ -18,6 +19,9 @@ public class TeacherCreateDTO {
     private String email;
     private String residentialAddress;
     private boolean active = true; // Permet de définir le statut à la création
+
+    // Journées pédagogiques choisies (ex: ["LUNDI", "MARDI"])
+    private List<DayOfWeek> pedagogicalDays;
 
     // Gestion de la spécialité
     private Long domainSpecialityId;

@@ -46,6 +46,29 @@ public class HourSlotServiceImpl implements HourSlotService {
 
     @Override
     @Transactional
+    public HourSlotResponseDTO updateHourSlot(Long schoolId, Long id, HourSlotCreateDTO dto) {
+        HourSlot hourSlot = hourSlotRepository.findById(id)
+                .orElseThrow(() -> new BadRequestException("Tranche horaire introuvable."));
+
+        if (!hourSlot.getSchoolId().equals(schoolId)) {
+            throw new BadRequestException("Action non autorisée sur les données de cette école.");
+        }
+
+        // Si le numéro de créneau a changé, vérifier qu'il n'entre pas en conflit avec un autre créneau
+        if (!hourSlot.getSlotNumber().equals(dto.getSlotNumber())) {
+            if (hourSlotRepository.existsBySchoolIdAndSlotNumber(schoolId, dto.getSlotNumber())) {
+                throw new BadRequestException("Ce numéro de créneau horaire est déjà configuré dans cet établissement.");
+            }
+        }
+
+        hourSlot.setSlotNumber(dto.getSlotNumber());
+        hourSlot.setLabel(dto.getLabel());
+
+        return mapToResponseDTO(hourSlotRepository.save(hourSlot));
+    }
+
+    @Override
+    @Transactional
     public void deleteHourSlot(Long schoolId, Long id) {
         HourSlot hourSlot = hourSlotRepository.findById(id)
                 .orElseThrow(() -> new BadRequestException("Tranche horaire introuvable."));

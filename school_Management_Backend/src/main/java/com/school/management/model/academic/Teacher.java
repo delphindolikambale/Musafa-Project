@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
 import com.school.management.model.auth.User;
+import com.school.management.model.enums.DayOfWeek;
 import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -46,6 +47,15 @@ public class Teacher {
 
     @Column(nullable = false)
     private boolean active = true;
+
+    /**
+     * ✅ NOUVEAU : Journées pédagogiques (Jours de repos) personnalisées par enseignant
+     */
+    @ElementCollection(targetClass = DayOfWeek.class, fetch = FetchType.EAGER)
+    @CollectionTable(name = "teacher_pedagogical_days", joinColumns = @JoinColumn(name = "teacher_id"))
+    @Enumerated(EnumType.STRING)
+    @Column(name = "day_of_week")
+    private List<DayOfWeek> pedagogicalDays;
 
     /**
      * ✅ NOUVEAU : Rattachement direct de l'enseignant à une école (Multi-tenant)

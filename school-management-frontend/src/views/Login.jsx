@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from "react";
 import AuthService from "../services/auth.service";
 import ActivationForm from "./errors/ActivationForm";
-import ChangeCredentialsForm from "./ChangeCredentialsForm"; // ✅ IMPORT DE LA NOUVELLE VUE
+import ChangeCredentialsForm from "./ChangeCredentialsForm";
 import { Link, useNavigate } from "react-router-dom";
-import { jwtDecode } from "jwt-decode"; // ✅ NÉCESSITE: npm install jwt-decode
+import { jwtDecode } from "jwt-decode";
 import { 
   User, Lock, ArrowRight, Loader2, Home, 
   Eye, EyeOff, CheckCircle2, XCircle, 
   Sun, Moon, Globe, ShieldAlert, GraduationCap, BookOpen
 } from "lucide-react";
 
-// Dictionnaire de traduction intégré
 const translations = {
   FR: {
     title: "Connexion",
@@ -64,27 +63,21 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
-  // Configuration automatique du système (Alignée avec Parametres.jsx)
   const [systemConfig, setSystemConfig] = useState(() => {
     const storedLogo = localStorage.getItem("system-logo") || localStorage.getItem("systemLogoPath") || null;
     const storedName = localStorage.getItem("system-name") || localStorage.getItem("systemAppName") || "MyAcademia";
     return { logoUrl: storedLogo, systemName: storedName };
   });
   
-  // Gestion de la langue et du thème unifiée
   const [lang, setLang] = useState(localStorage.getItem("app-lang") || "FR");
   const [darkMode, setDarkMode] = useState(localStorage.getItem("app-theme") === "dark");
 
-  // Dialogues de notification personnalisés
   const [notification, setNotification] = useState({ show: false, type: "", title: "", text: "" });
-  
-  // Écran barrière d'interception (CREDENTIALS, EXPIRED, UNCONFIGURED)
   const [barrier, setBarrier] = useState({ active: false, type: "" }); 
 
   const navigate = useNavigate();
-  const t = translations[lang];
+  const t = translations[lang] || translations["FR"];
 
-  // Effet pour appliquer le thème, la langue et charger dynamiquement la configuration du système (Logo)
   useEffect(() => {
     localStorage.setItem("app-theme", darkMode ? "dark" : "light");
     localStorage.setItem("app-lang", lang);
@@ -94,16 +87,15 @@ const Login = () => {
     } else {
       root.classList.remove("dark");
     }
+  }, [darkMode, lang]);
 
-    // Récupération automatique du logo et nom du système via l'API
+  useEffect(() => {
     const loadSystemConfig = async () => {
       try {
         if (typeof AuthService.getPublicConfig === "function") {
           const response = await AuthService.getPublicConfig();
           if (response?.data) {
             const data = response.data;
-            
-            // Interception des formats de clés de l'API (globalLogoPath & applicationName)
             const rawLogo = data.globalLogoPath || data.logoUrl || data.logo || null;
             const name = data.applicationName || data.systemName || data.name || "MyAcademia";
 
@@ -112,7 +104,6 @@ const Login = () => {
               if (rawLogo.startsWith('http://') || rawLogo.startsWith('https://') || rawLogo.startsWith('data:')) {
                 fullLogoUrl = rawLogo;
               } else {
-                // Résolution dynamique de l'adresse du serveur pour les images relatives
                 const backendHost = window.location.origin.includes('localhost') 
                   ? 'http://localhost:8080' 
                   : window.location.origin;
@@ -120,12 +111,8 @@ const Login = () => {
               }
             }
 
-            setSystemConfig({
-              logoUrl: fullLogoUrl,
-              systemName: name
-            });
+            setSystemConfig({ logoUrl: fullLogoUrl, systemName: name });
 
-            // Sauvegarde croisée pour alimenter tous les storages du projet uniformément
             if (rawLogo) {
               localStorage.setItem("systemLogoPath", rawLogo);
               localStorage.setItem("system-logo", fullLogoUrl);
@@ -137,12 +124,12 @@ const Login = () => {
           }
         }
       } catch (error) {
-        console.warn("Impossible de récupérer la configuration globale automatiquement, utilisation des valeurs par défaut.", error);
+        console.warn("Impossible de récupérer la configuration globale automatiquement.", error);
       }
     };
 
     loadSystemConfig();
-  }, [darkMode, lang]);
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -153,7 +140,6 @@ const Login = () => {
       const userData = await AuthService.login(username, password);
       const userRoles = userData.roles || [];
       
-      // ✅ LECTURE DU TOKEN POUR VÉRIFIER LE FLAG D'ONBOARDING
       let mustChangePassword = false;
       if (userData.token) {
         try {
@@ -164,16 +150,26 @@ const Login = () => {
         }
       }
 
+      // ✅ MODIFICATION ICI : On intègre academicYearId proprement
       const updatedUser = { 
         ...userData, 
         schoolId: userData.schoolId,
         schoolCode: userData.schoolCode,
+        academicYearId: userData.academicYearId, // Injection de la nouvelle donnée du Backend
         isSubscriptionActive: userData.isSubscriptionActive ?? userData.subscriptionActive,
         isSchoolConfigured: userData.isSchoolConfigured ?? userData.schoolConfigured,
-        mustChangePassword: mustChangePassword // Ajout à l'objet local pour le routage futur
+        mustChangePassword: mustChangePassword
       };
       
+      // On sauvegarde l'utilisateur
       localStorage.setItem("user", JSON.stringify(updatedUser));
+      
+      // ✅ AJOUT ESSENTIEL : On sauvegarde l'année académique dans des clés individuelles 
+      // pour que tous les composants (comme l'horaire de l'enseignant) le trouvent tout de suite.
+      if (userData.academicYearId) {
+        localStorage.setItem("academicYearId", userData.academicYearId);
+        localStorage.setItem("currentAcademicYearId", userData.academicYearId);
+      }
 
       const isSuperAdmin = userRoles.includes("ROLE_SUPER_ADMIN_SYSTEM") || userRoles.includes("SUPER_ADMIN_SYSTEM");
       const isLocalAdmin = !isSuperAdmin && (userRoles.includes("ROLE_ADMIN_SYSTEM") || userRoles.includes("ADMIN_SYSTEM") || userRoles.includes("ADMIN") || userRoles.includes("ROLE_ADMIN"));
@@ -190,14 +186,12 @@ const Login = () => {
         return;
       }
 
-      // ✅ BARRIÈRE 1 : CHANGEMENT DE MOT DE PASSE OBLIGATOIRE (L'emporte sur tout le reste)
       if (mustChangePassword) {
         setBarrier({ active: true, type: "CREDENTIALS" });
         setLoading(false);
         return;
       }
 
-      // ✅ BARRIÈRE 2 : RESTRICTION SAAS POUR LES NON-ADMINS
       if (!isSuperAdmin && !isLocalAdmin && updatedUser.schoolId) {
         if (updatedUser.isSubscriptionActive === false) {
           setBarrier({ active: true, type: "EXPIRED" });
@@ -211,7 +205,6 @@ const Login = () => {
         }
       }
 
-      // Notification Succès si tout est valide ou si l'utilisateur est admin autorisé à configurer/réactiver
       setNotification({
         show: true,
         type: "success",
@@ -223,7 +216,6 @@ const Login = () => {
         if (isSuperAdmin) {
           navigate("/super-admin/dashboard");
         } else if (isLocalAdmin) {
-          // ✅ BARRIÈRE 3 : RESTRICTION SAAS POUR L'ADMIN LOCAL (Affichage du formulaire d'activation)
           if (updatedUser.isSubscriptionActive === false) {
             setNotification({ show: false, type: "", title: "", text: "" });
             setBarrier({ active: true, type: "EXPIRED" });
@@ -248,11 +240,7 @@ const Login = () => {
 
     } catch (error) {
       const backendError = error.response?.data?.error || error.response?.data?.message;
-      const currentUser = JSON.parse(localStorage.getItem("user")) || {};
-      const currentUserRoles = currentUser.roles || [];
-      const isSuperAdminFallback = currentUserRoles.includes("ROLE_SUPER_ADMIN_SYSTEM") || currentUserRoles.includes("SUPER_ADMIN_SYSTEM");
-      const isLocalAdminFallback = !isSuperAdminFallback && (currentUserRoles.includes("ROLE_ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN_SYSTEM") || currentUserRoles.includes("ADMIN") || currentUserRoles.includes("ROLE_ADMIN"));
-
+      
       if (backendError && (backendError.toLowerCase().includes("abonnement expiré") || backendError.toLowerCase().includes("suspendu"))) {
         setBarrier({ active: true, type: "EXPIRED" });
       } else if (error.response?.data?.status === "SUBSCRIPTION_EXPIRED") {
@@ -286,7 +274,6 @@ const Login = () => {
       <div className={`min-h-screen w-screen flex flex-col items-center justify-center font-sans ${darkMode ? "bg-slate-950 text-white" : "bg-slate-900 text-white"}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.15),transparent_70%)] animate-pulse"></div>
         
-        {/* ✅ ÉCRAN D'ONBOARDING 1 : Changement des identifiants */}
         {barrier.type === "CREDENTIALS" ? (
           <ChangeCredentialsForm 
             currentUsername={currentUser.username || username}
@@ -298,7 +285,6 @@ const Login = () => {
             }}
           />
         ) : 
-        /* ✅ ÉCRAN D'ONBOARDING 2 : Activation de licence (réservé aux admins locaux) */
         isLocalAdmin ? (
           <ActivationForm 
             type={barrier.type}
@@ -315,7 +301,6 @@ const Login = () => {
             lang={lang}
           />
         ) : (
-          /* ✅ ÉCRAN DE BLOCAGE STANDARD : Pour les simples utilisateurs si l'école est suspendue */
           <div className="relative z-10 max-w-xl text-center p-8 bg-slate-900/60 backdrop-blur-xl border border-red-500/30 rounded-[2.5rem] shadow-2xl shadow-red-950/50 mx-4">
             <div className="w-24 h-24 bg-red-500/10 border-2 border-red-500/30 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-red-500/20">
               <ShieldAlert size={48} className="text-red-500 animate-bounce" />
@@ -339,15 +324,7 @@ const Login = () => {
   }
 
   return (
-    <div 
-      // Remplacement par un dégradé immersif moderne et profond en Dark Mode
-      className={`min-h-screen w-screen overflow-hidden flex flex-col items-center justify-center relative font-sans transition-colors duration-300 ${
-        darkMode 
-          ? "bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/50" 
-          : "bg-gradient-to-br from-[#f3f4ff] via-[#eef2ff] to-[#f0f9ff]"
-      }`}
-    >
-      {/* Éléments graphiques décoratifs en arrière-plan - Maintenant optimisés pour le Dark Mode */}
+    <div className={`min-h-screen w-screen overflow-hidden flex flex-col items-center justify-center relative font-sans transition-colors duration-300 ${darkMode ? "bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950/50" : "bg-gradient-to-br from-[#f3f4ff] via-[#eef2ff] to-[#f0f9ff]"}`}>
       <div className="absolute inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden">
         <div className="absolute left-[-5%] top-1/2 -translate-y-1/2 text-indigo-300/20 dark:text-indigo-500/[0.03] transform -rotate-12 scale-[12] sm:scale-[15]">
           <BookOpen size={64} strokeWidth={1.5} />
@@ -355,13 +332,11 @@ const Login = () => {
         <div className="absolute top-[10%] right-[10%] text-purple-300/20 dark:text-purple-500/[0.03] transform rotate-12 scale-[6] sm:scale-[8]">
           <GraduationCap size={64} strokeWidth={1.5} />
         </div>
-        {/* Halo lumineux doux exclusif au mode sombre pour donner du relief sous la carte */}
         {darkMode && (
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(99,102,241,0.06),transparent_70%)]"></div>
         )}
       </div>
 
-      {/* Barre d'outils supérieure (Langue et Thème) */}
       <div className="absolute top-6 right-6 z-20 flex items-center gap-4 bg-white/40 dark:bg-slate-900/40 backdrop-blur-md p-2 rounded-2xl border border-indigo-100/50 dark:border-white/10">
         <button onClick={() => setDarkMode(!darkMode)} className={`transition-colors p-1 ${darkMode ? "text-white hover:text-blue-400" : "text-slate-600 hover:text-indigo-600"}`} aria-label="Toggle theme">
           {darkMode ? <Sun size={20} /> : <Moon size={20} />}
@@ -372,11 +347,9 @@ const Login = () => {
         </button>
       </div>
 
-      {/* Conteneur principal */}
       <div className="relative z-10 w-full max-w-md p-4 flex flex-col justify-center my-auto">
         <div className={`rounded-[2.5rem] shadow-2xl p-8 sm:p-10 border transition-all duration-300 ${darkMode ? "bg-slate-900/95 border-slate-800/80 text-white shadow-black/40" : "bg-white/95 backdrop-blur-sm border-white text-slate-900 shadow-indigo-900/5"}`}>
           
-          {/* Logo dynamique résolu et Lien Accueil */}
           <div className="flex justify-between items-center mb-8">
             <Link to="/" className="group flex items-center gap-2">
               {systemConfig.logoUrl ? (
@@ -401,13 +374,11 @@ const Login = () => {
             </Link>
           </div>
 
-          {/* En-tête du formulaire */}
           <div className="mb-6">
             <h2 className={`text-2xl font-black tracking-tight mb-1 ${darkMode ? "text-white" : "text-slate-800"}`}>{t.title}</h2>
             <p className={`font-medium text-sm ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{t.subtitle}</p>
           </div>
 
-          {/* Formulaire de connexion */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className={`block text-[11px] font-bold uppercase tracking-widest mb-1.5 ml-1 ${darkMode ? "text-slate-400" : "text-slate-500"}`}>{t.userLabel}</label>
@@ -468,7 +439,6 @@ const Login = () => {
               </button>
             </form>
 
-          {/* Lien de redirection vers Register */}
           <div className={`mt-6 text-center border-t pt-5 ${darkMode ? "border-slate-800" : "border-slate-100"}`}>
             <p className={`text-sm font-medium ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
               {t.noAccount}
@@ -480,7 +450,6 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Notifications flottantes (Succès / Échec) */}
       {notification.show && (
         <div className="absolute inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
           <div className={`max-w-sm w-full p-6 rounded-3xl border shadow-2xl transform scale-100 transition-all text-center ${darkMode ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-100 text-slate-900"}`}>

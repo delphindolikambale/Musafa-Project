@@ -5,8 +5,8 @@ import com.school.management.dto.academic.TeacherCreateDTO;
 import com.school.management.dto.academic.TeacherResponseDTO;
 import com.school.management.dto.academic.TrainingDTO;
 import com.school.management.model.academic.*;
+import com.school.management.model.enums.DayOfWeek;
 import com.school.management.repository.academic.AcademicYearRepository;
-import com.school.management.repository.academic.DomainRepository;
 import com.school.management.repository.academic.DomainSpecialityRepository;
 import com.school.management.repository.academic.TeacherRepository;
 import com.school.management.service.academic.TeacherService;
@@ -25,10 +25,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.stream.Collectors;
 
 @Service
@@ -39,7 +37,6 @@ public class TeacherServiceImpl implements TeacherService {
     private final AcademicYearRepository academicYearRepository;
     private final DomainSpecialityRepository specialityRepository;
 
-    // Injection du chemin dynamique
     @Value("${app.storage.location:${user.dir}/storage}")
     private String storageLocation;
 
@@ -47,7 +44,6 @@ public class TeacherServiceImpl implements TeacherService {
 
     @PostConstruct
     public void init() {
-        // Initialisation et création du dossier de stockage au démarrage
         this.rootLocation = Paths.get(storageLocation).toAbsolutePath().normalize();
         try {
             if (!Files.exists(this.rootLocation)) {
@@ -58,11 +54,6 @@ public class TeacherServiceImpl implements TeacherService {
         }
     }
 
-    /**
-     * ✅ MÉTHODE UTILITAIRE PRIVÉE ADAPTÉE SÉCURISÉE
-     * Extrait de manière sécurisée les détails de session de l'utilisateur connecté
-     * Évite le crash ClassCastException si le principal est une instance de String ("anonymousUser")
-     */
     private UserDetailsImpl getCurrentUser() {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal instanceof String) {
@@ -71,10 +62,6 @@ public class TeacherServiceImpl implements TeacherService {
         return (UserDetailsImpl) principal;
     }
 
-    /**
-     * ✅ MÉTHODE UTILITAIRE PRIVÉE
-     * Extrait l'ID de l'école de l'utilisateur connecté pour le cloisonnement multi-tenant
-     */
     private Long getCurrentSchoolId() {
         if (getCurrentUser().getSchool() == null) {
             throw new IllegalStateException("Action impossible : Votre compte utilisateur n'est rattaché à aucune école.");
@@ -82,23 +69,32 @@ public class TeacherServiceImpl implements TeacherService {
         return getCurrentUser().getSchool().getId();
     }
 
+    /**
+     * ✅ SÉCURITÉ : Règle métier - Un enseignant ne peut pas avoir plus de 2 jours pédagogiques.
+     * Utilisation de List<?> pour être compatible avec List<DayOfWeek> ou List<String>.
+     */
+    private void validatePedagogicalDays(List<?> pedagogicalDays) {
+        if (pedagogicalDays != null && pedagogicalDays.size() > 2) {
+            throw new IllegalArgumentException("❌ Règle de sécurité : Un enseignant ne peut pas avoir plus de 2 journées pédagogiques par semaine.");
+        }
+    }
+
     @Override
     @Transactional
     public TeacherResponseDTO createTeacher(TeacherCreateDTO dto, MultipartFile photo, MultipartFile cv, List<MultipartFile> titleDocs, List<MultipartFile> trainingDocs) {
+        validatePedagogicalDays(dto.getPedagogicalDays());
+
         Teacher teacher = new Teacher();
         Long currentSchoolId = getCurrentSchoolId();
 
-        // ✅ RECORRECTION MULTI-TENANT : Récupère uniquement l'année active propre à l'établissement connecté
         AcademicYear activeYear = academicYearRepository.findAll().stream()
                 .filter(ay -> ay.isActive() && ay.getSchool() != null && ay.getSchool().getId().equals(currentSchoolId))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Aucune année académique active trouvée pour votre établissement."));
 
-        // ✅ MULTI-TENANT : Rattachement direct de l'enseignant à l'école de la session courante
         teacher.setSchool(getCurrentUser().getSchool());
-
         teacher.setSchoolRegistrationNumber(generateUniqueRegistrationNumber(activeYear));
-        teacher.setActive(dto.isActive()); // Initialisation du statut
+        teacher.setActive(dto.isActive());
 
         handleSpecialityAssignment(teacher, dto);
         mapBasicInfo(teacher, dto);
@@ -129,19 +125,17 @@ public class TeacherServiceImpl implements TeacherService {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
 
-        // ✅ CONTRÔLE DE SÉCURITÉ : Vérifie que l'enseignant appartient à la même école
         if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
             throw new AccessDeniedException("❌ Action interdite : Cet enseignant n'appartient pas à votre établissement.");
         }
 
-        teacher.setActive(!teacher.isActive()); // Inverse le statut
+        teacher.setActive(!teacher.isActive());
         return mapToResponseDTO(teacherRepository.save(teacher));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TeacherResponseDTO> getActiveTeachers() {
-        // ✅ MULTI-TENANT : Sélection uniquement des enseignants actifs de l'école connectée
         return teacherRepository.findAllByActiveTrueAndSchoolId(getCurrentSchoolId()).stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
@@ -150,17 +144,18 @@ public class TeacherServiceImpl implements TeacherService {
     @Override
     @Transactional
     public TeacherResponseDTO updateTeacher(Long id, TeacherCreateDTO dto, MultipartFile photo, MultipartFile cv, List<MultipartFile> titleDocs, List<MultipartFile> trainingDocs) {
+        validatePedagogicalDays(dto.getPedagogicalDays());
+
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
 
-        // ✅ CONTRÔLE DE SÉCURITÉ : Interdiction de modifier un enseignant d'une autre école
         if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
             throw new AccessDeniedException("❌ Action interdite : Vous ne pouvez pas modifier un enseignant d'un autre établissement.");
         }
 
         handleSpecialityAssignment(teacher, dto);
         mapBasicInfo(teacher, dto);
-        teacher.setActive(dto.isActive()); // Permet de modifier le statut via l'édition
+        teacher.setActive(dto.isActive());
 
         String currentPath = teacher.getDirectoryPath();
         if (currentPath == null) {
@@ -185,12 +180,11 @@ public class TeacherServiceImpl implements TeacherService {
         if (dto.getNewSpecialityName() != null && !dto.getNewSpecialityName().trim().isEmpty()) {
             Long schoolId = getCurrentSchoolId();
 
-            // ✅ CORRECTION MULTI-TENANT & CONSTRUCTEUR : Utilisation du Lombok Builder pour s'aligner sur les 3 propriétés de l'entité
             DomainSpeciality spec = specialityRepository.findByNameIgnoreCaseAndSchoolId(dto.getNewSpecialityName(), schoolId)
                     .orElseGet(() -> {
                         DomainSpeciality newSpec = DomainSpeciality.builder()
                                 .name(dto.getNewSpecialityName().toUpperCase())
-                                .school(getCurrentUser().getSchool()) // Cloisonnement hermétique du Master-Data
+                                .school(getCurrentUser().getSchool())
                                 .build();
                         return specialityRepository.save(newSpec);
                     });
@@ -204,7 +198,6 @@ public class TeacherServiceImpl implements TeacherService {
     private String generateUniqueRegistrationNumber(AcademicYear activeYear) {
         String fullYear = activeYear.getAnnee();
         String yearSuffix = (fullYear != null && fullYear.length() >= 2) ? fullYear.substring(fullYear.length() - 2) : "26";
-        // On effectue le décompte uniquement basé sur l'école courante pour garder des matricules séquentiels par établissement
         long nextOrderNumber = teacherRepository.findAllBySchoolIdOrderByIdDesc(getCurrentSchoolId()).size() + 1;
         return "ENS" + nextOrderNumber + yearSuffix;
     }
@@ -221,6 +214,7 @@ public class TeacherServiceImpl implements TeacherService {
         teacher.setPhoneNumber(dto.getPhoneNumber());
         teacher.setEmail(dto.getEmail());
         teacher.setResidentialAddress(dto.getResidentialAddress());
+        teacher.setPedagogicalDays(dto.getPedagogicalDays());
     }
 
     private TeacherResponseDTO mapToResponseDTO(Teacher t) {
@@ -238,7 +232,8 @@ public class TeacherServiceImpl implements TeacherService {
         dto.setPhoneNumber(t.getPhoneNumber());
         dto.setEmail(t.getEmail());
         dto.setResidentialAddress(t.getResidentialAddress());
-        dto.setActive(t.isActive()); // Mapping du statut
+        dto.setActive(t.isActive());
+        dto.setPedagogicalDays(t.getPedagogicalDays());
         dto.setProfilePicturePath(t.getProfilePicturePath());
         dto.setCvPath(t.getCvPath());
         dto.setDirectoryPath(t.getDirectoryPath());
@@ -308,7 +303,6 @@ public class TeacherServiceImpl implements TeacherService {
     @Override
     @Transactional(readOnly = true)
     public List<TeacherResponseDTO> getAllTeachers() {
-        // ✅ MULTI-TENANT : Liste inversée filtrée par école de session
         return teacherRepository.findAllBySchoolIdOrderByIdDesc(getCurrentSchoolId()).stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
@@ -317,7 +311,6 @@ public class TeacherServiceImpl implements TeacherService {
     @Override
     @Transactional(readOnly = true)
     public List<TeacherResponseDTO> searchTeachers(String query) {
-        // ✅ MULTI-TENANT : Fournit à la fois le texte recherché et l'ID de l'école
         return teacherRepository.searchTeachers(query, getCurrentSchoolId()).stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());
@@ -326,7 +319,6 @@ public class TeacherServiceImpl implements TeacherService {
     @Override
     @Transactional(readOnly = true)
     public TeacherResponseDTO getTeacherByRegistrationNumber(String reg) {
-        // ✅ MULTI-TENANT : Recherche sécurisée par matricule et école
         return teacherRepository.findBySchoolRegistrationNumberAndSchoolId(reg, getCurrentSchoolId())
                 .map(this::mapToResponseDTO)
                 .orElse(null);
@@ -338,7 +330,6 @@ public class TeacherServiceImpl implements TeacherService {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
 
-        // ✅ CONTRÔLE DE SÉCURITÉ : Bloque la consultation si l'ID de l'école diverge
         if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
             throw new AccessDeniedException("❌ Accès refusé : Cet enseignant n'appartient pas à votre établissement.");
         }
@@ -351,7 +342,6 @@ public class TeacherServiceImpl implements TeacherService {
         Teacher teacher = teacherRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Enseignant non trouvé"));
 
-        // ✅ CONTRÔLE DE SÉCURITÉ : Empêche la suppression d'un enseignant externe
         if (!teacher.getSchool().getId().equals(getCurrentSchoolId())) {
             throw new AccessDeniedException("❌ Action interdite : Suppression non autorisée.");
         }

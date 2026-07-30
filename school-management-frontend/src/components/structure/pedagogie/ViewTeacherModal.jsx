@@ -10,7 +10,6 @@ import { getFileUrl } from '../../../services/pedagogieService/TeacherService';
 const ViewTeacherModal = ({ isOpen, onClose, teacher }) => {
     if (!isOpen || !teacher) return null;
 
-    // Suppression de l'ancienne fonction getResourceUrl avec localhost en dur
     // Utilisation directe de getFileUrl du TeacherService
     const profileImageUrl = useMemo(() => {
         return getFileUrl(teacher.profilePicturePath) || '';

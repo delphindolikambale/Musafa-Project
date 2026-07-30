@@ -3,7 +3,7 @@ import { Calendar as CalendarIcon, Download, Printer, Clock } from 'lucide-react
 import Swal from 'sweetalert2';
 import scheduleSlotService from '../../../services/pedagogieService/scheduleSlotService';
 import hourSlotService from '../../../services/pedagogieService/hourSlotService'; 
-import ScheduleCalendar from './ScheduleCalendar'; // ✅ CORRECTION : Importation locale correcte (voisins dans le dossier pedagogie)
+import ScheduleCalendar from './ScheduleCalendar'; 
 import ScheduleFormModal from './ScheduleFormModal';
 import { ClassroomService } from '../../../services/classroomService'; 
 
@@ -67,21 +67,31 @@ const ScheduleManagement = () => {
     }
   };
 
-  // HAUTE SÉCURITÉ : Génération et vérification de doublons de libellés
+  // HAUTE SÉCURITÉ : Utilisation exclusive de l'horloge pour l'ajout
   const handleCreateHourSlot = async () => {
     const nextSlotNumber = hoursConfig.length + 1;
 
     const { value: label } = await Swal.fire({
       title: 'Ajouter une tranche horaire',
       html: `
-        <div class="text-left space-y-2">
-          <p class="text-xs font-bold text-blue-600 uppercase bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg">
+        <div class="text-left space-y-4">
+          <p class="text-xs font-bold text-blue-600 uppercase bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg mb-4">
             Créneau automatique : N°${nextSlotNumber}
           </p>
-          <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mt-3">
-            Libellé des heures (ex: 08h00 - 08h50)
-          </label>
-          <input id="swal-hour-label" class="swal2-input w-full m-0 focus:ring-2 focus:ring-blue-500" placeholder="Ex: 08h00 - 08h50">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                Heure de début
+              </label>
+              <input type="time" id="swal-start-time" class="swal2-input w-full m-0 focus:ring-2 focus:ring-blue-500" style="padding: 0.5rem; height: 3rem;" value="08:00">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                Heure de fin
+              </label>
+              <input type="time" id="swal-end-time" class="swal2-input w-full m-0 focus:ring-2 focus:ring-blue-500" style="padding: 0.5rem; height: 3rem;" value="08:50">
+            </div>
+          </div>
         </div>
       `,
       focusConfirm: false,
@@ -90,12 +100,23 @@ const ScheduleManagement = () => {
       cancelButtonText: 'Annuler',
       confirmButtonColor: '#2563eb',
       preConfirm: () => {
-        const inputVal = document.getElementById('swal-hour-label').value.trim();
+        const start = document.getElementById('swal-start-time').value;
+        const end = document.getElementById('swal-end-time').value;
         
-        if (!inputVal) {
-          Swal.showValidationMessage('Veuillez saisir un libellé');
+        if (!start || !end) {
+          Swal.showValidationMessage('Veuillez sélectionner l\'heure de début et de fin');
           return false;
         }
+
+        if (start >= end) {
+          Swal.showValidationMessage("L'heure de fin doit être supérieure à l'heure de début");
+          return false;
+        }
+
+        // Génération automatique du libellé pour empêcher l'utilisateur de l'écrire à la main
+        const startFormatted = start.replace(':', 'h');
+        const endFormatted = end.replace(':', 'h');
+        const inputVal = `${startFormatted} - ${endFormatted}`;
 
         const normalizedInput = inputVal.replace(/\s+/g, '').toLowerCase();
         
@@ -123,6 +144,122 @@ const ScheduleManagement = () => {
         fetchHoursConfig();
       } catch (error) {
         Swal.fire('Erreur', 'Impossible d\'ajouter la tranche horaire.', 'error');
+      }
+    }
+  };
+
+  // ✅ CORRECTION : Modification d'une tranche horaire avec sélection d'horloge
+  const handleEditHour = async (hour) => {
+    // Extraction des heures à partir du libellé pour pré-remplir les horloges
+    let defaultStart = "08:00";
+    let defaultEnd = "08:50";
+    
+    if (hour.label) {
+      const parts = hour.label.split('-').map(p => p.trim());
+      if (parts.length === 2) {
+        defaultStart = parts[0].replace(/[hH]/g, ':');
+        defaultEnd = parts[1].replace(/[hH]/g, ':');
+      }
+    }
+
+    const { value: label } = await Swal.fire({
+      title: 'Modifier la tranche horaire',
+      html: `
+        <div class="text-left space-y-4">
+          <p class="text-xs font-bold text-blue-600 uppercase bg-blue-50 dark:bg-blue-950/40 p-2 rounded-lg mb-4">
+            Créneau N°${hour.slotNumber || ''}
+          </p>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                Heure de début
+              </label>
+              <input type="time" id="swal-start-time-edit" class="swal2-input w-full m-0 focus:ring-2 focus:ring-blue-500" style="padding: 0.5rem; height: 3rem;" value="${defaultStart}">
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                Heure de fin
+              </label>
+              <input type="time" id="swal-end-time-edit" class="swal2-input w-full m-0 focus:ring-2 focus:ring-blue-500" style="padding: 0.5rem; height: 3rem;" value="${defaultEnd}">
+            </div>
+          </div>
+        </div>
+      `,
+      focusConfirm: false,
+      showCancelButton: true,
+      confirmButtonText: 'Mettre à jour',
+      cancelButtonText: 'Annuler',
+      confirmButtonColor: '#2563eb',
+      preConfirm: () => {
+        const start = document.getElementById('swal-start-time-edit').value;
+        const end = document.getElementById('swal-end-time-edit').value;
+        
+        if (!start || !end) {
+          Swal.showValidationMessage('Veuillez sélectionner l\'heure de début et de fin');
+          return false;
+        }
+
+        if (start >= end) {
+          Swal.showValidationMessage("L'heure de fin doit être supérieure à l'heure de début");
+          return false;
+        }
+
+        // Génération du libellé final
+        const startFormatted = start.replace(':', 'h');
+        const endFormatted = end.replace(':', 'h');
+        const inputVal = `${startFormatted} - ${endFormatted}`;
+
+        const normalizedInput = inputVal.replace(/\s+/g, '').toLowerCase();
+        
+        const isDuplicate = hoursConfig.some(h => 
+          h.id !== hour.id && h.label.replace(/\s+/g, '').toLowerCase() === normalizedInput
+        );
+
+        if (isDuplicate) {
+          Swal.showValidationMessage(`Sécurité : La tranche "${inputVal}" existe déjà !`);
+          return false;
+        }
+
+        return inputVal;
+      }
+    });
+
+    if (label) {
+      try {
+        await hourSlotService.updateHourSlot(schoolId, hour.id, {
+          label: label,
+          slotNumber: hour.slotNumber,
+          schoolId: schoolId
+        });
+        Swal.fire('Succès', 'La tranche horaire a été modifiée.', 'success');
+        fetchHoursConfig();
+      } catch (error) {
+        Swal.fire('Erreur', error.response?.data?.message || 'Impossible de modifier la tranche horaire.', 'error');
+      }
+    }
+  };
+
+  // Gestion de la suppression d'une tranche horaire
+  const handleDeleteHour = async (hourId) => {
+    const result = await Swal.fire({
+      title: 'Êtes-vous sûr ?',
+      text: "Cette tranche horaire sera définitivement supprimée. Les cours liés à cette heure seront impactés !",
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d33',
+      cancelButtonColor: '#3085d6',
+      confirmButtonText: 'Oui, supprimer',
+      cancelButtonText: 'Annuler'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        await hourSlotService.deleteHourSlot(schoolId, hourId);
+        Swal.fire('Supprimé !', 'La tranche horaire a été retirée.', 'success');
+        fetchHoursConfig();
+        fetchSchedule(); 
+      } catch (error) {
+        Swal.fire('Erreur', error.response?.data?.message || 'Échec de la suppression.', 'error');
       }
     }
   };
@@ -228,6 +365,8 @@ const ScheduleManagement = () => {
             onDeleteSlot={handleDeleteSlot} 
             hours={hoursConfig}
             onAddHourRequest={handleCreateHourSlot}
+            onEditHour={handleEditHour} 
+            onDeleteHour={handleDeleteHour} 
           />
         )}
       </div>

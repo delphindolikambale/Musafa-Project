@@ -2,151 +2,283 @@ import React from 'react';
 import { Plus, Trash2, Clock, Edit2 } from 'lucide-react';
 
 const DAYS = [
-  { key: 'LUNDI', label: 'Lundi' },
-  { key: 'MARDI', label: 'Mardi' },
-  { key: 'MERCREDI', label: 'Mercredi' },
-  { key: 'JEUDI', label: 'Jeudi' },
-  { key: 'VENDREDI', label: 'Vendredi' },
-  { key: 'SAMEDI', label: 'Samedi' }
+  { key: 'LUNDI', label: 'LUNDI' },
+  { key: 'MARDI', label: 'MARDI' },
+  { key: 'MERCREDI', label: 'MERCREDI' },
+  { key: 'JEUDI', label: 'JEUDI' },
+  { key: 'VENDREDI', label: 'VENDREDI' },
+  { key: 'SAMEDI', label: 'SAMEDI' }
 ];
 
 const ScheduleCalendar = ({ 
-  scheduleData, 
+  scheduleData = [], 
   onCellClick, 
   onDeleteSlot, 
   onEditSlot, 
-  hours, 
+  hours = [], 
   onAddHourRequest,
-  isReadOnly = false // ✅ AJOUT : Mode lecture seule (par défaut à false pour le gestionnaire)
+  onEditHour,
+  onDeleteHour,
+  isReadOnly = false,
+  variant = 'proviseur' // 'proviseur' | 'teacher'
 }) => {
 
+  // Recherche du cours pour un jour et un créneau donné
   const getSlotData = (dayKey, hourSlotId) => {
     return scheduleData.find(slot => slot.dayOfWeek === dayKey && slot.hourSlotId === hourSlotId);
   };
 
+  // Nom de l'enseignant
+  const getTeacherDisplayName = (slot) => {
+    if (slot.teacherName) return slot.teacherName;
+    if (slot.teacherFullName) return slot.teacherFullName;
+    if (slot.teacherFirstName || slot.teacherLastName) {
+      return `${slot.teacherFirstName || ''} ${slot.teacherLastName || ''}`.trim();
+    }
+    return '';
+  };
+
+  // Matricule de l'enseignant (Remplace le simple ID de la BD)
+  const getTeacherMatriculeDisplay = (slot) => {
+    const matricule = slot.teacherMatricule || slot.teacherRegistrationNumber || slot.teacherCode;
+    if (matricule) {
+      return `MAT: ${matricule}`;
+    }
+    // Fallback si pas de matricule disponible
+    if (slot.teacherId) return `ID: ${slot.teacherId}`;
+    return '';
+  };
+
+  // =========================================================================
+  // RENDU 1 : MODE ENSEIGNANT (Vue Enseignant)
+  // =========================================================================
+  if (variant === 'teacher') {
+    return (
+      <div className="overflow-x-auto">
+        <div className="min-w-[1100px]">
+          {hours && hours.length > 0 ? (
+            <table className="w-full border-collapse text-left">
+              <thead>
+                <tr className="bg-[#0f172a] text-white border-b border-slate-800">
+                  <th rowSpan="2" className="p-3 text-xs font-black uppercase tracking-wider text-center border-r border-slate-800 w-28">
+                    HEURE
+                  </th>
+                  <th colSpan="12" className="p-2 text-xs font-black uppercase tracking-widest text-center border-b border-slate-800 text-blue-200">
+                    JOURS & CLASSES
+                  </th>
+                </tr>
+                <tr className="bg-[#0f172a] text-blue-100 text-[11px] font-bold uppercase tracking-wider border-b border-slate-800">
+                  {DAYS.map(day => (
+                    <React.Fragment key={day.key}>
+                      <th className="p-2.5 text-center border-r border-slate-800 w-[11%]">
+                        {day.label}
+                      </th>
+                      <th className="p-2.5 text-center border-r border-slate-800 text-blue-400 bg-blue-950/40 w-[5%]">
+                        CLASSE
+                      </th>
+                    </React.Fragment>
+                  ))}
+                </tr>
+              </thead>
+
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 text-xs">
+                {hours.map((hour, index) => (
+                  <tr key={hour.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    
+                    {/* Colonne Tranche Horaire */}
+                    <td className="p-3 text-center font-bold bg-slate-50/80 dark:bg-slate-800/50 border-r border-slate-200 dark:border-slate-800">
+                      <div className="font-black text-slate-800 dark:text-slate-200">
+                        {hour.slotNumber || (index + 1)}ᵉ heure
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400 italic mt-0.5">
+                        {hour.label}
+                      </div>
+                    </td>
+
+                    {/* Jours et Classes Jumelés */}
+                    {DAYS.map((day) => {
+                      const slot = getSlotData(day.key, hour.id);
+
+                      return (
+                        <React.Fragment key={`${day.key}-${hour.id}`}>
+                          {/* Colonne Matière */}
+                          <td className="p-2 border-r border-slate-200 dark:border-slate-800 text-center font-extrabold text-blue-700 dark:text-blue-300">
+                            {slot ? (
+                              <span className="font-black text-[11px] uppercase tracking-wide">
+                                {slot.subjectCode || slot.subjectName}
+                              </span>
+                            ) : null}
+                          </td>
+
+                          {/* Colonne Classe */}
+                          <td className="p-2 border-r border-slate-200 dark:border-slate-800 text-center font-bold bg-slate-50/30 dark:bg-slate-800/20">
+                            {slot?.classroomName ? (
+                              <span className="inline-block bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 text-[10px] px-2 py-1 rounded font-black border border-blue-200 dark:border-blue-800/50">
+                                {slot.classroomName}
+                              </span>
+                            ) : null}
+                          </td>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-12 bg-slate-50 dark:bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-center">
+              <Clock size={32} className="text-blue-600 mb-2" />
+              <h4 className="text-base font-bold text-slate-700 dark:text-slate-300">Aucune heure de cours configurée</h4>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // RENDU 2 : MODE PROVISEUR / CONFIGURATION (Inclus du Lundi au Samedi)
+  // =========================================================================
   return (
     <div className="overflow-x-auto">
-      <div className="min-w-[1000px]">
-        {/* En-tête des jours */}
-        <div className="grid grid-cols-8 bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 rounded-2xl mb-2 transition-colors shadow-lg border border-blue-900/30">
-          <div className="p-4 text-[10px] font-black text-blue-200/70 uppercase tracking-widest text-center border-r border-blue-800/40">
-            N°
-          </div>
-          <div className="p-4 text-[10px] font-black text-blue-200/70 uppercase tracking-widest text-center border-r border-blue-800/40">
-            Heures
-          </div>
-          {DAYS.map(day => (
-            <div key={day.key} className="p-4 text-[10px] font-black text-blue-100 uppercase tracking-widest text-center">
-              {day.label}
-            </div>
-          ))}
-        </div>
-
-        {/* Lignes du tableau */}
+      <div className="min-w-[1100px]">
         {hours && hours.length > 0 ? (
-          hours.map((hour, index) => (
-            <div key={hour.id} className="grid grid-cols-8 border-b border-slate-50 dark:border-slate-800/50 last:border-none transition-colors">
-              
-              {/* Colonne : Numéro d'ordre du créneau */}
-              <div className="p-4 text-xs font-black text-slate-500 dark:text-slate-400 text-center bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-center border-r border-slate-50 dark:border-slate-800">
-                {hour.slotNumber || (index + 1)}
-              </div>
+          <table className="w-full border-collapse text-left rounded-2xl overflow-hidden shadow-sm">
+            <thead>
+              <tr className="bg-[#0f172a] text-white text-xs font-bold uppercase tracking-wider">
+                <th className="p-3.5 text-center w-14 border-r border-slate-800">N°</th>
+                <th className="p-3.5 text-center w-44 border-r border-slate-800">HEURES</th>
+                {DAYS.map(day => (
+                  <th key={day.key} className="p-3.5 text-center border-r border-slate-800">
+                    {day.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
 
-              {/* Colonne des heures */}
-              <div className="p-4 text-xs font-black text-slate-400 dark:text-slate-500 text-center bg-slate-50/10 dark:bg-slate-800/10 flex items-center justify-center border-r border-slate-50 dark:border-slate-800 italic">
-                {hour.label}
-              </div>
-              
-              {/* Les jours de la semaine */}
-              {DAYS.map((day) => {
-                const slotContent = getSlotData(day.key, hour.id);
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs bg-white dark:bg-slate-900">
+              {hours.map((hour, index) => (
+                <tr key={hour.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                  
+                  {/* Numéro de tranche */}
+                  <td className="p-4 text-center font-bold text-slate-700 dark:text-slate-300 border-r border-slate-100 dark:border-slate-800">
+                    {hour.slotNumber || (index + 1)}
+                  </td>
 
-                return (
-                  <div key={`${day.key}-${hour.id}`} className="p-2 min-h-[120px] relative group transition-all">
-                    {slotContent ? (
-                      // CELLULE REMPLIE : Thème Bleu de Nuit
-                      <div className="h-full w-full bg-gradient-to-br from-slate-800 to-blue-950 border border-blue-900/50 rounded-xl p-3 text-white shadow-md relative overflow-hidden group-hover:scale-[1.02] transition-transform">
-                        <div className="flex justify-between items-start">
-                          <p className="text-[10px] font-black text-blue-200 uppercase opacity-90">{slotContent.subjectCode || ''}</p>
-                          
-                          {/* ✅ MODIFICATION : On affiche les boutons d'édition uniquement si NON read-only */}
-                          {!isReadOnly && (
-                            <div className="flex items-center gap-2 z-10">
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); onEditSlot(slotContent); }}
-                                className="text-white/50 hover:text-blue-300 transition-colors"
-                                title="Modifier ce cours"
-                              >
-                                <Edit2 size={14} />
-                              </button>
-                              <button 
-                                onClick={(e) => { e.stopPropagation(); onDeleteSlot(slotContent.id); }}
-                                className="text-white/50 hover:text-red-400 transition-colors"
-                                title="Supprimer ce cours"
-                              >
-                                <Trash2 size={14} />
-                              </button>
-                            </div>
+                  {/* Horaire + Boutons d'édition et suppression de l'heure */}
+                  <td className="p-3 text-center border-r border-slate-100 dark:border-slate-800 group relative">
+                    <div className="flex items-center justify-between px-2">
+                      <span className="font-bold text-slate-600 dark:text-slate-400 italic text-[11px] mx-auto">
+                        {hour.label}
+                      </span>
+                      {!isReadOnly && (
+                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {onEditHour && (
+                            <button
+                              onClick={() => onEditHour(hour)}
+                              className="p-1 text-slate-400 hover:text-blue-600 transition-colors"
+                              title="Modifier la tranche horaire"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                          )}
+                          {onDeleteHour && (
+                            <button
+                              onClick={() => onDeleteHour(hour.id)}
+                              className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                              title="Supprimer la tranche horaire"
+                            >
+                              <Trash2 size={13} />
+                            </button>
                           )}
                         </div>
-                        <p className="text-[12px] font-bold mt-1 text-blue-50 leading-tight line-clamp-2">{slotContent.subjectName}</p>
-                        
-                        <p className="text-[10px] font-black mt-3 uppercase tracking-tighter text-blue-300 flex flex-col">
-                          <span>{slotContent.teacherFullName || slotContent.teacherName || 'Enseignant inconnu'}</span>
-                          {slotContent.teacherMatricule && (
-                            <span className="text-[9px] opacity-60 font-semibold mt-0.5 tracking-wider text-blue-200">
-                              ID: {slotContent.teacherMatricule}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    ) : (
-                      // CELLULE VIDE
-                      isReadOnly ? (
-                        // ✅ MODIFICATION : Mode lecture seule -> Cellule vide neutre, sans hover, sans clic
-                        <div className="h-full w-full border border-dashed border-slate-100 dark:border-slate-800/30 rounded-xl flex items-center justify-center bg-slate-50/10 dark:bg-slate-800/10 opacity-40">
-                        </div>
-                      ) : (
-                        // Mode Gestionnaire -> Cellule cliquable pour ajouter un cours
-                        <div 
-                          onClick={() => onCellClick(day.key, hour.id, hour.slotNumber || (index + 1), hour.label)}
-                          className="h-full w-full border-2 border-dashed border-slate-100 dark:border-slate-800 rounded-xl flex items-center justify-center cursor-pointer hover:bg-slate-800/5 dark:hover:bg-blue-950/30 hover:border-blue-300 dark:hover:border-blue-800 transition-colors"
-                        >
-                          <Plus size={20} className="text-slate-300 dark:text-slate-600 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
-                        </div>
-                      )
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ))
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Cases par jour de la semaine (Lundi -> Samedi) */}
+                  {DAYS.map(day => {
+                    const slot = getSlotData(day.key, hour.id);
+                    const teacherName = slot ? getTeacherDisplayName(slot) : '';
+                    const teacherMatricule = slot ? getTeacherMatriculeDisplay(slot) : '';
+
+                    return (
+                      <td key={`${day.key}-${hour.id}`} className="p-2 border-r border-slate-100 dark:border-slate-800 text-center align-middle">
+                        {slot ? (
+                          /* Carte Sombre du cours programmé */
+                          <div className="bg-[#1e293b] text-white p-3 rounded-2xl text-left relative shadow-md border border-slate-700/50 group">
+                            {/* Boutons d'action sur le cours */}
+                            {!isReadOnly && (
+                              <div className="absolute top-2.5 right-2.5 flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
+                                {onEditSlot && (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); onEditSlot(slot); }}
+                                    className="p-1 text-slate-300 hover:text-white transition-colors"
+                                    title="Modifier le cours"
+                                  >
+                                    <Edit2 size={13} />
+                                  </button>
+                                )}
+                                {onDeleteSlot && (
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); onDeleteSlot(slot.id); }}
+                                    className="p-1 text-slate-300 hover:text-red-400 transition-colors"
+                                    title="Supprimer le cours"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Nom de la matière */}
+                            <h5 className="font-extrabold text-xs text-white pr-8 leading-snug">
+                              {slot.subjectName || slot.subjectCode}
+                            </h5>
+
+                            {/* Enseignant */}
+                            {teacherName && (
+                              <p className="text-[10px] font-bold text-blue-300 uppercase tracking-wide mt-1.5 leading-tight">
+                                {teacherName}
+                              </p>
+                            )}
+
+                            {/* Matricule de l'Enseignant (Affichage MAT au lieu de ID) */}
+                            {teacherMatricule && (
+                              <p className="text-[9px] text-slate-400 font-semibold mt-0.5">
+                                {teacherMatricule}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          /* Case vide pointillée avec bouton + */
+                          !isReadOnly && onCellClick && (
+                            <button
+                              onClick={() => onCellClick(day.key, hour.id, hour.slotNumber || (index + 1), hour.label)}
+                              className="w-full h-20 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-800/40 text-slate-300 hover:text-blue-600 transition-all group"
+                            >
+                              <Plus size={18} className="group-hover:scale-110 transition-transform" />
+                            </button>
+                          )
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
-          // ÉTAT VIDE
-          <div className="flex flex-col items-center justify-center p-12 bg-slate-50 dark:bg-slate-800/20 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800 mt-4 text-center">
-            <div className="p-4 bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 rounded-full mb-4">
-              <Clock size={32} />
-            </div>
-            <h4 className="text-base font-bold text-slate-700 dark:text-slate-300">Aucune tranche horaire configurée</h4>
-            
-            {isReadOnly ? (
-              // ✅ MODIFICATION : Message pour l'élève si l'école n'a pas encore configuré les heures
-              <p className="text-xs text-slate-400 max-w-sm mt-1 mb-6">
-                Votre emploi du temps n'est pas encore disponible. La direction n'a pas encore configuré les horaires de cours.
-              </p>
-            ) : (
-              // Message et bouton pour le gestionnaire
-              <>
-                <p className="text-xs text-slate-400 max-w-sm mt-1 mb-6">
-                  Pour commencer à programmer des cours dans la grille, vous devez d'abord définir les heures de cours de votre établissement.
-                </p>
-                <button
-                  onClick={onAddHourRequest}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider px-6 py-3 rounded-xl transition-all shadow-md"
-                >
-                  <Plus size={16} /> Créer ma première heure de cours
-                </button>
-              </>
+          <div className="flex flex-col items-center justify-center p-12 bg-slate-50 dark:bg-slate-800/20 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 text-center">
+            <Clock size={32} className="text-blue-600 mb-2" />
+            <h4 className="text-base font-bold text-slate-700 dark:text-slate-300">Aucune tranche horaire définie</h4>
+            {!isReadOnly && onAddHourRequest && (
+              <button
+                onClick={onAddHourRequest}
+                className="mt-4 flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl transition-all shadow-md"
+              >
+                <Plus size={16} /> Ajouter une tranche horaire
+              </button>
             )}
           </div>
         )}

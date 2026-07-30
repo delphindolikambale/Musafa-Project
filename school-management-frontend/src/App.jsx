@@ -31,7 +31,6 @@ import ArchiveDashboard from "./components/structure/ArchiveDashboard";
 import FinanceAdmin from "./components/structure/FinanceAdmin"; 
 import SettingsDashboard from "./components/structure/admin/SettingsDashboard";
 import RoleAccessManager from "./components/structure/admin/RoleAccessManager"; 
-import BulletinHomePage from "./components/structure/admin/BulletinHomePage"; 
 
 // --- COMPONENTS SUPER ADMIN MULTI-TENANT --- 
 import SuperAdminSystemDashboard from "./components/dashboard/multitenant/SuperAdminSystemDashboard";
@@ -62,6 +61,7 @@ import AttendanceManagement from "./components/structure/pedagogie/AttendanceMan
 import TeacherAssignment from "./components/structure/pedagogie/TeacherAssignment"; 
 import GradeSheetReception from "./components/structure/pedagogie/GradeSheetReception";
 import GradeSheetValidation from "./components/structure/pedagogie/GradeSheetValidation";
+import BulletinHomePage from "./components/structure/admin/BulletinHomePage";
 
 // --- COMPONENTS ÉLÈVE ---
 import StudentLinkAccount from "./components/structure/student/StudentLinkAccount";
@@ -82,6 +82,9 @@ import TitulaireGradeSheetValidation from "./components/structure/pedagogie/Titu
 // ✅ NOUVEAUX COMPOSANTS POUR LA RÉCEPTION DES BULLETINS
 import ClassBulletinsFolder from "./components/structure/pedagogie/ClassBulletinsFolder";
 import StudentBulletinView from "./components/structure/pedagogie/StudentBulletinView";
+
+// ✅ NOUVEAU COMPOSANT : EMPLOI DU TEMPS ENSEIGNANT
+import MyScheduleTeacher from "./components/structure/pedagogie/MyScheduleTeacher";
 
 import titulaireService from "./services/pedagogieService/titulaireService";
 
@@ -231,10 +234,14 @@ function App() {
                 <Route path="/enseignant" element={<ProtectedRoute allowedRoles={["ENSEIGNANT", "ROLE_ENSEIGNANT", "ADMIN", "ROLE_ADMIN"]}><TeacherLayout /></ProtectedRoute>}>
                   <Route path="dashboard" element={<TeacherEvaluationDashboard />} />
                   <Route path="classes" element={<TeacherClassesManager />} />
+                  
+                  {/* ✅ CORRECTION ICI : "horaire" au lieu de "mon-horaire" pour correspondre au lien de navigation */}
+                  <Route path="horaire" element={<MyScheduleTeacher />} />
+                  
                   <Route path="titulaire" element={<TitulaireRoute><TitulaireDashboard /></TitulaireRoute>} />
                   <Route path="titulaire/validation-fiche/:assignmentId/:period" element={<TitulaireRoute><TitulaireGradeSheetValidation /></TitulaireRoute>} />
                   
-                  {/* NOUVELLES ROUTES BULLETINS TITULAIRE */}
+                  {/* ROUTES BULLETINS TITULAIRE */}
                   <Route path="titulaire/bulletins/:classroomId" element={<TitulaireRoute><ClassBulletinsFolder /></TitulaireRoute>} />
                   <Route path="titulaire/bulletins/:classroomId/etudiant/:studentId" element={<TitulaireRoute><StudentBulletinView /></TitulaireRoute>} />
                   

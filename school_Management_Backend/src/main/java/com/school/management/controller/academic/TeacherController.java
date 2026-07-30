@@ -15,7 +15,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/teachers")
 @RequiredArgsConstructor
-
 public class TeacherController {
 
     private final TeacherService teacherService;
@@ -35,7 +34,6 @@ public class TeacherController {
         return ResponseEntity.ok(teacherService.getAllTeachers());
     }
 
-    // Endpoint pour récupérer seulement les actifs (utile pour les selects d'affectation)
     @GetMapping("/active")
     public ResponseEntity<List<TeacherResponseDTO>> getActiveTeachers() {
         return ResponseEntity.ok(teacherService.getActiveTeachers());
@@ -62,7 +60,6 @@ public class TeacherController {
         return ResponseEntity.ok(teacherService.updateTeacher(id, updateDTO, photo, cv, titleDocs, trainingDocs));
     }
 
-    // Nouveau : Bascule du statut actif/inactif
     @PatchMapping("/{id}/toggle-status")
     public ResponseEntity<TeacherResponseDTO> toggleStatus(@PathVariable Long id) {
         return ResponseEntity.ok(teacherService.toggleActiveStatus(id));

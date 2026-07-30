@@ -6,6 +6,7 @@ import com.school.management.dto.auth.SignupRequest;
 import com.school.management.model.auth.Role;
 import com.school.management.model.auth.User;
 import com.school.management.model.multitenant.School;
+import com.school.management.model.academic.AcademicYear; // ✅ AJOUT : Import du modèle AcademicYear
 import com.school.management.model.enums.AppRole;
 import com.school.management.repository.academic.TeacherRepository;
 import com.school.management.repository.auth.RoleRepository;
@@ -14,6 +15,7 @@ import com.school.management.repository.multitenant.SchoolRepository;
 import com.school.management.security.jwt.JwtUtils;
 import com.school.management.security.services.UserDetailsImpl;
 import com.school.management.service.multitenant.SchoolService;
+import com.school.management.service.academicImpl.AcademicYearService; // ✅ AJOUT : Import du service de l'année académique
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -46,6 +48,7 @@ public class AuthController {
     private final TeacherRepository teacherRepository;
     private final SchoolService schoolService;
     private final SchoolRepository schoolRepository;
+    private final AcademicYearService academicYearService; // ✅ AJOUT : Injection du service
 
     @PostMapping("/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
@@ -100,6 +103,7 @@ public class AuthController {
         String schoolCode = null;
         boolean isSubscriptionActive = false;
         boolean isSchoolConfigured = false;
+        Long academicYearId = null; // ✅ AJOUT : Initialisation de l'ID de l'année académique
 
         if (userEntity.getSchool() != null) {
             School school = userEntity.getSchool();
@@ -107,6 +111,12 @@ public class AuthController {
             schoolCode = school.getCode();
             isSubscriptionActive = schoolService.checkSchoolSubscription(school.getId());
             isSchoolConfigured = school.isSchoolConfigured();
+
+            // ✅ AJOUT : Récupération de l'année académique active pour cette école
+            AcademicYear activeYear = academicYearService.getAnneeActive(schoolId);
+            if (activeYear != null) {
+                academicYearId = activeYear.getId();
+            }
         } else if (isSuperAdmin) {
             isSubscriptionActive = true;
             isSchoolConfigured = true;
@@ -129,7 +139,8 @@ public class AuthController {
                 schoolId,
                 schoolCode,
                 isSubscriptionActive,
-                isSchoolConfigured
+                isSchoolConfigured,
+                academicYearId // ✅ AJOUT : Injection dans la réponse
         ));
     }
 
@@ -150,12 +161,10 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "Action non autorisée : Les identifiants initiaux ont déjà été modifiés."));
         }
 
-        // ❌ SÉCURITÉ STRICTE : Interdiction absolue de réutiliser le username par défaut généré
         if (newUsername.trim().equalsIgnoreCase(user.getDefaultUsername())) {
             return ResponseEntity.badRequest().body(Map.of("error", "Erreur : Votre nouveau nom d'utilisateur doit être strictement différent du nom d'utilisateur par défaut !"));
         }
 
-        // ❌ SÉCURITÉ STRICTE : Interdiction absolue de réutiliser le mot de passe initial
         if (encoder.matches(newPassword, user.getDefaultPasswordHashed())) {
             return ResponseEntity.badRequest().body(Map.of("error", "Erreur : Votre nouveau mot de passe doit être strictement différent du mot de passe temporaire fourni !"));
         }
@@ -166,7 +175,7 @@ public class AuthController {
 
         user.setUsername(newUsername.trim());
         user.setPassword(encoder.encode(newPassword));
-        user.setMustChangePassword(false); // Validation de l'étape d'onboarding
+        user.setMustChangePassword(false);
         userRepository.save(user);
 
         return ResponseEntity.ok(Map.of("message", "Vos identifiants ont été mis à jour avec succès ! Veuillez vous reconnecter avec vos nouvelles informations."));
@@ -192,7 +201,6 @@ public class AuthController {
         roles.add(userRole);
         user.setRoles(roles);
 
-        // Liaison de l'utilisateur à son établissement scolaire choisi à l'inscription
         if (signUpRequest.getSchoolId() != null) {
             School school = schoolRepository.findById(signUpRequest.getSchoolId())
                     .orElseThrow(() -> new RuntimeException("Erreur: Établissement scolaire introuvable."));

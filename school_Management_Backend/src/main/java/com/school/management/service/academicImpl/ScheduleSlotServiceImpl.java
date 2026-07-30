@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -29,6 +30,15 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
     @Transactional
     public ScheduleSlotResponseDTO addSlot(ScheduleSlotCreateDTO dto) {
 
+        // 0. Vérification de l'enseignant et de ses jours pédagogiques
+        Teacher teacher = teacherRepository.findById(dto.getTeacherId())
+                .orElseThrow(() -> new BadRequestException("L'enseignant spécifié n'existe pas."));
+
+        if (teacher.getPedagogicalDays() != null && teacher.getPedagogicalDays().contains(dto.getDayOfWeek())) {
+            throw new BadRequestException("Action refusée : Le " + dto.getDayOfWeek()
+                    + " est une journée pédagogique (repos) pour l'enseignant " + teacher.getFullName() + ".");
+        }
+
         // Résolution de la tranche horaire demandée
         HourSlot newHourSlot = hourSlotRepository.findById(dto.getHourSlotId())
                 .orElseThrow(() -> new BadRequestException("La tranche horaire spécifiée n'existe pas."));
@@ -40,7 +50,7 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
         boolean classConflict = scheduleSlotRepository.findBySchoolIdAndClassroomIdAndAcademicYearId(
                         dto.getSchoolId(), dto.getClassroomId(), dto.getAcademicYearId())
                 .stream()
-                .anyMatch(slot -> slot.getDayOfWeek() == dto.getDayOfWeek() &&
+                .anyMatch(slot -> Objects.equals(slot.getDayOfWeek(), dto.getDayOfWeek()) &&
                         slot.getHourSlot().getLabel().replaceAll("\\s+", "").toLowerCase().equals(normalizedLabel));
 
         if (classConflict) {
@@ -51,7 +61,7 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
         boolean teacherConflict = scheduleSlotRepository.findBySchoolIdAndAcademicYearIdAndTeacherId(
                         dto.getSchoolId(), dto.getAcademicYearId(), dto.getTeacherId())
                 .stream()
-                .anyMatch(slot -> slot.getDayOfWeek() == dto.getDayOfWeek() &&
+                .anyMatch(slot -> Objects.equals(slot.getDayOfWeek(), dto.getDayOfWeek()) &&
                         slot.getHourSlot().getLabel().replaceAll("\\s+", "").toLowerCase().equals(normalizedLabel));
 
         if (teacherConflict) {
@@ -74,7 +84,6 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
         // 4. Enregistrement avec les entités résolues
         Classroom classroom = classroomRepository.findById(dto.getClassroomId()).orElseThrow();
         Subject subject = subjectRepository.findById(dto.getSubjectId()).orElseThrow();
-        Teacher teacher = teacherRepository.findById(dto.getTeacherId()).orElseThrow();
         AcademicYear academicYear = academicYearRepository.findById(dto.getAcademicYearId()).orElseThrow();
 
         ScheduleSlot slot = ScheduleSlot.builder()
@@ -92,13 +101,22 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
 
     @Override
     @Transactional
-    public ScheduleSlotResponseDTO updateSlot(Long schoolId, Long slotId, ScheduleSlotCreateDTO dto) { // ✅ AJOUT
+    public ScheduleSlotResponseDTO updateSlot(Long schoolId, Long slotId, ScheduleSlotCreateDTO dto) {
         // 0. Validation de l'existence du créneau et cloisonnement SaaS multi-tenant
         ScheduleSlot existingSlot = scheduleSlotRepository.findById(slotId)
                 .orElseThrow(() -> new BadRequestException("Créneau introuvable."));
 
         if (!existingSlot.getSchoolId().equals(schoolId)) {
             throw new BadRequestException("Action non autorisée sur les données de cette école.");
+        }
+
+        // Vérification de l'enseignant et de ses jours pédagogiques
+        Teacher teacher = teacherRepository.findById(dto.getTeacherId())
+                .orElseThrow(() -> new BadRequestException("L'enseignant spécifié n'existe pas."));
+
+        if (teacher.getPedagogicalDays() != null && teacher.getPedagogicalDays().contains(dto.getDayOfWeek())) {
+            throw new BadRequestException("Action refusée : Le " + dto.getDayOfWeek()
+                    + " est une journée pédagogique (repos) pour l'enseignant " + teacher.getFullName() + ".");
         }
 
         // Résolution de la tranche horaire demandée
@@ -112,7 +130,7 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
                         dto.getSchoolId(), dto.getClassroomId(), dto.getAcademicYearId())
                 .stream()
                 .filter(slot -> !slot.getId().equals(slotId)) // Ignorer soi-même
-                .anyMatch(slot -> slot.getDayOfWeek() == dto.getDayOfWeek() &&
+                .anyMatch(slot -> Objects.equals(slot.getDayOfWeek(), dto.getDayOfWeek()) &&
                         slot.getHourSlot().getLabel().replaceAll("\\s+", "").toLowerCase().equals(normalizedLabel));
 
         if (classConflict) {
@@ -124,7 +142,7 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
                         dto.getSchoolId(), dto.getAcademicYearId(), dto.getTeacherId())
                 .stream()
                 .filter(slot -> !slot.getId().equals(slotId)) // Ignorer soi-même
-                .anyMatch(slot -> slot.getDayOfWeek() == dto.getDayOfWeek() &&
+                .anyMatch(slot -> Objects.equals(slot.getDayOfWeek(), dto.getDayOfWeek()) &&
                         slot.getHourSlot().getLabel().replaceAll("\\s+", "").toLowerCase().equals(normalizedLabel));
 
         if (teacherConflict) {
@@ -153,7 +171,6 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
         // 4. Mise à jour des données de l'entité reliée
         Classroom classroom = classroomRepository.findById(dto.getClassroomId()).orElseThrow();
         Subject subject = subjectRepository.findById(dto.getSubjectId()).orElseThrow();
-        Teacher teacher = teacherRepository.findById(dto.getTeacherId()).orElseThrow();
         AcademicYear academicYear = academicYearRepository.findById(dto.getAcademicYearId()).orElseThrow();
 
         existingSlot.setDayOfWeek(dto.getDayOfWeek());
@@ -170,6 +187,15 @@ public class ScheduleSlotServiceImpl implements ScheduleSlotService {
     @Transactional(readOnly = true)
     public List<ScheduleSlotResponseDTO> getClassroomSchedule(Long schoolId, Long classroomId, Long academicYearId) {
         return scheduleSlotRepository.findBySchoolIdAndClassroomIdAndAcademicYearId(schoolId, classroomId, academicYearId)
+                .stream()
+                .map(this::mapToResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ScheduleSlotResponseDTO> getTeacherSchedule(Long schoolId, Long teacherId, Long academicYearId) {
+        return scheduleSlotRepository.findBySchoolIdAndAcademicYearIdAndTeacherId(schoolId, academicYearId, teacherId)
                 .stream()
                 .map(this::mapToResponseDTO)
                 .collect(Collectors.toList());

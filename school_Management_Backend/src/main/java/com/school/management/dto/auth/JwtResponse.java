@@ -17,9 +17,12 @@ public class JwtResponse {
     private List<String> roles;
     private Long teacherId;
 
-    // ✅ AJOUTS SAAS : Informations de licence renvoyées au Frontend pour les Route Guards
+    // Informations de licence renvoyées au Frontend pour les Route Guards
     private Long schoolId;
     private String schoolCode;
     private boolean isSubscriptionActive;
     private boolean isSchoolConfigured;
+
+    // ✅ AJOUT : L'identifiant de l'année académique active
+    private Long academicYearId;
 }

@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
     UserPlus, Search, Filter, Download, RefreshCw, 
-    Mail, Phone, MapPin, Eye, Pencil, Trash2, User, BookOpen, CheckCircle2, XCircle
+    Mail, Phone, MapPin, Eye, Pencil, Trash2, User, BookOpen, CheckCircle2, XCircle, Calendar
 } from 'lucide-react';
 
-// IMPORT MODIFIÉ : On importe aussi getFileUrl
 import TeacherService, { getFileUrl } from '../../../services/pedagogieService/TeacherService';
 import AddTeacherModal from './AddTeacherModal';
 import ViewTeacherModal from './ViewTeacherModal';
@@ -33,6 +32,33 @@ const TeacherManagement = () => {
         return dateString;
     };
 
+    const renderPedagogicalDays = (pedagogicalDays) => {
+        const days = Array.isArray(pedagogicalDays) 
+            ? pedagogicalDays 
+            : (typeof pedagogicalDays === 'string' ? pedagogicalDays.split(',').map(d => d.trim()).filter(Boolean) : []);
+
+        if (days.length === 0) {
+            return (
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic">
+                    Aucune
+                </span>
+            );
+        }
+
+        return (
+            <div className="flex flex-wrap items-center justify-center gap-1 max-w-[160px] mx-auto">
+                {days.map((day, idx) => (
+                    <span 
+                        key={idx} 
+                        className="inline-flex items-center text-[9px] font-black uppercase tracking-wider bg-purple-50 dark:bg-purple-500/10 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-md border border-purple-100 dark:border-purple-500/20 shadow-xs"
+                    >
+                        {day}
+                    </span>
+                ))}
+            </div>
+        );
+    };
+
     const fetchTeachers = async () => {
         setLoading(true);
         try {
@@ -51,13 +77,20 @@ const TeacherManagement = () => {
     }, []);
 
     useEffect(() => {
-        const results = teachers.filter(teacher => 
-            teacher.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            teacher.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            teacher.schoolRegistrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            teacher.nationalRegistrationNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            teacher.specialityDomainName?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
+        const searchLower = searchTerm.toLowerCase();
+        const results = teachers.filter(teacher => {
+            const pedDays = Array.isArray(teacher.pedagogicalDays) 
+                ? teacher.pedagogicalDays.join(' ') 
+                : (teacher.pedagogicalDays || teacher.journeesPedagogiques || '');
+
+            return teacher.lastName?.toLowerCase().includes(searchLower) ||
+                teacher.firstName?.toLowerCase().includes(searchLower) ||
+                teacher.schoolRegistrationNumber?.toLowerCase().includes(searchLower) ||
+                teacher.nationalRegistrationNumber?.toLowerCase().includes(searchLower) ||
+                teacher.specialityDomainName?.toLowerCase().includes(searchLower) ||
+                teacher.domainSpecialityName?.toLowerCase().includes(searchLower) ||
+                pedDays.toLowerCase().includes(searchLower);
+        });
         setFilteredTeachers(results);
     }, [searchTerm, teachers]);
 
@@ -90,7 +123,7 @@ const TeacherManagement = () => {
             <div className="flex flex-col md:flex-row justify-between md:items-center gap-6 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-sm transition-colors">
                 <div>
                     <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tight">Registre des Enseignants</h2>
-                    <p className="text-slate-400 dark:text-slate-500 font-bold text-sm mt-1">Gestion RH et dossiers académiques du personnel</p>
+                    <p className="text-slate-400 dark:text-slate-500 font-bold text-sm mt-1">Gestion RH, journées pédagogiques et dossiers académiques du personnel</p>
                 </div>
                 <button 
                     onClick={() => setIsAddModalOpen(true)}
@@ -108,7 +141,7 @@ const TeacherManagement = () => {
                         <Search size={18} className="text-slate-400 dark:text-slate-500 shrink-0" />
                         <input 
                             type="text" 
-                            placeholder="Rechercher par nom, matricule, spécialité..." 
+                            placeholder="Rechercher par nom, matricule, spécialité, journée..." 
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
                             className="bg-transparent border-none focus:ring-0 text-sm ml-3 w-full font-bold text-slate-700 dark:text-slate-200 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none" 
@@ -136,7 +169,8 @@ const TeacherManagement = () => {
                                 <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10 whitespace-nowrap">Matricule</th>
                                 <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10">Identité Complète</th>
                                 <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10">Contact & Résidence</th>
-                                <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10">Date de Naissance </th>
+                                <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10">Date de Naissance</th>
+                                <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10 text-center">Journées Pédagogiques</th>
                                 <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10 text-center">Statut</th>
                                 <th className="p-5 text-[10px] sm:text-xs font-black uppercase tracking-widest border-b border-white/10 text-center">Actions</th>
                             </tr>
@@ -144,13 +178,13 @@ const TeacherManagement = () => {
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900 transition-colors">
                             {loading ? (
                                 <tr>
-                                    <td colSpan="6" className="p-20 text-center font-black text-slate-300 dark:text-slate-600 uppercase animate-pulse tracking-widest">
+                                    <td colSpan="7" className="p-20 text-center font-black text-slate-300 dark:text-slate-600 uppercase animate-pulse tracking-widest">
                                         Chargement des données...
                                     </td>
                                 </tr>
                             ) : filteredTeachers.length === 0 ? (
                                 <tr>
-                                    <td colSpan="6" className="p-20 text-center font-bold text-slate-400 dark:text-slate-500">
+                                    <td colSpan="7" className="p-20 text-center font-bold text-slate-400 dark:text-slate-500">
                                         Aucun enseignant trouvé.
                                     </td>
                                 </tr>
@@ -175,7 +209,6 @@ const TeacherManagement = () => {
                                             <div className="w-12 h-12 shrink-0 rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 flex items-center justify-center font-black text-slate-600 dark:text-slate-300 shadow-inner group-hover:from-blue-100 group-hover:to-blue-200 dark:group-hover:from-slate-700 dark:group-hover:to-slate-600 transition-all border border-slate-200 dark:border-slate-700 group-hover:border-blue-300 dark:group-hover:border-slate-500 overflow-hidden">
                                                 {teacher.profilePicturePath ? (
                                                     <img 
-                                                        // UTILISATION DE getFileUrl ICI
                                                         src={getFileUrl(teacher.profilePicturePath)} 
                                                         alt={`${teacher.lastName}`} 
                                                         className="w-full h-full object-cover"
@@ -196,7 +229,6 @@ const TeacherManagement = () => {
                                                     {teacher.gender === 'M' ? 'Homme' : 'Femme'} • {teacher.maritalStatus || 'N/A'}
                                                 </span>
                                                 
-                                                {/* Badge de la Spécialité */}
                                                 {teacher.domainSpecialityName && (
                                                     <span className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-lg w-fit border border-blue-100 dark:border-blue-500/20 shadow-sm">
                                                         <BookOpen size={10} className="text-blue-500 dark:text-blue-400" /> 
@@ -236,7 +268,10 @@ const TeacherManagement = () => {
                                         </div>
                                     </td>
 
-                                    {/* COLONNE STATUT AJOUTÉE */}
+                                    <td className="p-5 align-middle text-center">
+                                        {renderPedagogicalDays(teacher.pedagogicalDays || teacher.journeesPedagogiques)}
+                                    </td>
+
                                     <td className="p-5 align-middle text-center">
                                         {teacher.active ? (
                                             <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-3 py-1.5 rounded-xl border border-emerald-100 dark:border-emerald-500/20 shadow-sm">

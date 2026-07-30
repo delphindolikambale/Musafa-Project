@@ -28,6 +28,14 @@ public class HourSlotController {
         return ResponseEntity.ok(hourSlotService.getSchoolHourSlots(schoolId));
     }
 
+    @PutMapping("/{id}")
+    public ResponseEntity<HourSlotResponseDTO> updateHourSlot(
+            @RequestHeader("X-School-Id") Long schoolId,
+            @PathVariable Long id,
+            @Valid @RequestBody HourSlotCreateDTO dto) {
+        return ResponseEntity.ok(hourSlotService.updateHourSlot(schoolId, id, dto));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteHourSlot(@RequestHeader("X-School-Id") Long schoolId, @PathVariable Long id) {
         hourSlotService.deleteHourSlot(schoolId, id);
