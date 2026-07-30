@@ -3,7 +3,7 @@ import { Calendar, AlertCircle, RefreshCw, UserCheck, Phone, Clock, CalendarDays
 import ScheduleCalendar from './ScheduleCalendar';
 import scheduleSlotService from '../../../services/pedagogieService/scheduleSlotService';
 import hourSlotService from '../../../services/pedagogieService/hourSlotService';
-import TeacherService from "../../../services/pedagogieService/teacherService";
+import TeacherService from "../../../services/pedagogieService/TeacherService";
 
 const MyScheduleTeacher = () => {
   const [scheduleData, setScheduleData] = useState([]);
