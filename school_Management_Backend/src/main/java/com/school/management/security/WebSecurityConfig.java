@@ -35,7 +35,7 @@ public class WebSecurityConfig implements WebMvcConfigurer {
     private final UserDetailsServiceImpl userDetailsService;
     private final AuthEntryPointJwt unauthorizedHandler;
 
-    // Configuration du mapping des fichiers statiques pour rendre les images accessibles
+    // Configuration du mapping des fichiers statiques pour rendre les images locales accessibles
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         registry.addResourceHandler("/storage/**", "/uploads/**")
@@ -84,7 +84,7 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 "http://127.0.0.1:*"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*")); // ✅ Permet tous les en-têtes HTTP pour éviter les blocages CORS Preflight
+        configuration.setAllowedHeaders(List.of("*")); // Permet tous les en-têtes HTTP pour éviter les blocages CORS Preflight
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -103,7 +103,7 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
                         auth
-                                // ✅ 1. Requêtes Preflight CORS
+                                // ✅ 1. Requêtes Preflight CORS (Prise en charge universelle OPTIONS)
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                                 // ✅ 2. Endpoints totalement publics
@@ -113,6 +113,7 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
                                 .requestMatchers("/api/resources/**").permitAll()
+                                .requestMatchers("/api/files/**").permitAll() // 👈 Route d'accès direct aux fichiers via FileController
                                 .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()
                                 .requestMatchers("/storage/**", "/uploads/**").permitAll()
@@ -121,7 +122,7 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                                 .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM", "ROLE_ADMIN", "ADMIN")
 
-                                // ✅ 4. Endpoints Métier Authentifiés (Ajout explicite de la route des notifications et pédagogie)
+                                // ✅ 4. Endpoints Métier Authentifiés
                                 .requestMatchers("/api/notifications/**").authenticated()
                                 .requestMatchers("/api/academic/**", "/api/config/**", "/api/v1/admin/school-config").authenticated()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").authenticated()
