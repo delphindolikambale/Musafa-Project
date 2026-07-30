@@ -5,16 +5,22 @@ import com.school.management.dto.academic.TeacherCreateDTO;
 import com.school.management.dto.academic.TeacherResponseDTO;
 import com.school.management.dto.academic.TrainingDTO;
 import com.school.management.model.academic.*;
+import com.school.management.model.auth.Role;
+import com.school.management.model.auth.User;
+import com.school.management.model.enums.AppRole;
 import com.school.management.model.enums.DayOfWeek;
 import com.school.management.repository.academic.AcademicYearRepository;
 import com.school.management.repository.academic.DomainSpecialityRepository;
 import com.school.management.repository.academic.TeacherRepository;
+import com.school.management.repository.auth.RoleRepository;
+import com.school.management.repository.auth.UserRepository;
 import com.school.management.service.academic.TeacherService;
 import com.school.management.security.services.UserDetailsImpl;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,7 +32,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -36,6 +44,11 @@ public class TeacherServiceImpl implements TeacherService {
     private final TeacherRepository teacherRepository;
     private final AcademicYearRepository academicYearRepository;
     private final DomainSpecialityRepository specialityRepository;
+
+    // ✅ NOUVELLES INJECTIONS : Pour la création automatique du compte utilisateur
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Value("${app.storage.location:${user.dir}/storage}")
     private String storageLocation;
@@ -71,7 +84,6 @@ public class TeacherServiceImpl implements TeacherService {
 
     /**
      * ✅ SÉCURITÉ : Règle métier - Un enseignant ne peut pas avoir plus de 2 jours pédagogiques.
-     * Utilisation de List<?> pour être compatible avec List<DayOfWeek> ou List<String>.
      */
     private void validatePedagogicalDays(List<?> pedagogicalDays) {
         if (pedagogicalDays != null && pedagogicalDays.size() > 2) {
@@ -99,6 +111,46 @@ public class TeacherServiceImpl implements TeacherService {
         handleSpecialityAssignment(teacher, dto);
         mapBasicInfo(teacher, dto);
 
+        // ✅ LOGIQUE DE CRÉATION AUTOMATIQUE DU COMPTE UTILISATEUR (USER)
+        String baseUsername = "ens." + teacher.getSchoolRegistrationNumber().toLowerCase();
+        String targetUsername = baseUsername;
+        int counter = 1;
+        while (userRepository.existsByUsername(targetUsername)) {
+            targetUsername = baseUsername + counter;
+            counter++;
+        }
+
+        String targetEmail = dto.getEmail();
+        if (targetEmail == null || targetEmail.trim().isEmpty() || userRepository.existsByEmail(targetEmail.trim())) {
+            targetEmail = targetUsername + "@school.temp";
+        } else {
+            targetEmail = targetEmail.trim().toLowerCase();
+        }
+
+        String defaultRawPassword = "Prof2026!";
+        String encodedPassword = passwordEncoder.encode(defaultRawPassword);
+
+        User newUser = new User();
+        newUser.setUsername(targetUsername);
+        newUser.setEmail(targetEmail);
+        newUser.setPassword(encodedPassword);
+        newUser.setSchool(getCurrentUser().getSchool());
+        newUser.setMustChangePassword(true);
+        newUser.setDefaultUsername(targetUsername);
+        newUser.setDefaultPasswordHashed(encodedPassword);
+        newUser.setAccountNonLocked(true);
+        newUser.setEnabled(true);
+
+        Set<Role> roles = new HashSet<>();
+        Role enseignantRole = roleRepository.findByName(AppRole.ROLE_ENSEIGNANT)
+                .orElseThrow(() -> new RuntimeException("Erreur système: Le rôle ROLE_ENSEIGNANT n'existe pas en base de données."));
+        roles.add(enseignantRole);
+        newUser.setRoles(roles);
+
+        User savedUser = userRepository.save(newUser);
+        teacher.setUser(savedUser);
+
+        // Gestion des répertoires et fichiers
         String safeLastName = dto.getLastName().trim().toUpperCase().replaceAll("[^A-Z0-9]", "_");
         String safeFirstName = dto.getFirstName().trim().toUpperCase().replaceAll("[^A-Z0-9]", "_");
         String folderName = teacher.getSchoolRegistrationNumber() + "_" + safeLastName + "_" + safeFirstName;
@@ -130,6 +182,13 @@ public class TeacherServiceImpl implements TeacherService {
         }
 
         teacher.setActive(!teacher.isActive());
+
+        // Synchroniser également le statut d'activation du compte User s'il existe
+        if (teacher.getUser() != null) {
+            teacher.getUser().setEnabled(teacher.isActive());
+            userRepository.save(teacher.getUser());
+        }
+
         return mapToResponseDTO(teacherRepository.save(teacher));
     }
 
