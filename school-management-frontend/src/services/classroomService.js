@@ -1,6 +1,9 @@
 import api from './api';
 
 export const ClassroomService = {
+    // Récupération d'une classe par ID
+    getById: (id) => api.get(`/classrooms/${id}`),
+
     // Récupère toutes les classes avec filtrage par année pour les compteurs d'élèves
     getAll: (academicYearId = null) => {
         const url = academicYearId ? `/classrooms?academicYearId=${academicYearId}` : '/classrooms';

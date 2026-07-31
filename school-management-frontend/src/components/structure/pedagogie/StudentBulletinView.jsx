@@ -8,6 +8,7 @@ import {
     AlertCircle,
     Loader2
 } from 'lucide-react';
+import api from '../../../services/api';
 
 const StudentBulletinView = () => {
     const { classroomId, studentId } = useParams();
@@ -44,20 +45,18 @@ const StudentBulletinView = () => {
                 setLoading(true);
                 setError(null);
                 
-                // Appel API pour récupérer les données de l'élève et ses notes
-                const response = await fetch(`/api/classrooms/${classroomId}/students/${studentId}/bulletin`);
+                // Utilisation de l'instance API centralisée au lieu de fetch
+                const response = await api.get(`/classrooms/${classroomId}/students/${studentId}/bulletin`);
                 
-                if (!response.ok) {
+                if (response.status !== 200) {
                     throw new Error("Impossible de récupérer les données du bulletin sur le serveur.");
                 }
                 
-                const data = await response.json();
-                
-                setStudentData(data.student);
-                setBulletinBranches(data.branches || defaultBranches);
+                setStudentData(response.data.student);
+                setBulletinBranches(response.data.branches || defaultBranches);
             } catch (err) {
                 console.error("Erreur API:", err);
-                setError(err.message);
+                setError(err.message || "Erreur de connexion");
                 
                 // Fallback de développement pour ne pas bloquer l'interface
                 setStudentData({
@@ -91,7 +90,7 @@ const StudentBulletinView = () => {
     // Déclenche le téléchargement du fichier PDF pré-généré dans le dossier du serveur
     const handleDownloadPDF = () => {
         if (!studentId) return;
-        // Point d'accès de votre API Spring Boot qui renvoie le fichier physique du dossier créé
+        // Adaptation pour utiliser l'URL de base si nécessaire, ou l'endpoint défini dans le backend
         window.open(`/api/bulletins/download/${studentId}`, '_blank');
     };
 
@@ -281,95 +280,134 @@ const StudentBulletinView = () => {
                                 </tr>
                                 <tr className="border-b border-black">
                                     <th rowSpan="2" className="border-r border-black border-t border-black p-1">MAX.</th>
-                                    <th colSpan="2" className="border-r border-black border-t border-black p-1 leading-tight">TRAVAUX<br/>JOURNAL.</th>
-                                    <th rowSpan="2" className="border-r-2 border-black border-t border-black p-1">TOTAL</th>
+                                    <th colSpan="2" className="border-r border-black border-t border-black p-1">TRAVAIL JOURNALIER</th>
+                                    <th rowSpan="2" className="border-r-2 border-black border-t border-black p-1">EXAMEN</th>
+                                    
                                     <th rowSpan="2" className="border-r border-black border-t border-black p-1">MAX.</th>
-                                    <th colSpan="2" className="border-r border-black border-t border-black p-1 leading-tight">TRAVAUX<br/>JOURNAL.</th>
-                                    <th rowSpan="2" className="border-r-2 border-black border-t border-black p-1">TOTAL</th>
+                                    <th colSpan="2" className="border-r border-black border-t border-black p-1">TRAVAIL JOURNALIER</th>
+                                    <th rowSpan="2" className="border-r-2 border-black border-t border-black p-1">EXAMEN</th>
+                                    
                                     <th rowSpan="2" className="border-r border-black border-t border-black p-1">%</th>
-                                    <th rowSpan="2" className="border-t border-black p-1">Sign. Prof.</th>
+                                    <th rowSpan="2" className="border-t border-black p-1">SIGN.</th>
                                 </tr>
                                 <tr className="border-b-2 border-black">
-                                    <th className="border-r border-black p-0.5 w-[4%]">1ère P</th>
-                                    <th className="border-r border-black p-0.5 w-[4%]">2ème P</th>
-                                    <th className="border-r border-black p-0.5 w-[4%]">3ème P</th>
-                                    <th className="border-r border-black p-0.5 w-[4%]">4ème P</th>
+                                    <th className="border-r border-black p-1">1ère P.</th>
+                                    <th className="border-r border-black p-1">2ème P.</th>
+                                    <th className="border-r border-black p-1">3ème P.</th>
+                                    <th className="border-r border-black p-1">4ème P.</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {/* Rendu dynamique des matières issues de la DB */}
-                                {activeBranches.map((branch, index) => (
-                                    <tr key={index} className={branch.isHeader ? "bg-slate-100 print:bg-slate-100 h-6" : "h-6"}>
-                                        {branch.isHeader ? (
-                                            <>
-                                                <td className="border-r-2 border-black border-b border-black text-left p-1 font-black uppercase" colSpan="12">
-                                                    {branch.name}
-                                                </td>
-                                            </>
-                                        ) : branch.isSubHeader ? (
-                                            <>
-                                                <td className="border-r-2 border-black border-b border-black text-left p-1 pl-4 italic" colSpan="12">
-                                                    {branch.name}
-                                                </td>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <td className="border-r-2 border-black border-b border-black text-left p-1 pl-6 font-medium">{branch.name}</td>
-                                                <td className="border-r border-black border-b border-black">{branch.max1Sem ?? '-'}</td>
-                                                <td className="border-r border-black border-b border-black font-normal">{branch.p1}</td>
-                                                <td className="border-r border-black border-b border-black font-normal">{branch.p2}</td>
-                                                <td className="border-r-2 border-black border-b border-black bg-slate-50 font-black">{branch.tot1Sem}</td>
-                                                <td className="border-r border-black border-b border-black">{branch.max2Sem ?? '-'}</td>
-                                                <td className="border-r border-black border-b border-black font-normal">{branch.p3}</td>
-                                                <td className="border-r border-black border-b border-black font-normal">{branch.p4}</td>
-                                                <td className="border-r-2 border-black border-b border-black bg-slate-50 font-black">{branch.tot2Sem}</td>
-                                                <td className="border-r-2 border-black border-b border-black bg-slate-100 font-extrabold">{branch.totalGeneral}</td>
-                                                <td className="border-r border-black border-b border-black font-normal">{branch.repechage || ''}</td>
-                                                <td className="border-b border-black font-normal text-[8px]">{branch.signature || ''}</td>
-                                            </>
-                                        )}
+                                {activeBranches.map((branch, index) => {
+                                    if (branch.isHeader) {
+                                        return (
+                                            <tr key={index} className="bg-slate-200 border-b border-black">
+                                                <td colSpan="12" className="p-1 text-left font-black">{branch.name}</td>
+                                            </tr>
+                                        );
+                                    }
+                                    if (branch.isSubHeader) {
+                                        return (
+                                            <tr key={index} className="bg-slate-100 border-b border-black">
+                                                <td colSpan="12" className="p-1 text-left font-bold pl-4 italic">{branch.name}</td>
+                                            </tr>
+                                        );
+                                    }
+                                    return (
+                                        <tr key={index} className="border-b border-black text-center">
+                                            <td className="border-r-2 border-black p-1 text-left pl-2">{branch.name}</td>
+                                            <td className="border-r border-black p-1 font-bold">{branch.max1Sem}</td>
+                                            <td className="border-r border-black p-1">{branch.p1}</td>
+                                            <td className="border-r border-black p-1">{branch.p2}</td>
+                                            <td className="border-r-2 border-black p-1">{branch.tot1Sem}</td>
+                                            <td className="border-r border-black p-1 font-bold">{branch.max2Sem}</td>
+                                            <td className="border-r border-black p-1">{branch.p3}</td>
+                                            <td className="border-r border-black p-1">{branch.p4}</td>
+                                            <td className="border-r-2 border-black p-1">{branch.tot2Sem}</td>
+                                            <td className="border-r-2 border-black p-1 font-black bg-slate-50">{branch.totalGeneral}</td>
+                                            <td className="border-r border-black p-1"></td>
+                                            <td className="p-1"></td>
+                                        </tr>
+                                    );
+                                })}
+                                
+                                {/* Lignes de remplissage */}
+                                {[...Array(paddingRowsCount)].map((_, i) => (
+                                    <tr key={`pad-${i}`} className="border-b border-black h-6">
+                                        <td className="border-r-2 border-black"></td>
+                                        <td className="border-r border-black bg-slate-50"></td>
+                                        <td className="border-r border-black"></td>
+                                        <td className="border-r border-black"></td>
+                                        <td className="border-r-2 border-black"></td>
+                                        <td className="border-r border-black bg-slate-50"></td>
+                                        <td className="border-r border-black"></td>
+                                        <td className="border-r border-black"></td>
+                                        <td className="border-r-2 border-black"></td>
+                                        <td className="border-r-2 border-black bg-slate-50"></td>
+                                        <td className="border-r border-black"></td>
+                                        <td></td>
                                     </tr>
                                 ))}
 
-                                {/* Remplissage pour forcer l'alignement strict du format A4 */}
-                                {[...Array(paddingRowsCount)].map((_, i) => (
-                                    <tr key={`pad-${i}`} className="h-6">
-                                        <td className="border-r-2 border-black border-b border-black"></td>
-                                        <td className="border-r border-black border-b border-black"></td>
-                                        <td className="border-r border-black border-b border-black"></td>
-                                        <td className="border-r border-black border-b border-black"></td>
-                                        <td className="border-r-2 border-black border-b border-black bg-slate-50"></td>
-                                        <td className="border-r border-black border-b border-black"></td>
-                                        <td className="border-r border-black border-b border-black"></td>
-                                        <td className="border-r border-black border-b border-black"></td>
-                                        <td className="border-r-2 border-black border-b border-black bg-slate-50"></td>
-                                        <td className="border-r-2 border-black border-b border-black bg-slate-100"></td>
-                                        <td className="border-r border-black border-b border-black"></td>
-                                        <td className="border-b border-black"></td>
-                                    </tr>
-                                ))}
+                                {/* Section des Totaux et Pourcentages */}
+                                <tr className="border-b-2 border-black font-black bg-slate-100 text-center">
+                                    <td className="border-r-2 border-black p-1 text-left pl-2 uppercase">Max Général / Total</td>
+                                    <td className="border-r border-black p-1">170</td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r-2 border-black p-1">170</td>
+                                    <td className="border-r border-black p-1">170</td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r-2 border-black p-1">170</td>
+                                    <td className="border-r-2 border-black p-1">340</td>
+                                    <td className="border-r border-black p-1 bg-white"></td>
+                                    <td className="p-1 bg-white"></td>
+                                </tr>
+
+                                <tr className="border-b-2 border-black font-black text-center">
+                                    <td className="border-r-2 border-black p-1 text-left pl-2 uppercase">Pourcentage</td>
+                                    <td className="border-r border-black p-1 bg-slate-200"></td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r-2 border-black p-1"></td>
+                                    <td className="border-r border-black p-1 bg-slate-200"></td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="border-r-2 border-black p-1"></td>
+                                    <td className="border-r-2 border-black p-1 bg-slate-100 text-lg"></td>
+                                    <td className="border-r border-black p-1"></td>
+                                    <td className="p-1"></td>
+                                </tr>
+
+                                <tr className="border-b-2 border-black font-bold text-center">
+                                    <td className="border-r-2 border-black p-1 text-left pl-2 uppercase">Place / Nbre d'élèves</td>
+                                    <td className="border-r border-black p-1 bg-slate-200"></td>
+                                    <td colSpan="3" className="border-r-2 border-black p-1">... / {studentData?.nombreEleves || 45}</td>
+                                    <td className="border-r border-black p-1 bg-slate-200"></td>
+                                    <td colSpan="3" className="border-r-2 border-black p-1">... / {studentData?.nombreEleves || 45}</td>
+                                    <td className="border-r-2 border-black p-1 bg-slate-100">... / {studentData?.nombreEleves || 45}</td>
+                                    <td colSpan="2" className="p-1"></td>
+                                </tr>
                             </tbody>
                         </table>
-                        
-                        {/* PIED DE PAGE : Signatures et Mentions */}
-                        <div className="mt-4 grid grid-cols-3 text-[9px] font-bold text-center gap-4 border-t border-black pt-4">
-                            <div>
-                                <p>Fait à BENI, le {new Date().toLocaleDateString('fr-FR')}</p>
-                                <p className="mt-1 font-black uppercase text-xs">Le Chef d'Établissement</p>
-                                <p className="mt-8 text-slate-400 italic">(Signature et Sceau)</p>
+
+                        {/* Signatures en bas du bulletin */}
+                        <div className="mt-4 flex justify-between px-4 text-xs font-bold">
+                            <div className="text-center">
+                                <p className="mb-16">Signature du Titulaire</p>
                             </div>
-                            <div className="flex items-center justify-center">
-                                <div className="border border-dashed border-black p-2 w-3/4">
-                                    <p className="uppercase text-[8px]">Sceau de l'école</p>
-                                </div>
+                            <div className="text-center">
+                                <p className="mb-2">Fait à ................................., le ....../....../20...</p>
+                                <p className="mb-16">Le Chef d'Établissement</p>
                             </div>
-                            <div>
-                                <p className="invisible">Espace alignement</p>
-                                <p className="mt-1 font-black uppercase text-xs">Le Titulaire de Classe</p>
-                                <p className="mt-8 text-slate-400 italic">(Signature)</p>
+                            <div className="text-center">
+                                <p className="mb-16">Signature des Parents ou du Tuteur</p>
+                            </div>
+                            <div className="text-center w-24">
+                                <p className="mb-16 text-slate-400 border border-slate-300 h-24 flex items-center justify-center rounded-full">Sceau</p>
                             </div>
                         </div>
-
                     </div>
                 )}
             </div>

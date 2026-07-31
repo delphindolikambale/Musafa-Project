@@ -22,6 +22,10 @@ public class TeacherResponseDTO {
     private String residentialAddress;
     private boolean active; // Retourne l'état actuel au frontend
 
+    // ✅ AJOUT : Informations du compte utilisateur généré
+    private String username;
+    private boolean mustChangePassword;
+
     // Journées pédagogiques de l'enseignant
     private List<DayOfWeek> pedagogicalDays;
 

@@ -79,7 +79,6 @@ public class EnrollmentServiceImpl implements EnrollmentService {
             throw new RuntimeException("Impossible d'initialiser le dossier de stockage", e);
         }
     }
-
     /**
      * Extrait l'ID de l'établissement lié à la session utilisateur courante
      */

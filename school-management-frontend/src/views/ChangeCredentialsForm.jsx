@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import axios from "axios";
-import { BACKEND_BASE } from "../services/api"; // Assurez-vous que le chemin vers api.js est correct
+import AuthService from "../services/auth.service";
 import { UserPlus, Lock, Loader2, ArrowRight, CheckCircle2, XCircle, ShieldAlert } from "lucide-react";
 
 const translations = {
@@ -55,18 +54,14 @@ const ChangeCredentialsForm = ({ currentUsername, onCancel, onSuccess, darkMode 
     setNotification({ show: false, type: "", title: "", text: "" });
 
     try {
-      // ✅ Appel direct à l'endpoint que nous avons créé dans le backend
-      const response = await axios.post(`${BACKEND_BASE}/api/auth/change-credentials`, {
-        currentUsername: currentUsername,
-        newUsername: newUsername,
-        newPassword: newPassword
-      });
+      // ✅ Utilisation du service centralisé AuthService
+      const response = await AuthService.changeCredentials(currentUsername, newUsername, newPassword);
 
       setNotification({
         show: true,
         type: "success",
         title: t.successTitle,
-        text: response.data.message || t.successText
+        text: response?.message || t.successText
       });
 
       setTimeout(() => {

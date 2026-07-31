@@ -45,7 +45,7 @@ public class TeacherServiceImpl implements TeacherService {
     private final AcademicYearRepository academicYearRepository;
     private final DomainSpecialityRepository specialityRepository;
 
-    // ✅ NOUVELLES INJECTIONS : Pour la création automatique du compte utilisateur
+    // ✅ INJECTIONS : Pour la création automatique du compte utilisateur
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
@@ -139,7 +139,7 @@ public class TeacherServiceImpl implements TeacherService {
         newUser.setDefaultUsername(targetUsername);
         newUser.setDefaultPasswordHashed(encodedPassword);
         newUser.setAccountNonLocked(true);
-        newUser.setEnabled(true);
+        newUser.setEnabled(dto.isActive());
 
         Set<Role> roles = new HashSet<>();
         Role enseignantRole = roleRepository.findByName(AppRole.ROLE_ENSEIGNANT)
@@ -216,6 +216,15 @@ public class TeacherServiceImpl implements TeacherService {
         mapBasicInfo(teacher, dto);
         teacher.setActive(dto.isActive());
 
+        // Synchroniser l'e-mail du compte utilisateur associé s'il existe et a changé
+        if (teacher.getUser() != null && dto.getEmail() != null && !dto.getEmail().trim().isEmpty()) {
+            String newEmail = dto.getEmail().trim().toLowerCase();
+            if (!newEmail.equalsIgnoreCase(teacher.getUser().getEmail()) && !userRepository.existsByEmail(newEmail)) {
+                teacher.getUser().setEmail(newEmail);
+                userRepository.save(teacher.getUser());
+            }
+        }
+
         String currentPath = teacher.getDirectoryPath();
         if (currentPath == null) {
             currentPath = "teachers/default/" + teacher.getSchoolRegistrationNumber();
@@ -258,7 +267,13 @@ public class TeacherServiceImpl implements TeacherService {
         String fullYear = activeYear.getAnnee();
         String yearSuffix = (fullYear != null && fullYear.length() >= 2) ? fullYear.substring(fullYear.length() - 2) : "26";
         long nextOrderNumber = teacherRepository.findAllBySchoolIdOrderByIdDesc(getCurrentSchoolId()).size() + 1;
-        return "ENS" + nextOrderNumber + yearSuffix;
+        String reg = "ENS" + nextOrderNumber + yearSuffix;
+
+        while (teacherRepository.findBySchoolRegistrationNumberAndSchoolId(reg, getCurrentSchoolId()).isPresent()) {
+            nextOrderNumber++;
+            reg = "ENS" + nextOrderNumber + yearSuffix;
+        }
+        return reg;
     }
 
     private void mapBasicInfo(Teacher teacher, TeacherCreateDTO dto) {
@@ -296,6 +311,12 @@ public class TeacherServiceImpl implements TeacherService {
         dto.setProfilePicturePath(t.getProfilePicturePath());
         dto.setCvPath(t.getCvPath());
         dto.setDirectoryPath(t.getDirectoryPath());
+
+        // ✅ INCLUSION DE L'UTILISATEUR ASSOCIÉ DANS LE DTO
+        if (t.getUser() != null) {
+            dto.setUsername(t.getUser().getUsername());
+            dto.setMustChangePassword(t.getUser().isMustChangePassword());
+        }
 
         if (t.getDomainSpeciality() != null) {
             dto.setDomainSpecialityId(t.getDomainSpeciality().getId());

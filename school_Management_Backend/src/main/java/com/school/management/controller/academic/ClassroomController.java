@@ -41,6 +41,13 @@ public class ClassroomController {
         return ResponseEntity.ok(classroomService.getAll(academicYearId, currentSchool.getId()));
     }
 
+    // NOUVEL ENDPOINT : Récupération d'une classe spécifique par son ID (Règle le problème 405 Method Not Allowed)
+    @GetMapping("/{id}")
+    public ResponseEntity<ClassroomResponseDTO> getById(@PathVariable Long id) {
+        School currentSchool = getCurrentSchool();
+        return ResponseEntity.ok(classroomService.getById(id, currentSchool.getId()));
+    }
+
     @PostMapping
     public ResponseEntity<ClassroomResponseDTO> create(@Valid @RequestBody ClassroomRequestDTO request) {
         School currentSchool = getCurrentSchool();

@@ -31,8 +31,8 @@ const ClassBulletinsFolder = () => {
                 setClassroomName(classroomRes.data.displayName || classroomRes.data.name || "Classe");
             }
 
-            // 2. Récupération des élèves ayant des bulletins générés pour cette classe
-            const response = await api.get(`/bulletins/classroom/${classroomId}/students`);
+            // 2. Récupération des élèves ayant des bulletins générés pour cette classe (Correction de la route backend)
+            const response = await api.get(`/bulletins/titulaire/folders/${classroomId}/students`);
             if (response.status === 200 && response.data) {
                 setStudents(response.data);
             }

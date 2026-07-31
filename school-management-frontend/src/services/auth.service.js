@@ -60,6 +60,22 @@ const getPublicSchools = async () => {
   return response.data;
 };
 
+// ✅ AJOUT : Fonction publique pour récupérer la configuration globale de l'application
+const getPublicConfig = async () => {
+  const response = await axios.get(`${API_BASE}/system-admin/public/config`);
+  return response.data;
+};
+
+// ✅ AJOUT : Fonction centralisée pour la modification obligatoire des identifiants initiaux
+const changeCredentials = async (currentUsername, newUsername, newPassword) => {
+  const response = await axios.post(`${API_BASE}/auth/change-credentials`, {
+    currentUsername,
+    newUsername,
+    newPassword,
+  });
+  return response.data;
+};
+
 const AuthService = {
   login,
   register,
@@ -67,7 +83,9 @@ const AuthService = {
   getCurrentUser,
   activateSchool,
   initSuperAdmin,
-  getPublicSchools, // Exportation de la nouvelle fonction
+  getPublicSchools,
+  getPublicConfig,
+  changeCredentials,
 };
 
 export default AuthService;

@@ -30,7 +30,7 @@ public class EnrollmentController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
     /**
-     * ✅ INTELLIGENCE AJOUTÉE :
+     * INTELLIGENCE AJOUTÉE :
      * On peut maintenant appeler /api/enrollments?yearId=5
      * pour n'avoir que les données de l'année active.
      */
