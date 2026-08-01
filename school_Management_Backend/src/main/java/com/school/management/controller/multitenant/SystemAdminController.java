@@ -17,7 +17,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/system-admin")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "http://localhost:5173")
+// ❌ @CrossOrigin a été retiré ici pour laisser WebSecurityConfig gérer les accès Render globalement.
 public class SystemAdminController {
 
     private final SchoolServiceImpl schoolService;

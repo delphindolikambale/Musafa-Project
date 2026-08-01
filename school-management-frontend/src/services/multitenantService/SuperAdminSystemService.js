@@ -1,6 +1,12 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8080/api';
+// ✅ Détection dynamique de l'environnement (comme dans api.js)
+const deployeeSurRender = window.location.hostname.includes('onrender.com');
+const BACKEND_BASE = deployeeSurRender 
+    ? "https://musafa-projectbackend.onrender.com" 
+    : "http://localhost:8080";
+
+const API_BASE_URL = `${BACKEND_BASE}/api`;
 
 /**
  * Configuration d'une instance Axios dédiée pour centraliser les appels 
@@ -27,11 +33,11 @@ api.interceptors.request.use(
     }
 );
 
-// ✅ Fonction utilitaire pour résoudre l'URL du logo système
+// ✅ Fonction utilitaire pour résoudre l'URL du logo système dynamiquement
 export const getSystemLogoUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('http')) return path;
-    return `http://localhost:8080/${path}`;
+    return `${BACKEND_BASE}/${path.replace(/^\/+/, '')}`;
 };
 
 const SuperAdminSystemService = {

@@ -68,20 +68,10 @@ public class WebSecurityConfig implements WebMvcConfigurer {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        // ✅ Ajout des patterns permissifs pour garantir la communication sur Render
         configuration.setAllowedOriginPatterns(Arrays.asList(
-                "https://musafa-project.onrender.com",
-                "http://localhost:3000",
-                "http://localhost:5170",
-                "http://localhost:5171",
-                "http://localhost:5172",
-                "http://localhost:5173",
-                "http://localhost:5174",
-                "http://localhost:5176",
-                "http://localhost:5177",
-                "http://localhost:5178",
-                "http://localhost:5179",
-                "http://localhost:5180",
-                "http://127.0.0.1:*"
+                "https://*.onrender.com",
+                "http://localhost:*"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*")); // Permet tous les en-têtes HTTP pour éviter les blocages CORS Preflight
@@ -113,7 +103,8 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                                 .requestMatchers("/api/test/**").permitAll()
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
                                 .requestMatchers("/api/resources/**").permitAll()
-                                .requestMatchers("/api/files/**").permitAll() // 👈 Route d'accès direct aux fichiers via FileController
+                                .requestMatchers("/api/files/**").permitAll()
+                                .requestMatchers("/api/archives/download/**").permitAll() // 👈 Récupéré de l'ancien SecurityConfig
                                 .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()
                                 .requestMatchers("/storage/**", "/uploads/**").permitAll()
