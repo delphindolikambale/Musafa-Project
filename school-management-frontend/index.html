@@ -4,10 +4,31 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>school-management-frontend</title>
+    
+    <!-- ✅ AJOUTS POUR LA PWA -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#059669" />
+    <link rel="apple-touch-icon" href="/vite.svg" />
+    
+    <title>Système de Gestion Scolaire</title>
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    
+    <!-- ✅ ENREGISTREMENT DU SERVICE WORKER -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(registration => {
+              console.log('ServiceWorker PWA enregistré avec succès : ', registration.scope);
+            })
+            .catch(error => {
+              console.log('L\'enregistrement du ServiceWorker PWA a échoué : ', error);
+            });
+        });
+      }
+    </script>
   </body>
 </html>

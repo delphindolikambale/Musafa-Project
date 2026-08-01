@@ -86,6 +86,9 @@ import StudentBulletinView from "./components/structure/pedagogie/StudentBulleti
 // ✅ NOUVEAU COMPOSANT : EMPLOI DU TEMPS ENSEIGNANT
 import MyScheduleTeacher from "./components/structure/pedagogie/MyScheduleTeacher";
 
+// ✅ NOUVEAU COMPOSANT : PWA INSTALL MODAL
+import InstallPwaModal from "./components/InstallPwaModal";
+
 import titulaireService from "./services/pedagogieService/titulaireService";
 
 export const ThemeContext = createContext();
@@ -158,6 +161,9 @@ function App() {
       <LanguageContext.Provider value={{ language, toggleLanguage }}>
         <SchoolProvider>
           <Router>
+            {/* ✅ AJOUT DE LA MODALE PWA GLOBALE */}
+            <InstallPwaModal />
+            
             <Routes>
               {/* --- ROUTES PUBLIQUES LIBRES --- */}
               <Route path="/" element={<Welcome />} />
