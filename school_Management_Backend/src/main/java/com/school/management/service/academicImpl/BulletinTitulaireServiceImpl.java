@@ -197,6 +197,24 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
         }).collect(Collectors.toList());
     }
 
+    // AJOUT : Implémentation de la méthode manquante pour récupérer les données du bulletin
+    // Note: Ajoutez l'annotation @Override si vous avez ajouté cette méthode dans l'interface BulletinTitulaireService
+    @Transactional(readOnly = true)
+    public Map<String, Object> getStudentBulletinData(Long folderId, Long studentId) {
+        Map<String, Object> response = new HashMap<>();
+
+        // Logique métier à compléter avec vos repositories pour récupérer les vraies données
+        // Exemple :
+        // Student student = studentRepository.findById(studentId).orElseThrow(...);
+        // List<BranchData> branches = bulletinRepository.findBranchesByStudentId(...);
+
+        // Structure de base attendue par votre frontend (StudentBulletinView.jsx)
+        response.put("student", null); // Remplacer par l'objet DTO de l'étudiant
+        response.put("branches", new ArrayList<>()); // Remplacer par la liste des cotes
+
+        return response;
+    }
+
     @Override
     public List<TeacherBulletinNotification> getTeacherNotifications(Long teacherId, Long schoolId) {
         return notificationRepository.findByTeacherIdAndSchoolIdOrderByCreatedAtDesc(teacherId, schoolId);

@@ -9,16 +9,21 @@ import {
     Loader2
 } from 'lucide-react';
 import api from '../../../services/api';
+// ✅ NOUVEAU (Correct)
+import BulletinApercuContainer from '../admin/BulletinApercuContainer';
 
 const StudentBulletinView = () => {
     const { classroomId, studentId } = useParams();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
-    const [studentData, setStudentData] = useState(null);
-    const [bulletinBranches, setBulletinBranches] = useState([]);
+    
+    // Nouveaux états restructurés pour correspondre aux props de BulletinApercuContainer
+    const [studentInfo, setStudentInfo] = useState(null);
+    const [bulletinData, setBulletinData] = useState(null);
+    const [headerData, setHeaderData] = useState(null);
 
-    // Structure par défaut des branches (CTEB RDC) pour éviter un affichage vide si l'API est en cours de configuration
+    // Structure par défaut des branches (CTEB RDC) pour le fallback
     const defaultBranches = [
         { name: "DOMAINE DES SCIENCES", isHeader: true },
         { name: "Sous-domaine des Mathématiques", isSubHeader: true },
@@ -41,38 +46,59 @@ const StudentBulletinView = () => {
 
     useEffect(() => {
         const fetchStudentAndBulletin = async () => {
+            // Blocage si l'ID est invalide
+            if (!studentId || studentId === 'undefined' || studentId === 'null') {
+                setError("L'identifiant de l'élève est manquant ou invalide. Veuillez retourner à la liste de la classe.");
+                setLoading(false);
+                return;
+            }
+
             try {
                 setLoading(true);
                 setError(null);
                 
-                // Utilisation de l'instance API centralisée au lieu de fetch
-                const response = await api.get(`/classrooms/${classroomId}/students/${studentId}/bulletin`);
+                const response = await api.get(`/bulletins/titulaire/folders/${classroomId}/students/${studentId}/bulletin`);
                 
                 if (response.status !== 200) {
                     throw new Error("Impossible de récupérer les données du bulletin sur le serveur.");
                 }
                 
-                setStudentData(response.data.student);
-                setBulletinBranches(response.data.branches || defaultBranches);
+                // Mappage des données selon la structure attendue par BulletinApercuContainer
+                setStudentInfo(response.data.studentInfo || response.data.student);
+                setBulletinData(response.data.bulletinData || { 
+                    formatType: response.data.formatType || 'CTEB', 
+                    branches: response.data.branches || []
+                });
+                setHeaderData(response.data.header || response.data.ecoleInfo);
+                
             } catch (err) {
                 console.error("Erreur API:", err);
                 setError(err.message || "Erreur de connexion");
                 
-                // Fallback de développement pour ne pas bloquer l'interface
-                setStudentData({
+                // Fallback de développement structuré pour le BulletinApercuContainer
+                setStudentInfo({
                     fullName: "EZRA KIBATI KAMBALE",
                     sexe: "M",
                     lieuNaiss: "BENI",
                     dateNaiss: "12/05/2010",
                     classe: "7ÈME ANNÉE (A)",
                     numPerm: "82736451001234",
+                    nombreEleves: 45
+                });
+                
+                setHeaderData({
                     ecole: "COMPLEXE SCOLAIRE MUSAFA",
                     codeEcole: "6100021",
                     province: "NORD-KIVU II",
                     ville: "BENI",
-                    commune: "BUNGULU"
+                    commune: "BUNGULU",
+                    watermarkLogoPath: null
                 });
-                setBulletinBranches(defaultBranches);
+
+                setBulletinData({
+                    formatType: 'CTEB',
+                    branches: defaultBranches
+                });
             } finally {
                 setLoading(false);
             }
@@ -87,21 +113,13 @@ const StudentBulletinView = () => {
         window.print();
     };
 
-    // Déclenche le téléchargement du fichier PDF pré-généré dans le dossier du serveur
     const handleDownloadPDF = () => {
-        if (!studentId) return;
-        // Adaptation pour utiliser l'URL de base si nécessaire, ou l'endpoint défini dans le backend
-        window.open(`/api/bulletins/download/${studentId}`, '_blank');
+        if (!studentId || studentId === 'undefined') {
+            alert("Impossible de télécharger le document : L'identifiant de l'élève est invalide.");
+            return;
+        }
+        window.open(`/api/bulletins/titulaire/download/${studentId}`, '_blank');
     };
-
-    // Calcul du nombre de lignes vides pour forcer le tableau à occuper toute la hauteur A4
-    const activeBranches = bulletinBranches.length > 0 ? bulletinBranches : defaultBranches;
-    const standardRowCount = 18; // Seuil optimal pour l'espace A4 restant
-    const paddingRowsCount = Math.max(0, standardRowCount - activeBranches.length);
-
-    // Sécurisation du découpage des chaînes pour les grilles d'identifiants
-    const codeEcoleChars = studentData?.codeEcole ? studentData.codeEcole.split('') : [];
-    const numPermChars = studentData?.numPerm ? studentData.numPerm.split('') : [];
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -121,7 +139,7 @@ const StudentBulletinView = () => {
                             Dossier Personnel
                         </h1>
                         <p className="text-xs font-bold text-slate-400 uppercase mt-1">
-                            Aperçu du Bulletin • {studentData?.fullName || "Chargement..."}
+                            Aperçu du Bulletin • {studentInfo?.fullName || "Chargement..."}
                         </p>
                     </div>
                 </div>
@@ -129,14 +147,14 @@ const StudentBulletinView = () => {
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={handlePrint}
-                        disabled={loading}
+                        disabled={loading || error}
                         className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl text-xs font-black uppercase transition-all shadow-lg shadow-blue-200 dark:shadow-blue-900/20"
                     >
                         <Printer size={16} /> Imprimer (A4)
                     </button>
                     <button 
                         onClick={handleDownloadPDF}
-                        disabled={loading}
+                        disabled={loading || error}
                         className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase transition-colors"
                     >
                         <Download size={16} /> PDF Réceptionné
@@ -144,271 +162,29 @@ const StudentBulletinView = () => {
                 </div>
             </div>
 
-            {/* MESSAGE D'ALERTE EN CAS D'ERREUR DE CONNEXION API */}
+            {/* MESSAGE D'ALERTE EN CAS D'ERREUR */}
             {error && (
                 <div className="print:hidden bg-amber-50 border border-amber-200 text-amber-800 p-4 rounded-2xl flex items-center gap-3 text-sm">
                     <AlertCircle size={20} className="text-amber-600 shrink-0" />
                     <div>
-                        <span className="font-bold">Mode d'aperçu hors-ligne :</span> Affichage de données démo locales. L'API backend est injoignable.
+                        <span className="font-bold">Information système :</span> {error}
                     </div>
                 </div>
             )}
 
-            {/* ZONE D'APERÇU DU BULLETIN (Format A4) */}
+            {/* ZONE D'APERÇU DU BULLETIN CENTRALISÉ */}
             <div className="flex justify-center overflow-x-auto pb-10 print:p-0 print:m-0 print:block">
-                
                 {loading ? (
                     <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl flex flex-col items-center justify-center">
                         <Loader2 className="animate-spin text-blue-600 mb-4" size={48} />
                         <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Génération du bulletin en cours...</p>
                     </div>
                 ) : (
-                    <div className="w-[210mm] min-h-[297mm] bg-white text-black p-[10mm] shadow-2xl border border-slate-200 print:shadow-none print:border-none print:w-full print:p-0 relative box-border">
-                        
-                        {/* HEADER REPUBLIQUE */}
-                        <div className="flex justify-between items-center mb-6">
-                            <div className="w-20 h-16 bg-blue-50 border border-blue-200 flex items-center justify-center text-[8px] text-center p-1 font-bold">
-                                Drapeau RDC
-                            </div>
-                            <div className="text-center flex-1">
-                                <h2 className="text-base font-black tracking-wide">REPUBLIQUE DEMOCRATIQUE DU CONGO</h2>
-                                <h3 className="text-xs font-bold mt-1">MINISTERE DE L'EDUCATION NATIONALE ET NOUVELLE CITOYENNETE</h3>
-                            </div>
-                            <div className="w-16 h-16 bg-slate-50 border border-slate-200 rounded-full flex items-center justify-center text-[8px] text-center p-1 font-bold">
-                                Sceau officiel
-                            </div>
-                        </div>
-
-                        {/* SECTION INFORMATIONS IDENTITÉ */}
-                        <div className="border-2 border-black mb-4 flex flex-col text-xs font-bold">
-                            {/* Ligne N° ID */}
-                            <div className="flex border-b border-black">
-                                <div className="w-1/5 p-1 border-r border-black font-black">N° ID.</div>
-                                <div className="flex-1 flex">
-                                    {[...Array(30)].map((_, i) => (
-                                        <div key={i} className="flex-1 border-r border-black last:border-r-0 h-full min-h-[24px]"></div>
-                                    ))}
-                                </div>
-                            </div>
-                            
-                            {/* Infos Province */}
-                            <div className="flex border-b border-black">
-                                <div className="w-[30%] p-1 border-r border-black font-black">PROVINCE EDUCATIONNELLE</div>
-                                <div className="flex-1 p-1 pl-2 uppercase">: {studentData?.province}</div>
-                            </div>
-
-                            {/* Grille Infos Ecole / Eleve */}
-                            <div className="flex w-full">
-                                {/* Colonne Gauche (Ecole) */}
-                                <div className="w-1/2 border-r border-black flex flex-col">
-                                    <div className="flex border-b border-black">
-                                        <div className="w-[40%] p-1 border-r border-black">VILLE</div>
-                                        <div className="flex-1 p-1 pl-2 uppercase">: {studentData?.ville}</div>
-                                    </div>
-                                    <div className="flex border-b border-black">
-                                        <div className="w-[40%] p-1 border-r border-black">COMMUNE / TERRITOIRE (1)</div>
-                                        <div className="flex-1 p-1 pl-2 uppercase">: {studentData?.commune}</div>
-                                    </div>
-                                    <div className="flex border-b border-black">
-                                        <div className="w-[40%] p-1 border-r border-black">ECOLE</div>
-                                        <div className="flex-1 p-1 pl-2 uppercase font-black">: {studentData?.ecole}</div>
-                                    </div>
-                                    <div className="flex">
-                                        <div className="w-[40%] p-1 border-r border-black">CODE ECOLE</div>
-                                        <div className="flex-1 flex items-center pl-2">
-                                            : <div className="ml-2 flex border border-black h-5">
-                                                {codeEcoleChars.map((char, i) => (
-                                                    <div key={i} className="w-4 flex items-center justify-center border-r border-black last:border-r-0 text-[10px]">{char}</div>
-                                                ))}
-                                                {[...Array(Math.max(0, 11 - codeEcoleChars.length))].map((_, i) => (
-                                                    <div key={`empty-${i}`} className="w-4 flex items-center justify-center border-r border-black last:border-r-0"></div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Colonne Droite (Eleve) */}
-                                <div className="w-1/2 flex flex-col">
-                                    <div className="flex border-b border-black">
-                                        <div className="w-[20%] p-1 border-r border-black">ELEVE</div>
-                                        <div className="flex-1 p-1 pl-2 uppercase font-black">: {studentData?.fullName}</div>
-                                        <div className="w-[15%] p-1 border-l border-r border-black">SEXE :</div>
-                                        <div className="w-[10%] p-1 text-center font-black">{studentData?.sexe}</div>
-                                    </div>
-                                    <div className="flex border-b border-black">
-                                        <div className="w-[20%] p-1 border-r border-black">NE(E) A</div>
-                                        <div className="flex-1 p-1 pl-2 uppercase">: {studentData?.lieuNaiss}</div>
-                                        <div className="w-[15%] p-1 border-l border-black text-right">LE :</div>
-                                        <div className="w-[25%] p-1 pl-2 font-black">{studentData?.dateNaiss}</div>
-                                    </div>
-                                    <div className="flex border-b border-black h-full">
-                                        <div className="w-[20%] p-1 border-r border-black flex items-center">CLASSE</div>
-                                        <div className="flex-1 p-1 pl-2 flex items-center font-black">: {studentData?.classe}</div>
-                                    </div>
-                                    <div className="flex">
-                                        <div className="w-[20%] p-1 border-r border-black flex items-center">N° PERM.</div>
-                                        <div className="flex-1 flex items-center pl-2">
-                                            : <div className="ml-2 flex border border-black h-5">
-                                                {numPermChars.map((char, i) => (
-                                                    <div key={i} className="w-4 flex items-center justify-center border-r border-black last:border-r-0 text-[10px]">{char}</div>
-                                                ))}
-                                                {[...Array(Math.max(0, 14 - numPermChars.length))].map((_, i) => (
-                                                    <div key={`empty-${i}`} className="w-4 flex items-center justify-center border-r border-black last:border-r-0"></div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* TITRE PRINCIPAL BULLETIN */}
-                        <div className="text-center font-black text-xs mb-2 border-2 border-black py-2 uppercase">
-                            BULLETIN DE LA {studentData?.classe} • CYCLE TERMINAL DE L'ÉDUCATION DE BASE (CTEB) • ANNÉE SCOLAIRE 2026-2027
-                        </div>
-
-                        {/* TABLEAU DES NOTES DYNAMIQUE */}
-                        <table className="w-full border-collapse border-2 border-black text-[10px] text-center font-bold">
-                            <thead>
-                                <tr className="border-b-2 border-black">
-                                    <th rowSpan="3" className="border-r-2 border-black p-2 w-[30%]">BRANCHES</th>
-                                    <th colSpan="4" className="border-r-2 border-black p-1">PREMIER SEMESTRE</th>
-                                    <th colSpan="4" className="border-r-2 border-black p-1">SECOND SEMESTRE</th>
-                                    <th rowSpan="3" className="border-r-2 border-black p-1 w-[8%]">TOTAL GENERAL</th>
-                                    <th colSpan="2" className="p-1">EXAMEN DE REPECHAGE</th>
-                                </tr>
-                                <tr className="border-b border-black">
-                                    <th rowSpan="2" className="border-r border-black border-t border-black p-1">MAX.</th>
-                                    <th colSpan="2" className="border-r border-black border-t border-black p-1">TRAVAIL JOURNALIER</th>
-                                    <th rowSpan="2" className="border-r-2 border-black border-t border-black p-1">EXAMEN</th>
-                                    
-                                    <th rowSpan="2" className="border-r border-black border-t border-black p-1">MAX.</th>
-                                    <th colSpan="2" className="border-r border-black border-t border-black p-1">TRAVAIL JOURNALIER</th>
-                                    <th rowSpan="2" className="border-r-2 border-black border-t border-black p-1">EXAMEN</th>
-                                    
-                                    <th rowSpan="2" className="border-r border-black border-t border-black p-1">%</th>
-                                    <th rowSpan="2" className="border-t border-black p-1">SIGN.</th>
-                                </tr>
-                                <tr className="border-b-2 border-black">
-                                    <th className="border-r border-black p-1">1ère P.</th>
-                                    <th className="border-r border-black p-1">2ème P.</th>
-                                    <th className="border-r border-black p-1">3ème P.</th>
-                                    <th className="border-r border-black p-1">4ème P.</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {activeBranches.map((branch, index) => {
-                                    if (branch.isHeader) {
-                                        return (
-                                            <tr key={index} className="bg-slate-200 border-b border-black">
-                                                <td colSpan="12" className="p-1 text-left font-black">{branch.name}</td>
-                                            </tr>
-                                        );
-                                    }
-                                    if (branch.isSubHeader) {
-                                        return (
-                                            <tr key={index} className="bg-slate-100 border-b border-black">
-                                                <td colSpan="12" className="p-1 text-left font-bold pl-4 italic">{branch.name}</td>
-                                            </tr>
-                                        );
-                                    }
-                                    return (
-                                        <tr key={index} className="border-b border-black text-center">
-                                            <td className="border-r-2 border-black p-1 text-left pl-2">{branch.name}</td>
-                                            <td className="border-r border-black p-1 font-bold">{branch.max1Sem}</td>
-                                            <td className="border-r border-black p-1">{branch.p1}</td>
-                                            <td className="border-r border-black p-1">{branch.p2}</td>
-                                            <td className="border-r-2 border-black p-1">{branch.tot1Sem}</td>
-                                            <td className="border-r border-black p-1 font-bold">{branch.max2Sem}</td>
-                                            <td className="border-r border-black p-1">{branch.p3}</td>
-                                            <td className="border-r border-black p-1">{branch.p4}</td>
-                                            <td className="border-r-2 border-black p-1">{branch.tot2Sem}</td>
-                                            <td className="border-r-2 border-black p-1 font-black bg-slate-50">{branch.totalGeneral}</td>
-                                            <td className="border-r border-black p-1"></td>
-                                            <td className="p-1"></td>
-                                        </tr>
-                                    );
-                                })}
-                                
-                                {/* Lignes de remplissage */}
-                                {[...Array(paddingRowsCount)].map((_, i) => (
-                                    <tr key={`pad-${i}`} className="border-b border-black h-6">
-                                        <td className="border-r-2 border-black"></td>
-                                        <td className="border-r border-black bg-slate-50"></td>
-                                        <td className="border-r border-black"></td>
-                                        <td className="border-r border-black"></td>
-                                        <td className="border-r-2 border-black"></td>
-                                        <td className="border-r border-black bg-slate-50"></td>
-                                        <td className="border-r border-black"></td>
-                                        <td className="border-r border-black"></td>
-                                        <td className="border-r-2 border-black"></td>
-                                        <td className="border-r-2 border-black bg-slate-50"></td>
-                                        <td className="border-r border-black"></td>
-                                        <td></td>
-                                    </tr>
-                                ))}
-
-                                {/* Section des Totaux et Pourcentages */}
-                                <tr className="border-b-2 border-black font-black bg-slate-100 text-center">
-                                    <td className="border-r-2 border-black p-1 text-left pl-2 uppercase">Max Général / Total</td>
-                                    <td className="border-r border-black p-1">170</td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r-2 border-black p-1">170</td>
-                                    <td className="border-r border-black p-1">170</td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r-2 border-black p-1">170</td>
-                                    <td className="border-r-2 border-black p-1">340</td>
-                                    <td className="border-r border-black p-1 bg-white"></td>
-                                    <td className="p-1 bg-white"></td>
-                                </tr>
-
-                                <tr className="border-b-2 border-black font-black text-center">
-                                    <td className="border-r-2 border-black p-1 text-left pl-2 uppercase">Pourcentage</td>
-                                    <td className="border-r border-black p-1 bg-slate-200"></td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r-2 border-black p-1"></td>
-                                    <td className="border-r border-black p-1 bg-slate-200"></td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="border-r-2 border-black p-1"></td>
-                                    <td className="border-r-2 border-black p-1 bg-slate-100 text-lg"></td>
-                                    <td className="border-r border-black p-1"></td>
-                                    <td className="p-1"></td>
-                                </tr>
-
-                                <tr className="border-b-2 border-black font-bold text-center">
-                                    <td className="border-r-2 border-black p-1 text-left pl-2 uppercase">Place / Nbre d'élèves</td>
-                                    <td className="border-r border-black p-1 bg-slate-200"></td>
-                                    <td colSpan="3" className="border-r-2 border-black p-1">... / {studentData?.nombreEleves || 45}</td>
-                                    <td className="border-r border-black p-1 bg-slate-200"></td>
-                                    <td colSpan="3" className="border-r-2 border-black p-1">... / {studentData?.nombreEleves || 45}</td>
-                                    <td className="border-r-2 border-black p-1 bg-slate-100">... / {studentData?.nombreEleves || 45}</td>
-                                    <td colSpan="2" className="p-1"></td>
-                                </tr>
-                            </tbody>
-                        </table>
-
-                        {/* Signatures en bas du bulletin */}
-                        <div className="mt-4 flex justify-between px-4 text-xs font-bold">
-                            <div className="text-center">
-                                <p className="mb-16">Signature du Titulaire</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="mb-2">Fait à ................................., le ....../....../20...</p>
-                                <p className="mb-16">Le Chef d'Établissement</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="mb-16">Signature des Parents ou du Tuteur</p>
-                            </div>
-                            <div className="text-center w-24">
-                                <p className="mb-16 text-slate-400 border border-slate-300 h-24 flex items-center justify-center rounded-full">Sceau</p>
-                            </div>
-                        </div>
-                    </div>
+                    <BulletinApercuContainer 
+                        bulletinData={bulletinData} 
+                        studentInfo={studentInfo} 
+                        header={headerData} 
+                    />
                 )}
             </div>
         </div>

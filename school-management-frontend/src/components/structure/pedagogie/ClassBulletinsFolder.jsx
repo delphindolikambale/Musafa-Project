@@ -31,7 +31,7 @@ const ClassBulletinsFolder = () => {
                 setClassroomName(classroomRes.data.displayName || classroomRes.data.name || "Classe");
             }
 
-            // 2. Récupération des élèves ayant des bulletins générés pour cette classe (Correction de la route backend)
+            // 2. Récupération des élèves ayant des bulletins générés pour cette classe
             const response = await api.get(`/bulletins/titulaire/folders/${classroomId}/students`);
             if (response.status === 200 && response.data) {
                 setStudents(response.data);
@@ -98,11 +98,13 @@ const ClassBulletinsFolder = () => {
         };
     }, [classroomId, fetchBulletinsData]);
 
+    // Adaptation ici : utilisation de "fullName" provenant du StudentBulletinRowDTO
     const filteredStudents = students.filter(student => 
-        `${student.firstName} ${student.lastName} ${student.surname || ''}`.toLowerCase().includes(searchTerm.toLowerCase())
+        (student.fullName || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const getFullName = (student) => `${student.lastName} ${student.firstName} ${student.surname || ''}`.trim();
+    // Adaptation ici : le DTO fournit déjà le nom complet formaté
+    const getFullName = (student) => student.fullName || 'Nom non spécifié';
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -179,7 +181,8 @@ const ClassBulletinsFolder = () => {
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {filteredStudents.map((student) => (
-                            <div key={student.id} className="flex items-center justify-between p-4 bg-slate-50 hover:bg-blue-50 dark:bg-slate-800/50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800/50 rounded-2xl transition-all group">
+                            // Adaptation ici : utilisation de studentId comme clé unique
+                            <div key={student.studentId} className="flex items-center justify-between p-4 bg-slate-50 hover:bg-blue-50 dark:bg-slate-800/50 dark:hover:bg-blue-900/20 border border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-blue-800/50 rounded-2xl transition-all group">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center text-blue-600 shadow-sm">
                                         <FileText size={20} />
@@ -195,7 +198,8 @@ const ClassBulletinsFolder = () => {
                                 
                                 <div className="flex items-center gap-2">
                                     <button 
-                                        onClick={() => navigate(`/enseignant/titulaire/bulletins/${classroomId}/etudiant/${student.id}`)}
+                                        // Adaptation ici : utilisation de student.studentId pour la navigation
+                                        onClick={() => navigate(`/enseignant/titulaire/bulletins/${classroomId}/etudiant/${student.studentId}`)}
                                         className="p-2 text-slate-400 hover:text-blue-600 bg-white dark:bg-slate-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg shadow-sm border border-slate-200 dark:border-slate-700 transition-all opacity-0 group-hover:opacity-100"
                                         title="Voir le bulletin"
                                     >

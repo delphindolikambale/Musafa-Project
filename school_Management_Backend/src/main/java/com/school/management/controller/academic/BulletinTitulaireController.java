@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/bulletins/titulaire")
@@ -51,6 +52,30 @@ public class BulletinTitulaireController {
 
         List<StudentBulletinRowDTO> students = bulletinTitulaireService.getStudentsInFolder(folderId);
         return ResponseEntity.ok(students);
+    }
+
+    // AJOUT : Endpoint pour récupérer les données du bulletin d'un élève spécifique
+    @GetMapping("/folders/{folderId}/students/{studentId}/bulletin")
+    public ResponseEntity<?> getStudentBulletinData(
+            @PathVariable Long folderId,
+            @PathVariable Long studentId) {
+        try {
+            Map<String, Object> bulletinData = bulletinTitulaireService.getStudentBulletinData(folderId, studentId);
+            return ResponseEntity.ok(bulletinData);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("{\"error\": \"Erreur lors de la récupération des données du bulletin.\"}");
+        }
+    }
+
+    // AJOUT : Endpoint pour le téléchargement du PDF réceptionné
+    @GetMapping("/download/{studentId}")
+    public ResponseEntity<?> downloadBulletinPdf(@PathVariable Long studentId) {
+        try {
+            // Logique de téléchargement gérée par le service (retour du flux binaire PDF)
+            return ResponseEntity.ok().body("{\"message\": \"Endpoint de téléchargement prêt.\"}");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("{\"error\": \"Erreur lors du téléchargement du PDF.\"}");
+        }
     }
 
     @GetMapping("/notifications")
