@@ -62,17 +62,32 @@ const StudentBulletinView = () => {
                 if (response.status !== 200) {
                     throw new Error("Impossible de récupérer les données du bulletin sur le serveur.");
                 }
+
+                // Gérer le cas où Axios encapsule la réponse dans `data.data`
+                const payload = response.data?.data || response.data;
                 
-                // Mappage des données selon la structure attendue par BulletinApercuContainer
-                setStudentInfo(response.data.studentInfo || response.data.student);
-                setBulletinData(response.data.bulletinData || { 
-                    formatType: response.data.formatType || 'CTEB', 
-                    branches: response.data.branches || []
+                // Extraction robuste multi-clés au cas où le backend nomme différemment
+                const extractedStudent = payload?.studentInfo || payload?.student || payload?.eleve;
+                const extractedHeader = payload?.header || payload?.ecoleInfo || payload?.ecole;
+                const extractedBulletin = payload?.bulletinData || payload?.bulletin;
+                const extractedBranches = payload?.branches || extractedBulletin?.branches;
+
+                // VÉRIFICATION CRUCIALE : Si les données vitales sont vides (malgré un code 200),
+                // on force une erreur pour déclencher le catch et afficher vos données de test.
+                if (!extractedStudent || Object.keys(extractedStudent).length === 0) {
+                    throw new Error("Le serveur a répondu, mais les données de l'élève sont vides ou mal formatées. Passage en mode aperçu (fallback).");
+                }
+                
+                // Mappage des données sécurisé
+                setStudentInfo(extractedStudent);
+                setHeaderData(extractedHeader || {});
+                setBulletinData(extractedBulletin || { 
+                    formatType: payload?.formatType || 'CTEB', 
+                    branches: extractedBranches || []
                 });
-                setHeaderData(response.data.header || response.data.ecoleInfo);
                 
             } catch (err) {
-                console.error("Erreur API:", err);
+                console.warn("API Error ou Données vides, utilisation du Fallback:", err);
                 setError(err.message || "Erreur de connexion");
                 
                 // Fallback de développement structuré pour le BulletinApercuContainer
@@ -147,14 +162,14 @@ const StudentBulletinView = () => {
                 <div className="flex items-center gap-3">
                     <button 
                         onClick={handlePrint}
-                        disabled={loading || error}
+                        disabled={loading}
                         className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-xl text-xs font-black uppercase transition-all shadow-lg shadow-blue-200 dark:shadow-blue-900/20"
                     >
                         <Printer size={16} /> Imprimer (A4)
                     </button>
                     <button 
                         onClick={handleDownloadPDF}
-                        disabled={loading || error}
+                        disabled={loading}
                         className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 disabled:opacity-50 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-black uppercase transition-colors"
                     >
                         <Download size={16} /> PDF Réceptionné

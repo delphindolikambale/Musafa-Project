@@ -20,7 +20,7 @@ export const studentService = {
     },
     toggleStatus: async (id, newStatus) => {
         const response = await api.patch(`${API_URL}/${id}/status?status=${newStatus}`);
-        return response.data;
+        return response.da-ta;
     },
     
     // --- NOUVEAUX ENDPOINTS POUR LA SÉCURISATION DE L'ESPACE ÉLÈVE ---

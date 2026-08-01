@@ -78,6 +78,7 @@ import TeacherEvaluationDashboard from "./components/dashboard/pedagogieDashboar
 import TeacherClassesManager from "./components/structure/pedagogie/TeacherClassesManager";
 import TitulaireDashboard from "./components/structure/pedagogie/TitulaireDashboard";
 import TitulaireGradeSheetValidation from "./components/structure/pedagogie/TitulaireGradeSheetValidation"; 
+import TitulaireAttendance from "./components/structure/pedagogie/TitulaireAttendance"; // ✅ COMPOSANT DE PRÉSENCE TITULAIRE AJOUTÉ
 
 // ✅ NOUVEAUX COMPOSANTS POUR LA RÉCEPTION DES BULLETINS
 import ClassBulletinsFolder from "./components/structure/pedagogie/ClassBulletinsFolder";
@@ -246,6 +247,7 @@ function App() {
                   
                   <Route path="titulaire" element={<TitulaireRoute><TitulaireDashboard /></TitulaireRoute>} />
                   <Route path="titulaire/validation-fiche/:assignmentId/:period" element={<TitulaireRoute><TitulaireGradeSheetValidation /></TitulaireRoute>} />
+                  <Route path="titulaire/presences" element={<TitulaireRoute><TitulaireAttendance /></TitulaireRoute>} /> {/* ✅ ROUTE DES PRÉSENCES TITULAIRE */}
                   
                   {/* ROUTES BULLETINS TITULAIRE */}
                   <Route path="titulaire/bulletins/:classroomId" element={<TitulaireRoute><ClassBulletinsFolder /></TitulaireRoute>} />
@@ -277,5 +279,4 @@ function App() {
     </ThemeContext.Provider>
   );
 }
-
 export default App;

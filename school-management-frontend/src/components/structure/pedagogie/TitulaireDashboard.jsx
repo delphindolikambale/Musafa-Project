@@ -13,7 +13,8 @@ import {
     X,
     BellRing,
     Folder,
-    Printer
+    Printer,
+    UserCheck // ✅ Icône importée pour le bouton de présence
 } from 'lucide-react';
 import titulaireService from '../../../services/pedagogieService/titulaireService';
 import api from '../../../services/api';
@@ -329,6 +330,15 @@ const TitulaireDashboard = () => {
                             </p>
                         </div>
                     </div>
+                    
+                    {/* ✅ NOUVEAU BOUTON : GESTION DES PRÉSENCES */}
+                    <button
+                        onClick={() => navigate('/enseignant/titulaire/presences')}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 dark:shadow-emerald-900/20 active:scale-95 whitespace-nowrap"
+                    >
+                        <UserCheck size={18} />
+                        Gestion des Présences
+                    </button>
                 </div>
 
                 <div className="flex flex-wrap gap-4 items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
