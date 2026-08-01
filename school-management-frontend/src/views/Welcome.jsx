@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useContext } from "react";
 import { Link } from "react-router-dom";
-import { LogIn, UserPlus, GraduationCap, Sun, Moon, Globe, Clock, Headphones, BookOpen } from "lucide-react";
+import { LogIn, UserPlus, GraduationCap, Sun, Moon, Globe, Clock, BookOpen } from "lucide-react";
 // Import des contextes globaux depuis App.jsx (ajustez le chemin '../App' selon votre arborescence)
 import { ThemeContext, LanguageContext } from "../App"; 
 import SuperAdminSystemService, { getSystemLogoUrl } from "../services/multitenantService/SuperAdminSystemService";
@@ -40,9 +40,9 @@ const Welcome = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Formatage de la date et de l'heure sur le fuseau horaire de Paris
+  // Formatage de la date et de l'heure sur le fuseau horaire de l'Est de la RDC (Beni - CAT)
   const dateFormatter = new Intl.DateTimeFormat(language === 'FR' ? 'fr-FR' : 'en-US', {
-    timeZone: 'Europe/Paris',
+    timeZone: 'Africa/Lubumbashi',
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -50,7 +50,7 @@ const Welcome = () => {
   });
 
   const timeFormatter = new Intl.DateTimeFormat(language === 'FR' ? 'fr-FR' : 'en-US', {
-    timeZone: 'Europe/Paris',
+    timeZone: 'Africa/Lubumbashi',
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit'
@@ -58,7 +58,7 @@ const Welcome = () => {
 
   // Traductions dynamiques
   const t = {
-    onlineService: language === 'FR' ? 'Service en ligne' : 'Online Service',
+    location: language === 'FR' ? 'Beni, RDC' : 'Beni, DRC',
     welcomeBack: language === 'FR' ? 'Content de vous revoir !' : 'Welcome back!',
     description: language === 'FR' 
       ? 'Accédez à votre espace sécurisé pour consulter vos horaires, résultats et gérer vos activités.' 
@@ -109,24 +109,16 @@ const Welcome = () => {
         </div>
       </div>
 
-      {/* 2. En-tête (Header) Top Bar - Shrink-0 pour ne pas être écrasé */}
-      <header className={`relative shrink-0 w-full px-6 py-4 flex flex-col sm:flex-row justify-between items-center z-20 transition-colors duration-300 ${
+      {/* 2. En-tête (Header) Top Bar - Justifié à droite après retrait du service en ligne */}
+      <header className={`relative shrink-0 w-full px-6 py-4 flex flex-col sm:flex-row justify-end items-center z-20 transition-colors duration-300 ${
         theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
       }`}>
-        {/* Gauche : Service Client / Support */}
-        <div className="flex items-center gap-2 mb-2 sm:mb-0">
-          <Headphones size={20} className={theme === 'dark' ? 'text-blue-400' : 'text-purple-500'} />
-          <span className="text-sm font-semibold tracking-wide">
-            {t.onlineService}
-          </span>
-        </div>
-
-        {/* Droite : Heure (Paris), Thème, Langue */}
-        <div className="flex items-center gap-5 sm:gap-6">
-          {/* Horloge Paris */}
+        {/* Droite : Heure (Beni), Thème, Langue */}
+        <div className="flex items-center gap-5 sm:gap-6 mt-2 sm:mt-0">
+          {/* Horloge Beni */}
           <div className="hidden sm:flex flex-col text-right">
             <span className="text-[10px] uppercase tracking-wider font-bold opacity-70">
-              Paris, France
+              {t.location}
             </span>
             <div className="flex items-center gap-1.5 text-sm font-semibold">
               <Clock size={14} />
