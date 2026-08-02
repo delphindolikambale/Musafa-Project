@@ -1,8 +1,5 @@
-package com.school.management.model.attendance;
+package com.school.management.model.academic;
 
-import com.school.management.model.academic.AcademicYear;
-import com.school.management.model.academic.Classroom;
-import com.school.management.model.academic.Teacher;
 import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;

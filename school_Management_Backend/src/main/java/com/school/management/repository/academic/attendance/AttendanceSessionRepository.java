@@ -1,6 +1,7 @@
 package com.school.management.repository.academic.attendance;
 
-import com.school.management.model.attendance.AttendanceSession;
+
+import com.school.management.model.academic.AttendanceSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

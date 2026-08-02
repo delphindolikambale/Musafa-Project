@@ -30,7 +30,7 @@ public class StudentAttendance {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "session_id", nullable = false)
-    private com.school.management.model.attendance.AttendanceSession session;
+    private AttendanceSession session;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "student_id", nullable = false)

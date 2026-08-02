@@ -46,10 +46,10 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .orElseThrow(() -> new BadRequestException("Année académique introuvable."));
 
         // Recherche ou création de la session du jour
-        com.school.management.model.attendance.AttendanceSession session = sessionRepository
+        AttendanceSession session = sessionRepository
                 .findBySchoolIdAndClassroomIdAndAcademicYearIdAndDate(
                         dto.getSchoolId(), dto.getClassroomId(), dto.getAcademicYearId(), dto.getDate())
-                .orElseGet(() -> com.school.management.model.attendance.AttendanceSession.builder()
+                .orElseGet(() -> AttendanceSession.builder()
                         .school(school)
                         .classroom(classroom)
                         .academicYear(academicYear)
@@ -79,7 +79,7 @@ public class AttendanceServiceImpl implements AttendanceService {
             Student student = studentRepository.findById(entry.getStudentId())
                     .orElseThrow(() -> new BadRequestException("Élève introuvable ID: " + entry.getStudentId()));
 
-            final com.school.management.model.attendance.AttendanceSession finalSession = session;
+            final AttendanceSession finalSession = session;
             StudentAttendance attendance = studentAttendanceRepository
                     .findBySchoolIdAndSessionIdAndStudentId(dto.getSchoolId(), session.getId(), student.getId())
                     .orElseGet(() -> StudentAttendance.builder()
@@ -129,7 +129,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         Classroom classroom = classroomRepository.findById(classroomId)
                 .orElseThrow(() -> new BadRequestException("Classe introuvable."));
 
-        Optional<com.school.management.model.attendance.AttendanceSession> sessionOpt = sessionRepository
+        Optional<AttendanceSession> sessionOpt = sessionRepository
                 .findBySchoolIdAndClassroomIdAndAcademicYearIdAndDate(schoolId, classroomId, academicYearId, date);
 
         if (sessionOpt.isEmpty()) {
@@ -144,7 +144,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .build();
         }
 
-        com.school.management.model.attendance.AttendanceSession session = sessionOpt.get();
+        AttendanceSession session = sessionOpt.get();
         List<StudentAttendance> attendances = studentAttendanceRepository.findBySchoolIdAndSessionId(schoolId, session.getId());
 
         List<StudentAttendanceResponseDTO> studentDTOs = attendances.stream().map(sa ->
@@ -187,11 +187,11 @@ public class AttendanceServiceImpl implements AttendanceService {
         LocalDate endDate = yearMonth.atEndOfMonth();
 
         // Récupération de toutes les sessions enregistrées dans le mois
-        List<com.school.management.model.attendance.AttendanceSession> monthSessions = sessionRepository
+        List<AttendanceSession> monthSessions = sessionRepository
                 .findBySchoolIdAndClassroomIdAndAcademicYearIdAndDateBetween(schoolId, classroomId, academicYearId, startDate, endDate);
 
         // Nombre de jours de classe effectifs dans le mois (N)
-        int totalClassDays = (int) monthSessions.stream().filter(com.school.management.model.attendance.AttendanceSession::isEveningDone).count();
+        int totalClassDays = (int) monthSessions.stream().filter(AttendanceSession::isEveningDone).count();
 
         // Récupération des données de présence
         List<StudentAttendance> monthAttendances = studentAttendanceRepository
