@@ -68,13 +68,14 @@ public class WebSecurityConfig implements WebMvcConfigurer {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // ✅ Ajout des patterns permissifs pour garantir la communication sur Render
+        // Configuration permissives pour garantir la communication sur Render
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "https://*.onrender.com",
                 "http://localhost:*"
         ));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("*")); // Permet tous les en-têtes HTTP pour éviter les blocages CORS Preflight
+        // Ajout de la méthode HEAD souvent utilisée par les plateformes cloud pour le Health Check
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -93,10 +94,11 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
                         auth
-                                // ✅ 1. Requêtes Preflight CORS (Prise en charge universelle OPTIONS)
+                                // 1. Requêtes Preflight CORS (Prise en charge universelle OPTIONS)
                                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                                // ✅ 2. Endpoints totalement publics
+                                // 2. Endpoints totalement publics (Ajout de / et /error pour laisser passer Render)
+                                .requestMatchers("/", "/error").permitAll()
                                 .requestMatchers("/api/auth/**").permitAll()
                                 .requestMatchers("/api/public/**").permitAll()
                                 .requestMatchers("/api/system-admin/public/**").permitAll()
@@ -104,16 +106,16 @@ public class WebSecurityConfig implements WebMvcConfigurer {
                                 .requestMatchers("/api/v1/student-payments/**").permitAll()
                                 .requestMatchers("/api/resources/**").permitAll()
                                 .requestMatchers("/api/files/**").permitAll()
-                                .requestMatchers("/api/archives/download/**").permitAll() // 👈 Récupéré de l'ancien SecurityConfig
+                                .requestMatchers("/api/archives/download/**").permitAll()
                                 .requestMatchers("/ws/**").permitAll()
                                 .requestMatchers("/favicon.ico").permitAll()
                                 .requestMatchers("/storage/**", "/uploads/**").permitAll()
 
-                                // ✅ 3. Endpoints réservés aux Administrateurs Système et École
+                                // 3. Endpoints réservés aux Administrateurs Système et École
                                 .requestMatchers("/api/system-admin/**").hasAnyAuthority("ROLE_SUPER_ADMIN_SYSTEM", "SUPER_ADMIN_SYSTEM")
                                 .requestMatchers("/api/admin/**").hasAnyAuthority("ROLE_ADMIN_SYSTEM", "ADMIN_SYSTEM", "ROLE_ADMIN", "ADMIN")
 
-                                // ✅ 4. Endpoints Métier Authentifiés
+                                // 4. Endpoints Métier Authentifiés
                                 .requestMatchers("/api/notifications/**").authenticated()
                                 .requestMatchers("/api/academic/**", "/api/config/**", "/api/v1/admin/school-config").authenticated()
                                 .requestMatchers("/api/levels/**", "/api/sections/**", "/api/options/**", "/api/academic-years/**").authenticated()
