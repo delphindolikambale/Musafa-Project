@@ -1,5 +1,6 @@
 package com.school.management.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
@@ -10,6 +11,10 @@ import java.nio.file.Paths;
 
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
+
+    // Injection dynamique de la variable d'environnement (Render) ou du dossier local par défaut
+    @Value("${file.upload-dir:${STORAGE_PATH:./storage}}")
+    private String uploadDir;
 
     @Override
     public void addCorsMappings(CorsRegistry registry) {
@@ -29,9 +34,14 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Localisation du dossier storage à la racine du projet
-        Path storageDirectory = Paths.get(System.getProperty("user.dir")).resolve("storage");
+        // Localisation dynamique vers le disque persistant
+        Path storageDirectory = Paths.get(uploadDir).toAbsolutePath().normalize();
         String storagePath = storageDirectory.toUri().toString();
+
+        // S'assurer que le chemin URI se termine par un slash pour Spring
+        if (!storagePath.endsWith("/")) {
+            storagePath += "/";
+        }
 
         registry.addResourceHandler("/storage/**")
                 .addResourceLocations(storagePath)

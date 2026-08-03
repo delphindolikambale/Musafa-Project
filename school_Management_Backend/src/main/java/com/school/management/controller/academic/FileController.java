@@ -1,6 +1,7 @@
 package com.school.management.controller.academic;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -14,11 +15,14 @@ import java.nio.file.Paths;
 
 @RestController
 @RequestMapping("/api/files")
-
 public class FileController {
 
-    // On pointe vers le même dossier que celui défini dans le Service
-    private final Path fileStorageLocation = Paths.get("uploads/enrollments").toAbsolutePath().normalize();
+    private final Path fileStorageLocation;
+
+    // Injection du chemin absolu dès la construction du contrôleur
+    public FileController(@Value("${file.upload-dir:${STORAGE_PATH:./storage}}") String uploadDir) {
+        this.fileStorageLocation = Paths.get(uploadDir).resolve("enrollments").toAbsolutePath().normalize();
+    }
 
     /**
      * 👁️ Visualiser ou Télécharger un document d'inscription

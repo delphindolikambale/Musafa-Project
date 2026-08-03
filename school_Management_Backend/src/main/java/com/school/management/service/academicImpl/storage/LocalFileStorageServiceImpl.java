@@ -1,7 +1,7 @@
 package com.school.management.service.academicImpl.storage;
 
-
 import com.school.management.service.academic.storage.FileStorageService;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -15,32 +15,50 @@ import java.nio.file.StandardCopyOption;
 import java.util.UUID;
 
 @Service
+// S'active uniquement si le provider est "local" ou s'il n'est pas défini (par défaut)
 @ConditionalOnProperty(name = "storage.provider", havingValue = "local", matchIfMissing = true)
-
 public class LocalFileStorageServiceImpl implements FileStorageService {
 
-    @Value("${storage.local.base-dir:storage}")
-    private String baseDir;
+    private Path storageLocation;
+
+    @Value("${file.upload-dir:${STORAGE_PATH:./storage}}")
+    private String uploadDir;
+
+    @PostConstruct
+    public void init() {
+        // Initialise et crée le dossier racine du disque persistant s'il n'existe pas
+        this.storageLocation = Paths.get(uploadDir).toAbsolutePath().normalize();
+        try {
+            if (!Files.exists(this.storageLocation)) {
+                Files.createDirectories(this.storageLocation);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("Impossible de créer le répertoire sur le disque persistant", e);
+        }
+    }
 
     @Override
     public String storeFile(MultipartFile file, String folder, String prefix) {
         try {
-            Path uploadPath = Paths.get(baseDir, folder);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
+            // Création automatique du sous-dossier (ex: "bulletin-headers", "enrollments")
+            Path targetDirectory = this.storageLocation.resolve(folder).normalize();
+            if (!Files.exists(targetDirectory)) {
+                Files.createDirectories(targetDirectory);
             }
 
-            String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
+            String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file.png";
             String fileName = prefix + UUID.randomUUID() + "_" + originalFilename;
-            Path filePath = uploadPath.resolve(fileName);
+            Path targetPath = targetDirectory.resolve(fileName);
 
-            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
+            // Copie physique du fichier sur le disque persistant Render
+            Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Retourne le chemin relatif local exploitable par WebSecurityConfig (/storage/** ou /uploads/**)
-            return baseDir + "/" + folder + "/" + fileName;
+            // Retourne le chemin relatif utilisable dans l'URL publique ou la BDD
+            // Exemple : "storage/bulletin-headers/flag_1_1234_file.png"
+            return "storage/" + folder + "/" + fileName;
 
         } catch (IOException e) {
-            throw new RuntimeException("Erreur lors de la sauvegarde locale du fichier : " + e.getMessage(), e);
+            throw new RuntimeException("Erreur lors de la sauvegarde du fichier sur le disque : " + e.getMessage(), e);
         }
     }
 }

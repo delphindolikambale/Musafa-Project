@@ -1,6 +1,6 @@
 {
   "name": "MyAcademia ERP",
-  "short_name": "MAERP",
+  "short_name": "MyAcademia ERP",
   "description": "Systeme de Gestion Scolaire",
   "start_url": "/",
   "display": "standalone",
