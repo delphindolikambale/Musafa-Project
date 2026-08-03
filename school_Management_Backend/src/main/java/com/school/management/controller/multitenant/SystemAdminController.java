@@ -35,8 +35,8 @@ public class SystemAdminController {
         return ResponseEntity.ok(publicSchools);
     }
 
-    // ✅ NOUVEAU : Endpoint public pour charger le nom et le logo sur la page d'accueil sans authentification
-    @GetMapping("/public/settings")
+    // ✅ CORRECTION : Ajout de l'alias "/public/config" pour supporter la requête du Frontend via AuthService sans modifier ce dernier
+    @GetMapping({"/public/settings", "/public/config"})
     public ResponseEntity<Map<String, String>> getPublicSettings() {
         SystemSettings settings = schoolService.getSystemSettings();
         return ResponseEntity.ok(Map.of(

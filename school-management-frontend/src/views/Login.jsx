@@ -93,9 +93,10 @@ const Login = () => {
     const loadSystemConfig = async () => {
       try {
         if (typeof AuthService.getPublicConfig === "function") {
-          const response = await AuthService.getPublicConfig();
-          if (response?.data) {
-            const data = response.data;
+          // ✅ CORRECTION ICI : AuthService.getPublicConfig() retourne déjà les données directes de Axios
+          const data = await AuthService.getPublicConfig();
+          
+          if (data) {
             const rawLogo = data.globalLogoPath || data.logoUrl || data.logo || null;
             const name = data.applicationName || data.systemName || data.name || "MyAcademia";
 
@@ -104,9 +105,10 @@ const Login = () => {
               if (rawLogo.startsWith('http://') || rawLogo.startsWith('https://') || rawLogo.startsWith('data:')) {
                 fullLogoUrl = rawLogo;
               } else {
-                const backendHost = window.location.origin.includes('localhost') 
-                  ? 'http://localhost:8080' 
-                  : window.location.origin;
+                // Redirection dynamique et stricte vers le backend pour éviter l'erreur 404 du Frontend
+                const backendHost = window.location.hostname.includes('onrender.com') 
+                  ? 'https://musafa-projectbackend.onrender.com' 
+                  : 'http://localhost:8080';
                 fullLogoUrl = `${backendHost}/${rawLogo.replace(/^\/+/, '')}`;
               }
             }
@@ -150,22 +152,18 @@ const Login = () => {
         }
       }
 
-      // ✅ MODIFICATION ICI : On intègre academicYearId proprement
       const updatedUser = { 
         ...userData, 
         schoolId: userData.schoolId,
         schoolCode: userData.schoolCode,
-        academicYearId: userData.academicYearId, // Injection de la nouvelle donnée du Backend
+        academicYearId: userData.academicYearId,
         isSubscriptionActive: userData.isSubscriptionActive ?? userData.subscriptionActive,
         isSchoolConfigured: userData.isSchoolConfigured ?? userData.schoolConfigured,
         mustChangePassword: mustChangePassword
       };
       
-      // On sauvegarde l'utilisateur
       localStorage.setItem("user", JSON.stringify(updatedUser));
       
-      // ✅ AJOUT ESSENTIEL : On sauvegarde l'année académique dans des clés individuelles 
-      // pour que tous les composants (comme l'horaire de l'enseignant) le trouvent tout de suite.
       if (userData.academicYearId) {
         localStorage.setItem("academicYearId", userData.academicYearId);
         localStorage.setItem("currentAcademicYearId", userData.academicYearId);
