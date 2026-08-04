@@ -133,6 +133,24 @@ public class AttendanceServiceImpl implements AttendanceService {
                 .findBySchoolIdAndClassroomIdAndAcademicYearIdAndDate(schoolId, classroomId, academicYearId, date);
 
         if (sessionOpt.isEmpty()) {
+            // ✅ CORRECTION : Récupération des élèves via la table d'inscription (Enrollment)
+            // en tenant compte de l'école et de l'année académique courante.
+            List<Student> students = studentRepository.findActiveStudentsByClassroomAndYearAndSchool(classroomId, academicYearId, schoolId);
+
+            List<StudentAttendanceResponseDTO> studentDTOs = students.stream().map(student ->
+                    StudentAttendanceResponseDTO.builder()
+                            .studentId(student.getId())
+                            .matricule(student.getMatricule())
+                            .fullName(student.getFullName())
+                            .gender(student.getGender())
+                            .morningStatus(AttendanceStatus.PRESENT) // Valeur par défaut pour l'UI
+                            .eveningStatus(null)
+                            .finalStatus(null)
+                            .finalSymbol("-")
+                            .remarks("")
+                            .build()
+            ).collect(Collectors.toList());
+
             return DailyAttendanceStatusResponseDTO.builder()
                     .sessionId(null)
                     .date(date)
@@ -140,7 +158,7 @@ public class AttendanceServiceImpl implements AttendanceService {
                     .classroomName(classroom.getDisplayName())
                     .morningDone(false)
                     .eveningDone(false)
-                    .students(Collections.emptyList())
+                    .students(studentDTOs)
                     .build();
         }
 
@@ -197,8 +215,8 @@ public class AttendanceServiceImpl implements AttendanceService {
         List<StudentAttendance> monthAttendances = studentAttendanceRepository
                 .findMonthlyAttendances(schoolId, classroomId, academicYearId, startDate, endDate);
 
-        // Récupération de tous les élèves de la classe
-        List<Student> students = studentRepository.findAll(); // Peut être filtré selon le schéma d'inscription
+        // ✅ CORRECTION : Récupération ciblée et sécurisée via l'entité Enrollment
+        List<Student> students = studentRepository.findActiveStudentsByClassroomAndYearAndSchool(classroomId, academicYearId, schoolId);
 
         Map<Integer, Integer> dailyTotalPresences = new HashMap<>();
         Map<Integer, Integer> dailyTotalAbsences = new HashMap<>();
@@ -264,7 +282,7 @@ public class AttendanceServiceImpl implements AttendanceService {
         String titulaireName = (classroom.getTitulaire() != null) ? classroom.getTitulaire().getFullName() : "Non assigné";
 
         return MonthlyRegisterDTO.builder()
-                .schoolName(school.getName()) //  Correction apportée : school.getName() au lieu de school.getSchoolName()
+                .schoolName(school.getName())
                 .classroomName(classroom.getDisplayName())
                 .titulaireName(titulaireName)
                 .academicYearName(academicYear.getName())

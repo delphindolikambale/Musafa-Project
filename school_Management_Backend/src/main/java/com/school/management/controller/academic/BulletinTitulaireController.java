@@ -54,24 +54,22 @@ public class BulletinTitulaireController {
         return ResponseEntity.ok(students);
     }
 
-    // AJOUT : Endpoint pour récupérer les données du bulletin d'un élève spécifique
-    @GetMapping("/folders/{folderId}/students/{studentId}/bulletin")
+    // ADAPTATION : Endpoint modifié pour utiliser classroomId au lieu de folderId
+    @GetMapping("/classes/{classroomId}/students/{studentId}/bulletin")
     public ResponseEntity<?> getStudentBulletinData(
-            @PathVariable Long folderId,
+            @PathVariable Long classroomId,
             @PathVariable Long studentId) {
         try {
-            Map<String, Object> bulletinData = bulletinTitulaireService.getStudentBulletinData(folderId, studentId);
+            Map<String, Object> bulletinData = bulletinTitulaireService.getStudentBulletinData(classroomId, studentId);
             return ResponseEntity.ok(bulletinData);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("{\"error\": \"Erreur lors de la récupération des données du bulletin.\"}");
+            return ResponseEntity.internalServerError().body("{\"error\": \"Erreur lors de la récupération des données du bulletin : " + e.getMessage() + "\"}");
         }
     }
 
-    // AJOUT : Endpoint pour le téléchargement du PDF réceptionné
     @GetMapping("/download/{studentId}")
     public ResponseEntity<?> downloadBulletinPdf(@PathVariable Long studentId) {
         try {
-            // Logique de téléchargement gérée par le service (retour du flux binaire PDF)
             return ResponseEntity.ok().body("{\"message\": \"Endpoint de téléchargement prêt.\"}");
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("{\"error\": \"Erreur lors du téléchargement du PDF.\"}");

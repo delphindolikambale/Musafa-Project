@@ -19,6 +19,33 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
         );
     };
 
+    // Sécurisation et formatage pour la Date (Spring Boot peut retourner un array [YYYY, MM, DD])
+    const formatBirthDate = (dateVal) => {
+        if (!dateVal) return "";
+        if (Array.isArray(dateVal)) {
+            const [year, month, day] = dateVal;
+            return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+        }
+        try {
+            const d = new Date(dateVal);
+            if (!isNaN(d.getTime())) {
+                return d.toLocaleDateString('fr-FR');
+            }
+        } catch (e) {
+            console.error("Erreur de formatage date:", e);
+        }
+        return dateVal;
+    };
+
+    // Formatage robuste du genre (Enum Backend)
+    const formatGender = (genderVal) => {
+        if (!genderVal) return "";
+        const g = genderVal.toString().toUpperCase();
+        if (g === 'M' || g.includes('MALE') || g.includes('MASC')) return "MASCULIN";
+        if (g === 'F' || g.includes('FEM') || g === 'FILLE') return "FÉMININ";
+        return g;
+    };
+
     // Protection pour éviter l'appel si getImageUrl échoue
     const getSafeImageUrl = (path) => {
         if (!path) return null;
@@ -30,16 +57,14 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
         }
     };
 
-    // 🔴 CORRECTION : Génération intelligente et dynamique du titre selon le format
+    // Génération intelligente et dynamique du titre avec fallback sécurisé
     const generateBulletinTitle = () => {
-        const level = studentInfo?.classLevel || "..........";
-        const year = studentInfo?.schoolYear || "..........";
+        const level = studentInfo?.classLevel || studentInfo?.classroom?.name || studentInfo?.classroomName || "";
+        const year = studentInfo?.schoolYear || studentInfo?.academicYear?.name || studentInfo?.academicYear || "";
         
         if (formatType === 'HUMANITES') {
-            // Pour les humanités, on ajoute le mot "HUMANITÉS" après la classe
             return `BULLETIN DE LA ${level} HUMANITÉS ANNÉE SCOLAIRE ${year}`.toUpperCase();
         } else {
-            // Pour le cycle de base (7e et 8e)
             return `BULLETIN DE LA ${level} CYCLE TERMINAL DE L'ÉDUCATION DE BASE (CTEB) ANNÉE SCOLAIRE ${year}`.toUpperCase();
         }
     };
@@ -63,10 +88,10 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                 
                 <div className="flex-1 text-center flex flex-col items-center justify-center">
                     <h1 className="font-serif font-black text-[15px] uppercase tracking-wider text-black">
-                        {header?.country || "REPUBLIQUE DEMOCRATIQUE DU CONGO"}
+                        {header?.country || ""}
                     </h1>
                     <p className="font-serif text-[12px] uppercase font-bold tracking-normal mt-1 text-black">
-                        {header?.ministry || "MINISTERE DE L'EDUCATION NATIONALE ET NOUVELLE CITOYENNETE"}
+                        {header?.ministry || ""}
                     </p>
                 </div>
 
@@ -92,11 +117,12 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                         N° ID.
                     </div>
                     <div className="flex-1 flex items-center px-2 bg-white">
-                        {renderCodeBoxes(studentInfo?.nationalId || "", 27)}
+                        {/* ✅ ADAPTATION : Utilisation du N° ID relié dynamiquement et proprement extrait */}
+                        {renderCodeBoxes(studentInfo?.nationalId || studentInfo?.national_id || "", 27)}
                     </div>
                 </div>
 
-                {/* 3. Ligne de la PROVINCE EDUCATIONNELLE (Isolée sur sa propre ligne) */}
+                {/* 3. Ligne de la PROVINCE EDUCATIONNELLE */}
                 <div className="flex items-end px-2 py-1.5 border-b-[1.5px] border-black bg-white">
                     <span className="w-[170px] font-bold uppercase shrink-0">PROVINCE EDUCATIONNELLE</span>
                     <span className="mx-1 font-bold">:</span>
@@ -147,14 +173,13 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                                 <span className="w-[60px] font-bold uppercase shrink-0">ELEVE</span>
                                 <span className="mx-1 font-bold">:</span>
                                 <span className="uppercase font-bold flex-1 border-b border-dotted border-black/60 pb-0.5 whitespace-nowrap overflow-hidden">
-                                    {/* Formatage correct du nom (prénom, nom, post-nom) gérant les champs vides */}
-                                    {`${studentInfo?.lastName || ""} ${studentInfo?.postName || ""} ${studentInfo?.firstName || ""}`.trim()}
+                                    {studentInfo?.fullName || `${studentInfo?.lastName || ""} ${studentInfo?.postName || ""} ${studentInfo?.firstName || ""}`.trim()}
                                 </span>
                             </div>
                             <div className="flex items-end shrink-0 w-[70px]">
                                 <span className="font-bold uppercase mr-1">SEXE :</span>
                                 <span className="uppercase font-bold flex-1 border-b border-dotted border-black/60 text-center pb-0.5">
-                                    {studentInfo?.gender || ""}
+                                    {formatGender(studentInfo?.gender)}
                                 </span>
                             </div>
                         </div>
@@ -169,7 +194,7 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                             <div className="flex items-end shrink-0 w-[100px]">
                                 <span className="font-bold uppercase mr-1">LE :</span>
                                 <span className="uppercase font-bold flex-1 border-b border-dotted border-black/60 text-center pb-0.5">
-                                    {studentInfo?.birthDate || ""}
+                                    {formatBirthDate(studentInfo?.birthDate)}
                                 </span>
                             </div>
                         </div>
@@ -177,7 +202,7 @@ const BulletinHeader = ({ header, studentInfo, formatType }) => {
                             <span className="w-[60px] font-bold uppercase shrink-0">CLASSE</span>
                             <span className="mx-1 font-bold">:</span>
                             <span className="uppercase font-bold flex-1 border-b border-dotted border-black/60 pb-0.5 whitespace-nowrap overflow-hidden">
-                                {studentInfo?.classLevel || ""}
+                                {studentInfo?.classLevel || studentInfo?.classroom?.name || studentInfo?.classroomName || ""}
                             </span>
                         </div>
                         <div className="flex items-center mt-auto pt-1">

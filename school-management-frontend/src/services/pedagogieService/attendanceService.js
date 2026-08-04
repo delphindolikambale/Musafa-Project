@@ -1,4 +1,4 @@
-import axios from 'axios';
+import api from '../api';
 
 const API_BASE_URL = '/api/v1/attendances';
 
@@ -8,7 +8,7 @@ export const attendanceService = {
    * @param {Object} batchData
    */
   recordDailyAttendance: async (batchData) => {
-    const response = await axios.post(`${API_BASE_URL}/record`, batchData);
+    const response = await api.post(`${API_BASE_URL}/record`, batchData);
     return response.data;
   },
 
@@ -16,7 +16,7 @@ export const attendanceService = {
    * Récupère l'état des présences pour une date donnée
    */
   getDailyAttendance: async (schoolId, classroomId, academicYearId, date) => {
-    const response = await axios.get(`${API_BASE_URL}/daily`, {
+    const response = await api.get(`${API_BASE_URL}/daily`, {
       headers: {
         'X-School-Id': schoolId
       },
@@ -33,7 +33,7 @@ export const attendanceService = {
    * Récupère la grille officielle du registre mensuel
    */
   getMonthlyRegister: async (schoolId, classroomId, academicYearId, year, month) => {
-    const response = await axios.get(`${API_BASE_URL}/monthly-register`, {
+    const response = await api.get(`${API_BASE_URL}/monthly-register`, {
       headers: {
         'X-School-Id': schoolId
       },

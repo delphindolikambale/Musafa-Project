@@ -17,6 +17,15 @@ public interface StudentRepository extends JpaRepository<Student, Long> {
     Optional<Student> findByUserId(Long userId);
     List<Student> findBySchoolId(Long schoolId);
 
+    // ✅ CORRECTION : Requête personnalisée via l'entité Enrollment pour résoudre PropertyReferenceException.
+    // Intégration du filtrage Multi-tenant + Année académique pour éviter de ramener les élèves des années passées.
+    @Query("SELECT e.student FROM Enrollment e WHERE e.classroom.id = :classroomId AND e.academicYear.id = :academicYearId AND e.school.id = :schoolId AND e.active = true")
+    List<Student> findActiveStudentsByClassroomAndYearAndSchool(
+            @Param("classroomId") Long classroomId,
+            @Param("academicYearId") Long academicYearId,
+            @Param("schoolId") Long schoolId
+    );
+
     long countBySchoolId(Long schoolId);
 
     // ✅ NOUVEAU : Comptage par genre pour les statistiques du tableau de bord

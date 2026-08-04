@@ -24,13 +24,23 @@ export const websocketService = {
         isConnecting = true;
         
         const socket = new SockJS(`${BACKEND_BASE}/ws`);
-        stompClient = Stomp.over(socket);
-        stompClient.debug = () => {}; 
+        const localStompClient = Stomp.over(socket);
+        
+        // On assigne au scope global mais on conserve une référence locale pour éviter les Race Conditions
+        stompClient = localStompClient;
+        localStompClient.debug = () => {}; 
 
-        stompClient.heartbeat.outgoing = 10000; 
-        stompClient.heartbeat.incoming = 10000; 
+        localStompClient.heartbeat.outgoing = 10000; 
+        localStompClient.heartbeat.incoming = 10000; 
 
-        stompClient.connect({}, (frame) => {
+        localStompClient.connect({}, (frame) => {
+            // SÉCURITÉ: Si un démontage React rapide a eu lieu et a écrasé stompClient, 
+            // cette instance obsolète doit être abandonnée silencieusement.
+            if (stompClient !== localStompClient) {
+                try { localStompClient.disconnect(); } catch(e) {}
+                return;
+            }
+
             console.log('✅ WebSocket Connecté avec succès (Service Central)');
             isConnected = true;
             isConnecting = false;
@@ -42,21 +52,21 @@ export const websocketService = {
             }
             
             // --- Abonnements Globaux ---
-            stompClient.subscribe('/topic/financial-notifications', (message) => {
+            localStompClient.subscribe('/topic/financial-notifications', (message) => {
                 if (message.body) websocketService._processMessage(message.body);
             });
 
-            stompClient.subscribe('/topic/finance-notifications', (message) => {
+            localStompClient.subscribe('/topic/finance-notifications', (message) => {
                 if (message.body) websocketService._processMessage(message.body);
             });
 
-            stompClient.subscribe('/topic/proviseur-notifications', (message) => {
+            localStompClient.subscribe('/topic/proviseur-notifications', (message) => {
                 if (message.body) websocketService._processMessage(message.body);
             });
 
             // --- Rétablissement des abonnements dynamiques multi-tenants ---
             dynamicSubscribers.forEach((callbacks, topic) => {
-                const subscription = stompClient.subscribe(topic, (message) => {
+                const subscription = localStompClient.subscribe(topic, (message) => {
                     let data = message.body;
                     try { data = JSON.parse(message.body); } catch (e) {}
                     callbacks.forEach(cb => cb(data));
@@ -65,6 +75,9 @@ export const websocketService = {
             });
 
         }, (error) => {
+            // SÉCURITÉ: Ignorer les erreurs des vieilles instances "orphelines"
+            if (stompClient !== localStompClient) return;
+
             console.warn('⚠️ Connexion WebSocket interrompue. Reconnexion en cours...');
             
             isConnected = false;
@@ -152,10 +165,16 @@ export const websocketService = {
                 reconnectTimeout = null;
             }
             
-            if (stompClient && isConnected) {
-                stompClient.disconnect(() => {
-                    console.log("🛑 WebSocket mis en veille (aucun souscripteur actif).");
-                });
+            if (stompClient) {
+                if (isConnected) {
+                    stompClient.disconnect(() => {
+                        console.log("🛑 WebSocket mis en veille (aucun souscripteur actif).");
+                    });
+                } else if (stompClient.ws) {
+                    // SÉCURITÉ: Si on était en cours de connexion, forcer la fermeture du socket sous-jacent 
+                    // pour éviter qu'il aboutisse et plante dans le vide.
+                    try { stompClient.ws.close(); } catch (e) {}
+                }
             }
             
             stompClient = null;

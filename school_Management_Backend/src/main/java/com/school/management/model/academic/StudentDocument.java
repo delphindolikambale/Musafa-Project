@@ -42,5 +42,11 @@ public class StudentDocument {
     @PrePersist
     protected void onCreate() {
         this.uploadDate = LocalDateTime.now();
+
+        // ✅ CORRECTION MULTI-TENANT : Auto-assignation de l'école via l'inscription
+        // Si le service omet d'assigner l'école lors de l'upload, JPA la récupère automatiquement
+        if (this.school == null && this.enrollment != null) {
+            this.school = this.enrollment.getSchool();
+        }
     }
 }

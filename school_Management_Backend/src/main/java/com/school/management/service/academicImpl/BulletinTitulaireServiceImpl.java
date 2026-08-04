@@ -2,13 +2,16 @@ package com.school.management.service.academicImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.school.management.dto.academic.bulletin.BulletinFolderDTO;
+import com.school.management.dto.academic.bulletin.BulletinInitResponseDTO;
 import com.school.management.dto.academic.bulletin.StudentBulletinRowDTO;
+import com.school.management.model.academic.AcademicYear;
 import com.school.management.model.academic.Bulletin;
 import com.school.management.model.academic.BulletinFolder;
 import com.school.management.model.academic.Classroom;
 import com.school.management.model.academic.FicheValidation;
 import com.school.management.model.academic.Student;
 import com.school.management.model.academic.TeacherBulletinNotification;
+import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.BulletinFolderRepository;
 import com.school.management.repository.academic.BulletinRepository;
 import com.school.management.repository.academic.ClassroomRepository;
@@ -49,6 +52,9 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
 
     @Autowired
     private TeacherBulletinNotificationRepository notificationRepository;
+
+    @Autowired
+    private BulletinProviseurServiceImpl bulletinProviseurService;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -116,7 +122,6 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
                     .ifPresent(folder -> {
                         long totalBulletins = bulletinRepository.countByFolderId(folder.getId());
 
-                        // Auto-réparation si des bulletins existaient sans lien de dossier
                         if (totalBulletins == 0) {
                             List<Bulletin> unlinked = bulletinRepository.findByClassroomIdAndAcademicYearIdAndSchoolId(
                                     c.getId(), academicYearId, schoolId);
@@ -158,7 +163,6 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
     public List<StudentBulletinRowDTO> getStudentsInFolder(Long folderId) {
         List<Bulletin> bulletins = bulletinRepository.findByFolderId(folderId);
 
-        // Repli de sécurité si l'ID passé est l'ID de la classe ou si la liaison manque
         if (bulletins.isEmpty()) {
             var folderOpt = bulletinFolderRepository.findById(folderId);
             if (folderOpt.isPresent()) {
@@ -197,20 +201,58 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
         }).collect(Collectors.toList());
     }
 
-    // AJOUT : Implémentation de la méthode manquante pour récupérer les données du bulletin
-    // Note: Ajoutez l'annotation @Override si vous avez ajouté cette méthode dans l'interface BulletinTitulaireService
+    // ADAPTATION : Integration complete de l'en-tête administrative et de la maquette Proviseur
     @Transactional(readOnly = true)
-    public Map<String, Object> getStudentBulletinData(Long folderId, Long studentId) {
+    public Map<String, Object> getStudentBulletinData(Long classroomId, Long studentId) {
         Map<String, Object> response = new HashMap<>();
 
-        // Logique métier à compléter avec vos repositories pour récupérer les vraies données
-        // Exemple :
-        // Student student = studentRepository.findById(studentId).orElseThrow(...);
-        // List<BranchData> branches = bulletinRepository.findBranchesByStudentId(...);
+        // 1. Récupération via l'ID de la classe
+        List<Bulletin> bulletins = bulletinRepository.findByClassroomId(classroomId);
 
-        // Structure de base attendue par votre frontend (StudentBulletinView.jsx)
-        response.put("student", null); // Remplacer par l'objet DTO de l'étudiant
-        response.put("branches", new ArrayList<>()); // Remplacer par la liste des cotes
+        // 2. Filtrage pour trouver le bulletin de l'élève
+        Bulletin studentBulletin = bulletins.stream()
+                .filter(b -> b.getStudent() != null && b.getStudent().getId().equals(studentId))
+                .findFirst()
+                .orElseThrow(() -> new RuntimeException("Aucun bulletin trouvé pour l'élève ID " + studentId + " dans la classe ID " + classroomId));
+
+        Student student = studentBulletin.getStudent();
+        Classroom classroom = studentBulletin.getClassroom();
+        School school = studentBulletin.getSchool();
+        AcademicYear academicYear = studentBulletin.getAcademicYear();
+
+        // 3. Construction des informations de l'élève
+        Map<String, Object> studentInfo = new HashMap<>();
+        studentInfo.put("id", student.getId());
+        studentInfo.put("fullName", student.getFullName());
+        studentInfo.put("firstName", student.getFirstName());
+        studentInfo.put("lastName", student.getLastName());
+        studentInfo.put("gender", student.getGender() != null ? student.getGender().name() : "N/A");
+        studentInfo.put("permanentNumber", student.getPermanentNumber());
+
+        // 4. En-tête administratif complet du bulletin
+        Map<String, Object> header = new HashMap<>();
+        header.put("province", school != null && school.getProvince() != null ? school.getProvince() : "");
+        header.put("city", school != null && school.getCity() != null ? school.getCity() : "");
+        header.put("ville", school != null && school.getCity() != null ? school.getCity() : "");
+        header.put("commune", school != null && school.getCity() != null ? school.getCity() : "");
+        header.put("schoolName", school != null && school.getName() != null ? school.getName() : "");
+        header.put("schoolCode", school != null && school.getCode() != null ? school.getCode() : "");
+        header.put("className", classroom != null ? classroom.getDisplayName() : "");
+        header.put("academicYear", academicYear != null ? academicYear.getAnnee() : "");
+
+        // 5. Récupération dynamique de la grille officielle (Domaines, Cours, Maxima) générée par le Proviseur
+        BulletinInitResponseDTO bulletinData = bulletinProviseurService.getBulletinInitData(
+                classroomId,
+                academicYear != null ? academicYear.getId() : null,
+                school != null ? school.getId() : null
+        );
+
+        // 6. Assemblage de la réponse finale
+        response.put("student", studentInfo);
+        response.put("header", header);
+        response.put("bulletinData", bulletinData);
+        response.put("bulletinId", studentBulletin.getId());
+        response.put("status", studentBulletin.getStatus());
 
         return response;
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
     ShieldCheck, 
@@ -14,7 +14,7 @@ import {
     BellRing,
     Folder,
     Printer,
-    UserCheck // ✅ Icône importée pour le bouton de présence
+    UserCheck 
 } from 'lucide-react';
 import titulaireService from '../../../services/pedagogieService/titulaireService';
 import api from '../../../services/api';
@@ -61,7 +61,7 @@ const TitulaireDashboard = () => {
         }
     };
     
-    const user = getUser();
+    const user = useMemo(() => getUser(), []);
     const teacherId = user.teacherId || user.id;
     const schoolId = user.schoolId || 1;
 
@@ -105,9 +105,10 @@ const TitulaireDashboard = () => {
                     if (teacherId) {
                         const classesRes = await titulaireService.getMyClassrooms(teacherId, currentYear.id);
                         if (isMounted) {
-                            setMyClassrooms(classesRes || []);
-                            if (classesRes && classesRes.length > 0) {
-                                setSelectedClassroom(classesRes[0]);
+                            const classrooms = Array.isArray(classesRes) ? classesRes : [];
+                            setMyClassrooms(classrooms);
+                            if (classrooms.length > 0) {
+                                setSelectedClassroom(prev => prev || classrooms[0]);
                             }
                         }
                     }
@@ -125,7 +126,6 @@ const TitulaireDashboard = () => {
     }, [teacherId]);
 
     // 2. Récupération des DOSSIERS DE BULLETINS
-    // Utilisation de activeYear?.id au lieu de activeYear pour éviter des re-rendus inutiles
     useEffect(() => {
         let isMounted = true;
 
@@ -136,7 +136,7 @@ const TitulaireDashboard = () => {
             try {
                 const foldersRes = await titulaireService.getBulletinFolders(teacherId, activeYear.id, schoolId);
                 if (isMounted) {
-                    setBulletinFolders(foldersRes || []);
+                    setBulletinFolders(Array.isArray(foldersRes) ? foldersRes : []);
                 }
             } catch (error) {
                 console.error("Erreur lors de la récupération des dossiers:", error);
@@ -199,10 +199,14 @@ const TitulaireDashboard = () => {
             setRefreshTrigger(prev => prev + 1);
         };
 
-        websocketService.subscribeToTopic(topic, handleWebSocketMessage);
+        if (websocketService && typeof websocketService.subscribeToTopic === 'function') {
+            websocketService.subscribeToTopic(topic, handleWebSocketMessage);
+        }
 
         return () => {
-            websocketService.unsubscribeFromTopic(topic, handleWebSocketMessage);
+            if (websocketService && typeof websocketService.unsubscribeFromTopic === 'function') {
+                websocketService.unsubscribeFromTopic(topic, handleWebSocketMessage);
+            }
         };
     }, [teacherId, schoolId]);
 
@@ -247,8 +251,12 @@ const TitulaireDashboard = () => {
 
     const formatDate = (dateString) => {
         if (!dateString) return "---";
-        const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
-        return new Date(dateString).toLocaleDateString('fr-FR', options);
+        try {
+            const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
+            return new Date(dateString).toLocaleDateString('fr-FR', options);
+        } catch {
+            return dateString;
+        }
     };
 
     if (loading) {
@@ -262,7 +270,7 @@ const TitulaireDashboard = () => {
         );
     }
 
-    if (myClassrooms.length === 0) {
+    if (!Array.isArray(myClassrooms) || myClassrooms.length === 0) {
         return (
             <div className="p-6 h-[80vh] flex items-center justify-center">
                 <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-12 shadow-sm border border-slate-100 dark:border-slate-800 text-center max-w-lg">
@@ -278,9 +286,12 @@ const TitulaireDashboard = () => {
         );
     }
 
-    const currentClassroomFolders = bulletinFolders
-        .filter(f => f.classroomId === selectedClassroom?.id)
-        .sort((a, b) => a.period - b.period);
+    const safeFolders = Array.isArray(bulletinFolders) ? bulletinFolders : [];
+    const currentClassroomFolders = safeFolders
+        .filter(f => f && f.classroomId === selectedClassroom?.id)
+        .sort((a, b) => (a.period || 0) - (b.period || 0));
+
+    const safeSubjects = Array.isArray(monitoringData?.subjects) ? monitoringData.subjects : [];
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 relative">
@@ -331,7 +342,7 @@ const TitulaireDashboard = () => {
                         </div>
                     </div>
                     
-                    {/* ✅ NOUVEAU BOUTON : GESTION DES PRÉSENCES */}
+                    {/* BOUTON : GESTION DES PRÉSENCES */}
                     <button
                         onClick={() => navigate('/enseignant/titulaire/presences')}
                         className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-200 dark:shadow-emerald-900/20 active:scale-95 whitespace-nowrap"
@@ -344,9 +355,9 @@ const TitulaireDashboard = () => {
                 <div className="flex flex-wrap gap-4 items-center bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                     <div className="flex items-center gap-3">
                         <span className="text-xs font-black uppercase text-slate-400 tracking-wider">Classe :</span>
-                        {myClassrooms.map(cls => (
+                        {myClassrooms.map((cls, idx) => (
                             <button
-                                key={cls.id}
+                                key={cls.id || idx}
                                 onClick={() => setSelectedClassroom(cls)}
                                 className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
                                     selectedClassroom?.id === cls.id 
@@ -392,8 +403,8 @@ const TitulaireDashboard = () => {
                 
                 {currentClassroomFolders.length > 0 && selectedClassroom ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {currentClassroomFolders.map(folder => (
-                            <div key={folder.id} className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative hover:shadow-md transition-shadow group flex flex-col justify-between min-h-[220px]">
+                        {currentClassroomFolders.map((folder, idx) => (
+                            <div key={folder.id || idx} className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 relative hover:shadow-md transition-shadow group flex flex-col justify-between min-h-[220px]">
                                 
                                 <div className="absolute top-6 right-6 bg-slate-50 dark:bg-slate-800 text-slate-400 font-black text-[10px] uppercase px-3 py-1.5 rounded-lg tracking-wider border border-slate-100 dark:border-slate-700">
                                     DOSSIER OFFICIEL
@@ -457,7 +468,7 @@ const TitulaireDashboard = () => {
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
-                        {monitoringData && monitoringData.subjects && monitoringData.subjects.length > 0 ? (
+                        {safeSubjects.length > 0 ? (
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="border-b-2 border-slate-100 dark:border-slate-800">
@@ -470,8 +481,8 @@ const TitulaireDashboard = () => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {monitoringData.subjects.map((subject, index) => (
-                                        <tr key={subject.teacherAssignmentId} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                                    {safeSubjects.map((subject, index) => (
+                                        <tr key={subject.teacherAssignmentId || index} className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                                             <td className="py-4 px-4 text-sm font-bold text-slate-500">{index + 1}</td>
                                             <td className="py-4 px-4 text-sm font-black text-slate-700 dark:text-slate-200">{subject.subjectName}</td>
                                             <td className="py-4 px-4 text-sm font-bold text-slate-500 dark:text-slate-400">{subject.teacherName}</td>

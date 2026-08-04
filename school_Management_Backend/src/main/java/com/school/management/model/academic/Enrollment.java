@@ -41,7 +41,7 @@ public class Enrollment {
     @JoinColumn(name = "classroom_id")
     private Classroom classroom;
 
-    // ✅ COUPLAGE MULTI-TENANT : Chaque inscription est strictement liée à son école
+    // COUPLAGE MULTI-TENANT : Chaque inscription est strictement liée à son école
     @ManyToOne(optional = false)
     @JoinColumn(name = "school_id", nullable = false)
     private School school;
@@ -57,7 +57,9 @@ public class Enrollment {
     @Builder.Default
     private List<StudentDocument> documents = new ArrayList<>();
 
+    // ✅ CORRECTION : Ajout de @Builder.Default pour conserver active = true
     @Column(nullable = false)
+    @Builder.Default
     private boolean active = true;
 
     @Column(name = "enrollment_number", unique = true)
@@ -74,5 +76,10 @@ public class Enrollment {
     public void addDocument(StudentDocument doc) {
         documents.add(doc);
         doc.setEnrollment(this);
+
+        // ✅ CORRECTION MULTI-TENANT : Propagation automatique du contexte de l'école au document
+        if (this.school != null) {
+            doc.setSchool(this.school);
+        }
     }
 }

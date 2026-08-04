@@ -10,11 +10,15 @@ import java.time.LocalDate;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-
 public class StudentDTO {
     private Long id;
     private String matricule;
     private String permanentNumber;
+
+    // ✅ CORRECTION CRUCIALE : Ajout du Numéro d'Identification Nationale (N° ID.)
+    // Obligatoire pour le mappage de l'en-tête du bulletin
+    private String nationalId;
+
     private String lastName;
     private String postName;
     private String firstName;
@@ -25,5 +29,16 @@ public class StudentDTO {
     private StudentStatus status;
     private String commune;
     private String quartier;
+
+    // ✅ CORRECTION : Ajout des informations parentales pour garantir la complétude du dossier
+    private String fatherName;
+    private String fatherProfession;
+    private String motherName;
+    private String motherProfession;
+
     private String photoUrl;
+
+    // Champs optionnels souvent utiles pour l'aplatissement de la classe et de l'année
+    private String classLevel;
+    private String schoolYear;
 }

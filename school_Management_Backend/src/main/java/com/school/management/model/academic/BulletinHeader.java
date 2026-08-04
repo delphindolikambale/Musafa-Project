@@ -1,6 +1,7 @@
 package com.school.management.model.academic;
 
-import com.school.management.model.multitenant.School; // ✅ AJOUT
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.school.management.model.multitenant.School;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -8,7 +9,7 @@ import lombok.*;
 @Table(
         name = "bulletin_headers",
         uniqueConstraints = {
-                // ✅ MULTI-TENANT : Un seul en-tête de bulletin par établissement
+                // MULTI-TENANT : Un seul en-tête de bulletin par établissement
                 @UniqueConstraint(columnNames = {"school_id"})
         }
 )
@@ -49,7 +50,8 @@ public class BulletinHeader {
     private String ministryLogoPath;
     private String watermarkLogoPath;
 
-    // ✅ MULTI-TENANT : Rattachement direct à son école
+    // ✅ CORRECTION : Ajout de @JsonIgnoreProperties pour éviter LazyInitializationException lors de la sérialisation
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "school_id", nullable = false)
     private School school;

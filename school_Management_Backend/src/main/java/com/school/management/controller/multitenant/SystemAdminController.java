@@ -6,6 +6,7 @@ import com.school.management.model.multitenant.SystemSettings;
 import com.school.management.service.multitenantImpl.SchoolServiceImpl;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,7 +18,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/system-admin")
 @RequiredArgsConstructor
-// ❌ @CrossOrigin a été retiré ici pour laisser WebSecurityConfig gérer les accès Render globalement.
 public class SystemAdminController {
 
     private final SchoolServiceImpl schoolService;
@@ -35,7 +35,7 @@ public class SystemAdminController {
         return ResponseEntity.ok(publicSchools);
     }
 
-    // ✅ CORRECTION : Ajout de l'alias "/public/config" pour supporter la requête du Frontend via AuthService sans modifier ce dernier
+    // ✅ Endpoint public pour obtenir la configuration globale
     @GetMapping({"/public/settings", "/public/config"})
     public ResponseEntity<Map<String, String>> getPublicSettings() {
         SystemSettings settings = schoolService.getSystemSettings();
@@ -82,7 +82,8 @@ public class SystemAdminController {
         return ResponseEntity.ok(schoolService.getSystemSettings());
     }
 
-    @PostMapping("/settings")
+    // ✅ CORRECTION : Ajout de consumes = MediaType.MULTIPART_FORM_DATA_VALUE pour forcer le support Multipart
+    @PostMapping(value = "/settings", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<SystemSettings> updateSettings(
             @RequestParam("applicationName") String appName,
             @RequestParam(value = "logo", required = false) MultipartFile logo) {

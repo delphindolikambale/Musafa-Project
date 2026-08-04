@@ -19,7 +19,8 @@ import java.time.LocalDate;
         name = "students",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = "permanent_number"),
-                @UniqueConstraint(columnNames = "matricule")
+                @UniqueConstraint(columnNames = "matricule"),
+                @UniqueConstraint(columnNames = "national_id") // ✅ ADAPTATION : Rendre le N° ID unique
         }
 )
 @Getter
@@ -45,6 +46,12 @@ public class Student {
      */
     @Column(name = "permanent_number", nullable = false, unique = true, length = 50)
     private String permanentNumber;
+
+    /**
+     * ✅ ADAPTATION : Numéro d'Identification Nationale (N° ID. - 27 cases pour le Bulletin).
+     */
+    @Column(name = "national_id", unique = true, length = 50)
+    private String nationalId;
 
     @Column(name = "last_name", nullable = false)
     private String lastName;

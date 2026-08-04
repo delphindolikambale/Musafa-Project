@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// ✅ Détection dynamique de l'environnement (comme dans api.js)
+// ✅ Détection dynamique de l'environnement
 const deployeeSurRender = window.location.hostname.includes('onrender.com');
 const BACKEND_BASE = deployeeSurRender 
     ? "https://musafa-projectbackend.onrender.com" 
@@ -14,9 +14,6 @@ const API_BASE_URL = `${BACKEND_BASE}/api`;
  */
 const api = axios.create({
     baseURL: API_BASE_URL,
-    headers: {
-        'Content-Type': 'application/json',
-    },
 });
 
 // Intercepteur pour injecter automatiquement le Token JWT du Super Admin à chaque requête
@@ -33,11 +30,14 @@ api.interceptors.request.use(
     }
 );
 
-// ✅ Fonction utilitaire pour résoudre l'URL du logo système dynamiquement
+// ✅ CORRECTION : Résolution robuste de l'URL du logo système (supporte liens HTTP, API directes et fichiers)
 export const getSystemLogoUrl = (path) => {
     if (!path) return null;
-    if (path.startsWith('http')) return path;
-    return `${BACKEND_BASE}/${path.replace(/^\/+/, '')}`;
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    if (path.startsWith('/api') || path.startsWith('api')) {
+        return `${BACKEND_BASE}/${path.replace(/^\/+/, '')}`;
+    }
+    return `${BACKEND_BASE}/api/resources/view?path=${encodeURIComponent(path)}`;
 };
 
 const SuperAdminSystemService = {
@@ -46,8 +46,6 @@ const SuperAdminSystemService = {
     // 🔓 ENDPOINTS PUBLICS : Sans authentification requise
     // =========================================================================
 
-    // ✅ CORRECTION : Utilisation d'axios pur pour éviter l'injection du token élève
-    // qui pourrait causer un conflit de rôle avec Spring Security sur ce contrôleur.
     getPublicSettings: async () => {
         try {
             const response = await axios.get(`${API_BASE_URL}/system-admin/public/settings`);
@@ -82,7 +80,6 @@ const SuperAdminSystemService = {
         }
     },
 
-    // Collecte et historisation du paiement d'abonnement (Cash ou Mobile Money)
     collectSubscriptionPayment: async (schoolId, paymentData) => {
         try {
             const response = await api.post(`/system-admin/schools/${schoolId}/pay-subscription`, paymentData);
@@ -136,6 +133,8 @@ const SuperAdminSystemService = {
         }
     },
 
+    // ✅ CORRECTION CRITIQUE : Suppression du header Content-Type explicite
+    // Laisse Axios générer le Content-Type 'multipart/form-data; boundary=...' automatiquement.
     updateSettings: async (applicationName, logo) => {
         try {
             const formData = new FormData();
@@ -144,11 +143,7 @@ const SuperAdminSystemService = {
                 formData.append('logo', logo);
             }
 
-            const response = await api.post('/system-admin/settings', formData, {
-                headers: {
-                    'Content-Type': 'multipart/form-data'
-                }
-            });
+            const response = await api.post('/system-admin/settings', formData);
             return response.data;
         } catch (error) {
             throw error.response?.data || error.message;

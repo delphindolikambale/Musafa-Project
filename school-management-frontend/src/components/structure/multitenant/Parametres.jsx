@@ -12,7 +12,7 @@ const Parametres = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Nouveaux états pour gérer le verrouillage et la boîte de dialogue
+  // États de verrouillage et de boîte de dialogue
   const [isAppConfigured, setIsAppConfigured] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -36,7 +36,6 @@ const Parametres = () => {
         if (settings.globalLogoPath) {
           setLogoPreview(getSystemLogoUrl(settings.globalLogoPath));
         }
-        // Si les paramètres existent déjà, on verrouille par défaut
         if (settings.applicationName || settings.globalLogoPath) {
            setIsAppConfigured(true);
            setIsEditing(false);
@@ -66,10 +65,10 @@ const Parametres = () => {
         toast.error("Le nom de l'application est requis.");
         return;
     }
-    // Afficher la boîte de dialogue de confirmation au lieu d'enregistrer directement
     setShowConfirmModal(true);
   };
 
+  // ✅ CORRECTION : Mise à jour propre des états React et du LocalStorage après succès
   const executeSavePlatform = async () => {
     setShowConfirmModal(false);
     setIsSubmitting(true);
@@ -79,20 +78,25 @@ const Parametres = () => {
     try {
       const updatedSettings = await SuperAdminSystemService.updateSettings(appName, logoFile);
       
-      // Stocker les infos dans le LocalStorage
-      localStorage.setItem('systemAppName', updatedSettings.applicationName);
-      if (updatedSettings.globalLogoPath) {
-        localStorage.setItem('systemLogoPath', updatedSettings.globalLogoPath);
+      if (updatedSettings) {
+        setAppName(updatedSettings.applicationName || appName);
+        if (updatedSettings.globalLogoPath) {
+          setLogoPreview(getSystemLogoUrl(updatedSettings.globalLogoPath));
+          localStorage.setItem('systemLogoPath', updatedSettings.globalLogoPath);
+        }
+        localStorage.setItem('systemAppName', updatedSettings.applicationName || appName);
+        
+        // Réinitialisation du fichier temporaire sélectionné
+        setLogoFile(null);
+
+        // Déclenchement d'un événement global pour la mise à jour des barres de navigation
+        window.dispatchEvent(new Event('system-settings-updated'));
+
+        toast.success("Identité visuelle du système mise à jour avec succès !", { id: toastId });
+        
+        setIsAppConfigured(true);
+        setIsEditing(false);
       }
-
-      // Déclenchement d'un événement global pour forcer la mise à jour
-      window.dispatchEvent(new Event('system-settings-updated'));
-
-      toast.success("Identité visuelle du système mise à jour avec succès !", { id: toastId });
-      
-      // Verrouiller les champs après succès
-      setIsAppConfigured(true);
-      setIsEditing(false);
     } catch (error) {
       toast.error("Échec de la mise à jour : " + (error.message || error), { id: toastId });
     } finally {
@@ -111,13 +115,12 @@ const Parametres = () => {
     setSecurityForm({ ...securityForm, oldPassword: '', newPassword: '', confirmPassword: '' });
   };
 
-  // Détermine si le formulaire de plateforme doit être désactivé
   const isPlatformFormDisabled = isAppConfigured && !isEditing;
 
   return (
     <div className="space-y-6 text-slate-800 dark:text-white max-w-4xl mx-auto animate-in fade-in duration-500 relative">
       
-      {/* Boîte de dialogue de confirmation customisée */}
+      {/* Boîte de dialogue de confirmation */}
       {showConfirmModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
@@ -164,7 +167,7 @@ const Parametres = () => {
         </button>
       </div>
 
-      {/* Contenu Onglet 1 : Paramètres généraux */}
+      {/* Onglet 1 : Paramètres généraux */}
       {activeTab === 'platform' && (
         <form onSubmit={handleInitiateSave} className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6 relative overflow-hidden group/form">
           <div className="absolute top-0 left-0 w-full h-1 bg-blue-600"></div>
@@ -175,7 +178,6 @@ const Parametres = () => {
               <p className="text-xs text-slate-400">Ces éléments définissent l'image de marque affichée sur l'ensemble des écrans du logiciel.</p>
             </div>
             
-            {/* Bouton de modification si configuré */}
             {isAppConfigured && !isEditing && (
                 <button 
                     type="button" 
@@ -190,7 +192,7 @@ const Parametres = () => {
                     type="button" 
                     onClick={() => {
                         setIsEditing(false);
-                        fetchGlobalSettings(); // Recharger les données d'origine
+                        fetchGlobalSettings();
                     }}
                     className="flex items-center gap-2 px-4 py-2 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold transition-colors"
                 >
