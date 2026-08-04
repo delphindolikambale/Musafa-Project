@@ -16,13 +16,34 @@ const api = axios.create({
     baseURL: API_BASE_URL,
 });
 
+// ✅ CORRECTION : Alignement de la logique d'extraction du jeton sur celle de api.js
 // Intercepteur pour injecter automatiquement le Token JWT du Super Admin à chaque requête
 api.interceptors.request.use(
     (config) => {
-        const token = localStorage.getItem('token'); 
-        if (token) {
-            config.headers['Authorization'] = `Bearer ${token}`;
+        let token = null;
+
+        // 1. Tenter d'extraire le jeton depuis l'objet 'user'
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+            try {
+                const user = JSON.parse(userStr);
+                token = user?.token || user?.accessToken || user?.jwt;
+            } catch (e) {
+                token = userStr;
+            }
         }
+
+        // 2. Recherche de secours si le token est stocké sous d'autres clés classiques
+        if (!token) {
+            token = localStorage.getItem('token') || localStorage.getItem('accessToken') || localStorage.getItem('jwt');
+        }
+
+        // 3. Injecter l'en-tête Authorization s'il existe
+        if (token) {
+            const cleanToken = String(token).replace(/^"(.*)"$/, '$1').trim();
+            config.headers['Authorization'] = `Bearer ${cleanToken}`;
+        }
+
         return config;
     },
     (error) => {
