@@ -68,14 +68,27 @@ public class WebSecurityConfig implements WebMvcConfigurer {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+
         // Configuration permissives pour garantir la communication sur Render
         configuration.setAllowedOriginPatterns(Arrays.asList(
                 "https://*.onrender.com",
                 "http://localhost:*"
         ));
+
         // Ajout de la méthode HEAD souvent utilisée par les plateformes cloud pour le Health Check
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
-        configuration.setAllowedHeaders(List.of("*"));
+
+        // CORRECTION : Remplacement du wildcard "*" par une déclaration explicite des en-têtes.
+        // Les navigateurs bloquent l'envoi du token d'autorisation si allowCredentials = true et allowedHeaders = "*"
+        configuration.setAllowedHeaders(Arrays.asList(
+                "Authorization",
+                "Content-Type",
+                "Accept",
+                "X-Requested-With",
+                "Cache-Control",
+                "Origin"
+        ));
+
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
