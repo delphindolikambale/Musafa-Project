@@ -47,15 +47,19 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
             }
 
             String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file.png";
-            String fileName = prefix + UUID.randomUUID() + "_" + originalFilename;
+
+            // ✅ CORRECTION : Nettoyage des espaces et caractères spéciaux pour prévenir les erreurs 404 Linux
+            String safeFilename = originalFilename.replaceAll("[^a-zA-Z0-9\\.\\-]", "_");
+            String fileName = prefix + UUID.randomUUID() + "_" + safeFilename;
+
             Path targetPath = targetDirectory.resolve(fileName);
 
             // Copie physique du fichier sur le disque persistant Render
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Retourne le chemin relatif utilisable dans l'URL publique ou la BDD
-            // Exemple : "storage/bulletin-headers/flag_1_1234_file.png"
-            return "storage/" + folder + "/" + fileName;
+            // ✅ CORRECTION : Ajout du "/" au début pour que le frontend fasse un appel absolu depuis l'origine
+            // Exemple : "/storage/bulletin-headers/flag_1_1234_file_png"
+            return "/storage/" + folder + "/" + fileName;
 
         } catch (IOException e) {
             throw new RuntimeException("Erreur lors de la sauvegarde du fichier sur le disque : " + e.getMessage(), e);

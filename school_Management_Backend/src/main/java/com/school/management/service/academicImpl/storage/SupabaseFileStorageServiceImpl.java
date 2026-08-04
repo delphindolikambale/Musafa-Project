@@ -13,7 +13,6 @@ import java.util.UUID;
 
 @Service
 @ConditionalOnProperty(name = "storage.provider", havingValue = "supabase")
-
 public class SupabaseFileStorageServiceImpl implements FileStorageService {
 
     @Value("${supabase.url}")
@@ -31,7 +30,11 @@ public class SupabaseFileStorageServiceImpl implements FileStorageService {
     public String storeFile(MultipartFile file, String folder, String prefix) {
         try {
             String originalFilename = file.getOriginalFilename() != null ? file.getOriginalFilename() : "file";
-            String fileName = prefix + UUID.randomUUID() + "_" + originalFilename;
+
+            // ✅ CORRECTION : Nettoyage des espaces pour éviter les URLs cassées dans les buckets Cloud
+            String safeFilename = originalFilename.replaceAll("[^a-zA-Z0-9\\.\\-]", "_");
+            String fileName = prefix + UUID.randomUUID() + "_" + safeFilename;
+
             String objectPath = folder + "/" + fileName;
 
             // Endpoint API Storage de Supabase

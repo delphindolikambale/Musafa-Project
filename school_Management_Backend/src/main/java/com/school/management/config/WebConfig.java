@@ -36,7 +36,9 @@ public class WebConfig implements WebMvcConfigurer {
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         // Localisation dynamique vers le disque persistant
         Path storageDirectory = Paths.get(uploadDir).toAbsolutePath().normalize();
-        String storagePath = storageDirectory.toUri().toString();
+
+        // ✅ CORRECTION : Utilisation de "file:" strict pour éviter les bugs Linux "file:///"
+        String storagePath = "file:" + storageDirectory.toString();
 
         // S'assurer que le chemin URI se termine par un slash pour Spring
         if (!storagePath.endsWith("/")) {
@@ -45,6 +47,6 @@ public class WebConfig implements WebMvcConfigurer {
 
         registry.addResourceHandler("/storage/**")
                 .addResourceLocations(storagePath)
-                .setCachePeriod(0);
+                .setCachePeriod(3600); // Ajout d'un cache utile en production
     }
 }
