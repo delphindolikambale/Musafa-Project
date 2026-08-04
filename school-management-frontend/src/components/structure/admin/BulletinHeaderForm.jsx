@@ -91,8 +91,14 @@ const BulletinHeaderForm = () => {
                 files.watermarkLogo
             );
             toast.success("En-tête du bulletin configuré avec succès !");
-            // Réinitialiser les objets File pour ne pas les renvoyer inutilement au prochain save
+            
+            // On vide les fichiers en attente
             setFiles({ flagImage: null, ministryLogo: null, watermarkLogo: null });
+            
+            // CORRECTION : On force le rechargement immédiat pour récupérer 
+            // les nouvelles URLs sans espaces générées par le backend
+            await loadHeaderData();
+            
         } catch (error) {
             console.error("Erreur de sauvegarde:", error);
             toast.error("Erreur lors de la sauvegarde de la configuration.");
@@ -207,25 +213,24 @@ const BulletinHeaderForm = () => {
 
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] shadow-sm p-6 sm:p-8">
                 <h3 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight mb-6 flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">2</span>
-                    Identité Visuelle
+                    <span className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">2</span>
+                    Identités Visuelles
                 </h3>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    {renderImageUpload("Drapeau du Pays", "flagImage", previews.flagImage)}
-                    {renderImageUpload("Sceau du Ministère", "ministryLogo", previews.ministryLogo)}
-                    {renderImageUpload("Filigrane (Fond)", "watermarkLogo", previews.watermarkLogo)}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {renderImageUpload("DRAPEAU DU PAYS", "flagImage", previews.flagImage)}
+                    {renderImageUpload("SCEAU DU MINISTÈRE", "ministryLogo", previews.ministryLogo)}
+                    {renderImageUpload("FILIGRANE (FOND)", "watermarkLogo", previews.watermarkLogo)}
                 </div>
             </div>
 
-            <div className="flex justify-end pt-4">
+            <div className="flex justify-end">
                 <button 
                     type="submit" 
                     disabled={saving}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-2xl font-black uppercase tracking-wider text-xs flex items-center gap-2 transition-all shadow-lg shadow-blue-500/30 disabled:opacity-70 disabled:cursor-not-allowed"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl font-bold uppercase tracking-wider text-sm flex items-center gap-2 transition-all disabled:opacity-50"
                 >
-                    {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
-                    Enregistrer la configuration
+                    {saving ? <Loader2 className="animate-spin" size={20} /> : <Save size={20} />}
+                    {saving ? 'Enregistrement...' : 'Enregistrer la configuration'}
                 </button>
             </div>
         </form>

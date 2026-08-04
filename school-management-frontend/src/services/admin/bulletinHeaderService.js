@@ -29,13 +29,19 @@ const BulletinHeaderService = {
         if (ministryLogo) formData.append('ministryLogo', ministryLogo);
         if (watermarkLogo) formData.append('watermarkLogo', watermarkLogo);
 
-        // L'intercepteur Axios de api.js ajoutera automatiquement le Token
+        // CORRECTION MAJEURE ICI :
+        // On supprime délibérément l'en-tête Content-Type pour qu'Axios et le navigateur 
+        // génèrent automatiquement le leur avec le "boundary" requis par Spring Boot.
         const response = await api.post('/bulletin-headers', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data' // On force le type pour l'upload
-            }
+            transformRequest: [(data, headers) => {
+                delete headers['Content-Type'];
+                delete headers.common['Content-Type'];
+                return data;
+            }]
         });
+        
         return response.data;
     }
 };
+
 export default BulletinHeaderService;
