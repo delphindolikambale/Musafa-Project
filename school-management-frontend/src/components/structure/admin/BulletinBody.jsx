@@ -21,7 +21,7 @@ const BulletinBody = ({ bulletinData, header }) => {
             <table className="relative z-10 w-full border-collapse border-2 border-black text-center table-fixed bg-transparent">
                 
                 {/* ================================================= */}
-                {/* DÉFINITION STRICTE DES LARGEURS DE COLONNES (COLGROUP) */}
+                {/* DÉFINITION STRICTE DES LARGEURS DE COLONNES       */}
                 {/* ================================================= */}
                 <colgroup>
                     <col className="w-[23.5%]" /> {/* 1. BRANCHES */}
@@ -55,7 +55,7 @@ const BulletinBody = ({ bulletinData, header }) => {
                 </colgroup>
 
                 {/* ================================================= */}
-                {/* EN-TÊTE : FORMAT ÉDUCATION DE BASE (7e & 8e)      */}
+                {/* EN-TÊTE : FORMAT ÉDUCATION DE BASE                */}
                 {/* ================================================= */}
                 <thead>
                     <tr className="border-b-2 border-black text-[10px] font-bold uppercase bg-transparent">
@@ -104,7 +104,7 @@ const BulletinBody = ({ bulletinData, header }) => {
                                 <td colSpan={5} className="bg-black" style={printBlackColStyle}></td>
                             </tr>
                             
-                            {/* 2. LIGNES DES COURS DIRECTS (SANS SOUS-DOMAINE) */}
+                            {/* 2. LIGNES DES COURS DIRECTS */}
                             {domain.subjects?.map((sub, sIdx) => (
                                 <tr key={`eb-dom-sub-${dIdx}-${sIdx}`} className="border-b border-black text-[10px] bg-transparent">
                                     <td className="border-r-2 border-black p-1 text-left pl-3 font-normal leading-tight">{sub.subjectName || sub.name}</td>
@@ -142,12 +142,11 @@ const BulletinBody = ({ bulletinData, header }) => {
                             {domain.subDomains?.map((subDom, sdIdx) => {
                                 const domainStr = (domain.domainName || domain.name || '').trim().toUpperCase();
                                 const subDomStr = (subDom.subDomainName || subDom.name || '').trim().toUpperCase();
-                                // Ne pas afficher l'en-tête du sous-domaine s'il est identique au domaine principal
                                 const isRedundant = subDomStr === domainStr;
 
                                 return (
                                 <React.Fragment key={`eb-subdom-${dIdx}-${sdIdx}`}>
-                                    {/* Ligne En-tête Sous-Domaine avec Fond Gris */}
+                                    {/* Ligne En-tête Sous-Domaine */}
                                     {!isRedundant && (
                                         <tr className="border-b border-black text-left text-[9px] bg-gray-300" style={printGrayBgStyle}>
                                             <td colSpan={15} className="border-r-2 border-black p-1 pl-4 font-bold italic text-gray-800">
@@ -162,7 +161,6 @@ const BulletinBody = ({ bulletinData, header }) => {
                                         <tr key={`eb-subdom-sub-${dIdx}-${sdIdx}-${sIdx}`} className="border-b border-black text-[10px] bg-transparent">
                                             <td className="border-r-2 border-black p-1 text-left pl-5 font-normal leading-tight">{sub.subjectName || sub.name}</td>
                                             
-                                            {/* S1 */}
                                             <td className="border-r border-black p-0.5 font-bold">{sub.maxP1 || sub.maxPeriod || '10'}</td>
                                             <td className="border-r border-black p-0.5">{sub.p1 ?? ''}</td>
                                             <td className="border-r border-black p-0.5">{sub.p2 ?? ''}</td>
@@ -171,7 +169,6 @@ const BulletinBody = ({ bulletinData, header }) => {
                                             <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalS1 || '40'}</td>
                                             <td className="border-r-2 border-black p-0.5 font-bold">{sub.totalS1 ?? ''}</td>
                                             
-                                            {/* S2 */}
                                             <td className="border-r border-black p-0.5 font-bold">{sub.maxP3 || sub.maxPeriod || '10'}</td>
                                             <td className="border-r border-black p-0.5">{sub.p3 ?? ''}</td>
                                             <td className="border-r border-black p-0.5">{sub.p4 ?? ''}</td>
@@ -180,11 +177,9 @@ const BulletinBody = ({ bulletinData, header }) => {
                                             <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalS2 || '40'}</td>
                                             <td className="border-r-2 border-black p-0.5 font-bold">{sub.totalS2 ?? ''}</td>
                                             
-                                            {/* TOT GEN */}
                                             <td className="border-r border-black p-0.5 font-bold">{sub.maxTotalGen || '80'}</td>
                                             <td className="border-r border-black p-0.5 font-black">{sub.totalAnnuel ?? ''}</td>
                                             
-                                            {/* RESTE */}
                                             <td className="border-r-2 border-black" style={printBlackColStyle}></td>
                                             <td className="border-r border-black p-0.5 font-bold">{sub.repechagePct ?? ''}</td>
                                             <td className="p-0.5"></td>
@@ -277,6 +272,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         <td className="border-r border-black p-0.5 font-black">{results?.totalGeneralObt ?? ''}</td>
                         
                         <td className="border-r-2 border-black" style={printBlackColStyle}></td>
+                        
+                        {/* Bloc fixe occupant les 6 dernières lignes */}
                         <td colSpan={2} rowSpan={6} className="p-1 text-left align-top font-bold text-[8px] leading-tight">
                             <div>- PASSE (1)</div>
                             <div>- DOUBLE (1)</div>
@@ -414,9 +411,8 @@ const BulletinBody = ({ bulletinData, header }) => {
                         {/* S2: De MAX.EXAM jusqu'à la colonne Noire fusionnés (7 colonnes) */}
                         <td colSpan={7} className="border-r-2 border-black p-0.5"></td>
                         
-                        {/* NOTE: Les colonnes REPECHAGE % et SIGN. PROF sont déjà absorbées par le rowSpan=6 du bloc Chef d'Etablissement */}
+                        {/* NOTE: Les colonnes REPECHAGE % et SIGN. PROF sont déjà occupées par le rowspan du Chef d'Etablissement déclaré à la ligne TOTAUX */}
                     </tr>
-
                 </tbody>
             </table>
         </div>

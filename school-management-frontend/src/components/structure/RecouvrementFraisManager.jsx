@@ -1,6 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { RecouvrementFraisService } from '../../services/RecouvrementFraisService';
 import RecouvrementFraisDashboard from '../dashboard/RecouvrementFraisDashboard';
+import { Download, FileText } from 'lucide-react'; 
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable'; // Correction : Importation de la fonction
+import { useSchool } from "../../context/SchoolContext";
+import AuthService from '../../services/auth.service';
 
 const RecouvrementFraisManager = () => {
     const [loading, setLoading] = useState(false);
@@ -19,6 +24,10 @@ const RecouvrementFraisManager = () => {
         totalRemaining: 0,
         percentage: 0
     });
+
+    // 1. Récupération des contextes dynamiques
+    const { schoolConfig } = useSchool();
+    const currentUser = AuthService.getCurrentUser();
 
     useEffect(() => {
         const loadInitialData = async () => {
@@ -67,17 +76,149 @@ const RecouvrementFraisManager = () => {
         }
     };
 
+    // Export Excel (CSV)
+    const exportToCSV = () => {
+        if (studentsData.length === 0) return;
+        const headers = ['Nom', 'Postnom & Prénom', `Attendu (${currency})`, `Payé (${currency})`, `Reste (${currency})`, 'Status'];
+        const csvRows = studentsData.map(student => [
+            student.nom, student.postnom, student.expected, student.paid, student.remaining, student.status
+        ]);
+        const csvContent = '\uFEFF' + [
+            headers.join(';'), ...csvRows.map(row => row.map(cell => `"${cell}"`).join(';'))
+        ].join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        
+        // Correction de la comparaison pour la récupération du nom de la classe
+        const className = classes.find(c => String(c.id) === String(selectedClasse))?.displayName || 'Classe';
+        link.setAttribute('download', `Recouvrement_${className}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    // Génération du PDF stylisé
+    const exportToPDF = () => {
+        if (studentsData.length === 0) return;
+
+        const doc = new jsPDF();
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const bleuDeNuit = [13, 27, 62]; // #0D1B3E
+
+        // --- EN-TÊTE ---
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(0, 0, 0);
+        
+        doc.text(schoolConfig?.schoolName?.toUpperCase() || "INSTITUTION SCOLAIRE", 14, 30);
+        doc.text(schoolConfig?.province?.toUpperCase() || "PROVINCE", 14, 20);
+        doc.text(schoolConfig?.subdivision?.toUpperCase() || "SOUS-DIVISION", 14, 25);
+   
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        if (schoolConfig?.address) doc.text(schoolConfig.address, 14, 35);
+        if (schoolConfig?.phone) doc.text(`Tél : ${schoolConfig.phone}`, 14, 40);
+
+        // --- LOGO ---
+        if (schoolConfig?.logoBase64) {
+            try {
+                doc.addImage(schoolConfig.logoBase64, 'PNG', pageWidth - 40, 15, 25, 25);
+            } catch (e) {
+                console.warn("Erreur de rendu du logo dans le PDF", e);
+            }
+        }
+
+        // --- TITRE DU DOCUMENT ---
+        doc.setFontSize(16);
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(bleuDeNuit[0], bleuDeNuit[1], bleuDeNuit[2]);
+        doc.text("SITUATION DE RECOUVREMENT DES FRAIS", pageWidth / 2, 55, { align: "center" });
+
+        // --- INFOS DE FILTRAGE ---
+        doc.setFontSize(10);
+        doc.setTextColor(50, 50, 50);
+        
+        // Correction de la comparaison pour bien récupérer le nom de la classe
+        const className = classes.find(c => String(c.id) === String(selectedClasse))?.displayName || 'N/A';
+        const trancheName = selectedTranche === 'solde' ? 'Solde Global (Annuel)' : `Tranche ${selectedTranche}`;
+        
+        doc.text(`Classe : ${className}`, 14, 70);
+        doc.text(`Filtre  : ${trancheName}`, 14, 76);
+        doc.text(`Devise : ${currency}`, 14, 82);
+
+        // --- TABLEAU ---
+        const tableColumn = ["Nom", "Postnom & Prénom", `Attendu`, `Payé`, `Reste`, "Statut"];
+        const tableRows = studentsData.map(student => [
+            student.nom,
+            student.postnom,
+            student.expected.toLocaleString(undefined, {minimumFractionDigits: 2}),
+            student.paid.toLocaleString(undefined, {minimumFractionDigits: 2}),
+            student.remaining > 0 ? student.remaining.toLocaleString(undefined, {minimumFractionDigits: 2}) : "Soldé",
+            student.status
+        ]);
+
+        // Correction : Utilisation de la fonction importée autoTable
+        autoTable(doc, {
+            startY: 90,
+            head: [tableColumn],
+            body: tableRows,
+            theme: 'grid',
+            headStyles: {
+                fillColor: bleuDeNuit,
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                halign: 'center'
+            },
+            columnStyles: {
+                2: { halign: 'right' },
+                3: { halign: 'right' },
+                4: { halign: 'right' },
+                5: { halign: 'center' }
+            },
+            styles: {
+                fontSize: 9,
+                cellPadding: 4,
+            },
+            alternateRowStyles: {
+                fillColor: [245, 247, 250]
+            }
+        });
+
+        // --- PIED DE PAGE & SIGNATURES ---
+        const finalY = doc.lastAutoTable?.finalY || 90;
+        const dateString = new Date().toLocaleDateString('fr-FR');
+        const city = schoolConfig?.city || 'Beni';
+        const cashierName = currentUser?.username || 'Caissier(ère)';
+
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Fait à ${city}, le ${dateString}`, pageWidth - 14, finalY + 20, { align: "right" });
+        
+        doc.setFont("helvetica", "bold");
+        doc.text("La Caisse", pageWidth - 35, finalY + 35, { align: "center" });
+        
+        doc.setFont("helvetica", "normal");
+        doc.text(cashierName.toUpperCase(), pageWidth - 35, finalY + 65, { align: "center" });
+
+        // Modification ici : Prévisualisation dans un nouvel onglet au lieu de forcer le téléchargement
+        const pdfBlobUrl = doc.output('bloburl');
+        window.open(pdfBlobUrl, '_blank');
+    };
+
     return (
         <div className="p-4 md:p-6 lg:p-8 w-full max-w-[1600px] mx-auto min-h-screen bg-slate-50/30">
-            {/* Header section responsive */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 md:mb-10 gap-6">
                 <div className="flex items-center gap-3">
                     <div className="w-2 h-8 bg-blue-600 rounded-full"></div>
                     <h2 className="text-xl md:text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Recouvrement des Frais</h2>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
-                    <div className="flex flex-col w-full sm:w-1/2 lg:w-64">
+                <div className="flex flex-col sm:flex-row items-end gap-4 w-full lg:w-auto">
+                    <div className="flex flex-col w-full sm:w-auto lg:w-56">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Classe</label>
                         <select 
                             className="bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all cursor-pointer w-full"
@@ -90,7 +231,7 @@ const RecouvrementFraisManager = () => {
                         </select>
                     </div>
 
-                    <div className="flex flex-col w-full sm:w-1/2 lg:w-72">
+                    <div className="flex flex-col w-full sm:w-auto lg:w-64">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Filtrer par tranche</label>
                         <select 
                             className="bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all cursor-pointer w-full"
@@ -103,15 +244,35 @@ const RecouvrementFraisManager = () => {
                             ))}
                         </select>
                     </div>
+
+                    <div className="flex gap-2 w-full sm:w-auto mt-4 sm:mt-0">
+                        <button
+                            onClick={exportToCSV}
+                            disabled={loading || studentsData.length === 0}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-5 py-3 rounded-xl font-bold shadow-sm transition-all"
+                            title="Exporter vers Excel (CSV)"
+                        >
+                            <Download size={18} />
+                            <span className="text-sm hidden sm:inline">Excel</span>
+                        </button>
+
+                        <button
+                            onClick={exportToPDF}
+                            disabled={loading || studentsData.length === 0}
+                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 bg-[#0D1B3E] hover:bg-blue-950 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-5 py-3 rounded-xl font-bold shadow-sm transition-all"
+                            title="Imprimer le PDF"
+                        >
+                            <FileText size={18} />
+                            <span className="text-sm hidden sm:inline">PDF</span>
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Dashboard Cards Section */}
             <div className="mb-8">
                 <RecouvrementFraisDashboard stats={stats} currency={currency} />
             </div>
 
-            {/* Table Section avec gestion du scroll horizontal sur mobile */}
             <div className="bg-white rounded-[1.5rem] md:rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
                 <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                     <table className="w-full text-left border-collapse min-w-[800px]">
@@ -170,7 +331,6 @@ const RecouvrementFraisManager = () => {
                     </table>
                 </div>
 
-                {/* Footer informatif du tableau adaptable */}
                 <div className="bg-slate-50/50 p-4 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-3 text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                     <div className="flex items-center gap-2">
                         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></div>
@@ -178,7 +338,7 @@ const RecouvrementFraisManager = () => {
                     </div>
                     <div className="flex gap-4">
                         <span>Total: {studentsData.length} Élèves</span>
-                        <span className="text-blue-500">FinancePro V1.0</span>
+                        <span className="text-[#0D1B3E]">MyAcademia ERP</span>
                     </div>
                 </div>
             </div>

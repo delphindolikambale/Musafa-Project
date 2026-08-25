@@ -3,6 +3,7 @@ import { ClassroomService } from '../../services/classroomService';
 import academicService from '../../services/academicYearService'; 
 import ClassroomForm from './ClassroomForm';
 import RoomManager from './RoomManager';
+import { useSchool } from "../../context/SchoolContext";
 import { 
     Search, Edit3, Trash2, Plus, Users, MapPin, School, 
     Printer, AlertTriangle, Moon, Sun, Info, HelpCircle, 
@@ -10,6 +11,7 @@ import {
 } from 'lucide-react';
 
 const ClassroomManager = () => {
+    const { schoolConfig } = useSchool();
     const [activeTab, setActiveTab] = useState('classes');
     const [classrooms, setClassrooms] = useState([]);
     const [searchTerm, setSearchTerm] = useState("");
@@ -188,11 +190,17 @@ const ClassroomManager = () => {
                 {/* Barre Supérieure d'outils généraux */}
                 <div className="flex justify-between items-center mb-6">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-[#0D1B3E] text-white rounded-xl dark:bg-slate-800">
-                            <School size={22}/>
+                        <div className="p-2.5 bg-[#0D1B3E] text-white rounded-xl dark:bg-slate-800 flex items-center justify-center overflow-hidden">
+                            {schoolConfig?.logoBase64 ? (
+                                <img src={schoolConfig.logoBase64} alt="Logo" className="w-[22px] h-[22px] object-contain" />
+                            ) : (
+                                <School size={22}/>
+                            )}
                         </div>
                         <div>
-                            <h1 className="text-xl font-extrabold tracking-tight">Complexe Scolaire Musafa</h1>
+                            <h1 className="text-xl font-extrabold tracking-tight">
+                                {schoolConfig?.schoolName || "Institution Scolaire"}
+                            </h1>
                             <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Panneau de Contrôle Pédagogique</p>
                         </div>
                     </div>
@@ -249,7 +257,7 @@ const ClassroomManager = () => {
                                 <button 
                                     onClick={handlePrint} 
                                     className="bg-gray-50 dark:bg-[#0F172A] border border-gray-200 dark:border-gray-700 hover:border-blue-600 text-gray-600 dark:text-gray-300 px-3 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-95 text-xs sm:text-sm"
-                                Mention="Imprimer">
+                                    title="Imprimer">
                                     <Printer size={16} /> Imprimer
                                 </button>
                                 <button 
@@ -364,7 +372,12 @@ const ClassroomManager = () => {
             {/* Fichier de Style Impression Clean & Officiel */}
             <div className="hidden print:block bg-white text-black p-2">
                 <div className="text-center border-b-4 border-black pb-3 mb-6">
-                    <h1 className="text-2xl font-black tracking-tight">COMPLEXE SCOLAIRE MUSAFA</h1>
+                    {schoolConfig?.logoBase64 && (
+                        <img src={schoolConfig.logoBase64} alt="Logo" className="h-16 mx-auto mb-3 object-contain" />
+                    )}
+                    <h1 className="text-2xl font-black tracking-tight">
+                        {schoolConfig?.schoolName?.toUpperCase() || "INSTITUTION SCOLAIRE"}
+                    </h1>
                     <p className="uppercase text-xs font-bold text-gray-700 tracking-widest mt-1">
                         Répertoire Officiel des Classes Pédagogiques {activeYear ? `(${activeYear.name})` : ''}
                     </p>

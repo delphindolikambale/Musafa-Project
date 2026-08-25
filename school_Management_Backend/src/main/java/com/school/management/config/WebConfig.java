@@ -27,7 +27,16 @@ public class WebConfig implements WebMvcConfigurer {
                         "http://localhost:5180"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS")
-                .allowedHeaders("*")
+                // ✅ CORRECTION : Remplacement de "*" par la liste explicite pour s'aligner avec WebSecurityConfig et autoriser X-School-Id
+                .allowedHeaders(
+                        "Authorization",
+                        "Content-Type",
+                        "Accept",
+                        "X-Requested-With",
+                        "Cache-Control",
+                        "Origin",
+                        "X-School-Id"
+                )
                 .allowCredentials(true)
                 .maxAge(3600);
     }

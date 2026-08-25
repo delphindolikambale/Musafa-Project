@@ -13,6 +13,7 @@ import com.school.management.model.academic.Student;
 import com.school.management.model.academic.TeacherBulletinNotification;
 import com.school.management.model.multitenant.School;
 import com.school.management.repository.academic.BulletinFolderRepository;
+import com.school.management.repository.academic.BulletinHeaderRepository;
 import com.school.management.repository.academic.BulletinRepository;
 import com.school.management.repository.academic.ClassroomRepository;
 import com.school.management.repository.academic.FicheValidationRepository;
@@ -49,6 +50,9 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
 
     @Autowired
     private BulletinFolderRepository bulletinFolderRepository;
+
+    @Autowired
+    private BulletinHeaderRepository bulletinHeaderRepository;
 
     @Autowired
     private TeacherBulletinNotificationRepository notificationRepository;
@@ -201,7 +205,7 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
         }).collect(Collectors.toList());
     }
 
-    // ADAPTATION : Integration complete de l'en-tête administrative et de la maquette Proviseur
+    @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getStudentBulletinData(Long classroomId, Long studentId) {
         Map<String, Object> response = new HashMap<>();
@@ -220,27 +224,49 @@ public class BulletinTitulaireServiceImpl implements BulletinTitulaireService {
         School school = studentBulletin.getSchool();
         AcademicYear academicYear = studentBulletin.getAcademicYear();
 
-        // 3. Construction des informations de l'élève
+        // 3. Construction des informations de l'élève (avec intégration du lieu, date de naissance et N° ID)
         Map<String, Object> studentInfo = new HashMap<>();
         studentInfo.put("id", student.getId());
         studentInfo.put("fullName", student.getFullName());
         studentInfo.put("firstName", student.getFirstName());
         studentInfo.put("lastName", student.getLastName());
+        studentInfo.put("postName", student.getPostName());
         studentInfo.put("gender", student.getGender() != null ? student.getGender().name() : "N/A");
         studentInfo.put("permanentNumber", student.getPermanentNumber());
+        studentInfo.put("nationalId", student.getNationalId());
+        studentInfo.put("birthPlace", student.getBirthPlace());
+        studentInfo.put("birthDate", student.getBirthDate() != null ? student.getBirthDate().toString() : null);
 
-        // 4. En-tête administratif complet du bulletin
+        // 4. En-tête administratif complet du bulletin avec fusion multi-tenant officielle
         Map<String, Object> header = new HashMap<>();
-        header.put("province", school != null && school.getProvince() != null ? school.getProvince() : "");
-        header.put("city", school != null && school.getCity() != null ? school.getCity() : "");
-        header.put("ville", school != null && school.getCity() != null ? school.getCity() : "");
-        header.put("commune", school != null && school.getCity() != null ? school.getCity() : "");
-        header.put("schoolName", school != null && school.getName() != null ? school.getName() : "");
-        header.put("schoolCode", school != null && school.getCode() != null ? school.getCode() : "");
+
+        if (school != null) {
+            bulletinHeaderRepository.findBySchoolId(school.getId()).ifPresent(officialHeader -> {
+                header.put("country", officialHeader.getCountry());
+                header.put("ministry", officialHeader.getMinistry());
+                header.put("educationalProvince", officialHeader.getEducationalProvince());
+                header.put("city", officialHeader.getCity());
+                header.put("communeTerritory", officialHeader.getCommuneTerritory());
+                header.put("schoolName", officialHeader.getSchoolName());
+                header.put("schoolCode", officialHeader.getSchoolCode());
+                header.put("flagImagePath", officialHeader.getFlagImagePath());
+                header.put("ministryLogoPath", officialHeader.getMinistryLogoPath());
+                header.put("watermarkLogoPath", officialHeader.getWatermarkLogoPath());
+            });
+        }
+
+        // Valeurs de secours issues de l'école si la configuration d'en-tête globale est partielle
+        header.putIfAbsent("educationalProvince", school != null && school.getProvince() != null ? school.getProvince() : "");
+        header.putIfAbsent("province", school != null && school.getProvince() != null ? school.getProvince() : "");
+        header.putIfAbsent("city", school != null && school.getCity() != null ? school.getCity() : "");
+        header.putIfAbsent("ville", school != null && school.getCity() != null ? school.getCity() : "");
+        header.putIfAbsent("communeTerritory", school != null && school.getCity() != null ? school.getCity() : "");
+        header.putIfAbsent("schoolName", school != null && school.getName() != null ? school.getName() : "");
+        header.putIfAbsent("schoolCode", school != null && school.getCode() != null ? school.getCode() : "");
         header.put("className", classroom != null ? classroom.getDisplayName() : "");
         header.put("academicYear", academicYear != null ? academicYear.getAnnee() : "");
 
-        // 5. Récupération dynamique de la grille officielle (Domaines, Cours, Maxima) générée par le Proviseur
+        // 5. Récupération dynamique de la grille officielle générée par le Proviseur
         BulletinInitResponseDTO bulletinData = bulletinProviseurService.getBulletinInitData(
                 classroomId,
                 academicYear != null ? academicYear.getId() : null,

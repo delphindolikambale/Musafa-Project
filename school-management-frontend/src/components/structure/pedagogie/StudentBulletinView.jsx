@@ -17,14 +17,12 @@ const StudentBulletinView = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     
-    // États stricts : aucune donnée par défaut n'est tolérée
     const [studentInfo, setStudentInfo] = useState(null);
     const [bulletinData, setBulletinData] = useState(null);
     const [headerData, setHeaderData] = useState(null);
 
     useEffect(() => {
         const fetchStudentAndBulletin = async () => {
-            // Blocage strict si l'ID est invalide
             if (!studentId || studentId === 'undefined' || studentId === 'null') {
                 setError("L'identifiant de l'élève est manquant ou invalide. Veuillez retourner à la liste de la classe.");
                 setLoading(false);
@@ -35,56 +33,39 @@ const StudentBulletinView = () => {
                 setLoading(true);
                 setError(null);
                 
-                // ADAPTATION : Utilisation du nouvel endpoint REST
+                // Route exacte définie dans BulletinTitulaireController.java
                 const response = await api.get(`/bulletins/titulaire/classes/${classroomId}/students/${studentId}/bulletin`);
                 
                 if (response.status !== 200) {
                     throw new Error("Impossible de récupérer les données du bulletin sur le serveur.");
                 }
 
-                // Extraction de la réponse (Supporte l'encapsulation Axios data.data)
-                const payload = response.data?.data || response.data;
+                // Dépaquetage du JSON correspondant exactement à la Map du backend
+                const data = response.data?.data || response.data;
                 
-                // ✅ ADAPTATION MAJEURE : Scan en profondeur et multi-clés pour résoudre l'incohérence Titulaire vs Proviseur
-                // Garantit que même si le backend place le header/student dans un sous-objet 'bulletinData', React le capte.
-                const extractedStudent = payload?.studentInfo || payload?.student || payload?.eleve || payload?.bulletinData?.studentInfo || payload?.bulletinData?.student;
-                const extractedHeader = payload?.header || payload?.bulletinHeader || payload?.ecoleInfo || payload?.ecole || payload?.bulletinData?.header || payload?.bulletinData?.bulletinHeader;
-                
-                const extractedBulletin = payload?.bulletinData || payload?.bulletin || (payload?.formatType ? payload : null);
-                const extractedBranches = payload?.branches || extractedBulletin?.branches;
+                const rawStudent = data.student;
+                const rawHeader = data.header;
+                const rawBulletin = data.bulletinData;
 
-                // VÉRIFICATION CRUCIALE : Si les données vitales sont vides, on bloque l'affichage.
-                // AUCUN FALLBACK (Mock) NE SERA EXÉCUTÉ.
-                if (!extractedStudent || Object.keys(extractedStudent).length === 0) {
-                    throw new Error("Aucune donnée d'élève trouvée en base de données. Le bulletin ne peut pas être généré.");
+                if (!rawStudent) {
+                    throw new Error("Aucune donnée d'élève trouvée pour ce bulletin.");
                 }
-                
-                // ✅ ADAPTATION : Normalisation de l'objet Élève avec support strict du nationalId récupéré du backend
+
+                // Normalisation directe sur le contrat exact du DTO
                 const normalizedStudent = {
-                    ...extractedStudent,
-                    classLevel: extractedStudent?.classLevel || extractedStudent?.classroom?.name || payload?.classroom?.name || payload?.bulletinData?.classLevel || "",
-                    schoolYear: extractedStudent?.schoolYear || extractedStudent?.academicYear?.name || payload?.academicYear?.name || payload?.bulletinData?.schoolYear || "",
-                    nationalId: extractedStudent?.nationalId || extractedStudent?.idNat || extractedStudent?.national_id || "",
-                    permanentNumber: extractedStudent?.permanentNumber || extractedStudent?.matricule || "",
-                    fullName: extractedStudent?.fullName || `${extractedStudent?.lastName || ""} ${extractedStudent?.postName || ""} ${extractedStudent?.firstName || ""}`.trim()
+                    ...rawStudent,
+                    classLevel: rawHeader?.className || "",
+                    schoolYear: rawHeader?.academicYear || "",
+                    fullName: rawStudent.fullName || `${rawStudent.lastName || ""} ${rawStudent.firstName || ""}`.trim()
                 };
-                
-                // Mappage des données dynamiques réelles
+
                 setStudentInfo(normalizedStudent);
-                setHeaderData(extractedHeader || {});
-                setBulletinData(extractedBulletin ? { 
-                    ...extractedBulletin,
-                    formatType: extractedBulletin?.formatType || payload?.formatType, 
-                    branches: extractedBranches || []
-                } : {
-                    formatType: payload?.formatType,
-                    branches: extractedBranches || []
-                });
+                setHeaderData(rawHeader || {});
+                setBulletinData(rawBulletin || null);
                 
             } catch (err) {
                 console.error("API Error - Échec de la récupération des données réelles:", err);
-                setError(err.message || "Erreur de connexion avec le serveur. Aucune donnée à afficher.");
-                // Réinitialisation stricte pour éviter l'affichage de composants fantômes
+                setError(err.message || "Erreur de connexion avec le serveur.");
                 setStudentInfo(null);
                 setHeaderData(null);
                 setBulletinData(null);
@@ -115,7 +96,7 @@ const StudentBulletinView = () => {
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             
-            {/* EN-TÊTE D'ACTION */}
+            {/* BARRE D'ACTIONS */}
             <div className="print:hidden bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                     <button 
@@ -130,7 +111,7 @@ const StudentBulletinView = () => {
                             Dossier Personnel
                         </h1>
                         <p className="text-xs font-bold text-slate-400 uppercase mt-1">
-                            Aperçu du Bulletin • {studentInfo ? (studentInfo.fullName) : (loading ? "Chargement..." : "Non disponible")}
+                            Aperçu du Bulletin • {studentInfo ? studentInfo.fullName : (loading ? "Chargement..." : "Non disponible")}
                         </p>
                     </div>
                 </div>
@@ -153,7 +134,7 @@ const StudentBulletinView = () => {
                 </div>
             </div>
 
-            {/* MESSAGE D'ALERTE EN CAS D'ERREUR */}
+            {/* ERREUR */}
             {error && (
                 <div className="print:hidden bg-red-50 border border-red-200 text-red-800 p-4 rounded-2xl flex items-center gap-3 text-sm">
                     <AlertCircle size={20} className="text-red-600 shrink-0" />
@@ -163,7 +144,7 @@ const StudentBulletinView = () => {
                 </div>
             )}
 
-            {/* ZONE D'APERÇU DU BULLETIN CENTRALISÉ */}
+            {/* APERÇU DU BULLETIN */}
             {!error && (
                 <div className="flex justify-center overflow-x-auto pb-10 print:p-0 print:m-0 print:block">
                     {loading ? (

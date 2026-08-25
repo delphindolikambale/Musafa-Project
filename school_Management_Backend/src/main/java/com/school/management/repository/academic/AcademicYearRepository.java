@@ -15,6 +15,9 @@ public interface AcademicYearRepository extends JpaRepository<AcademicYear, Long
     // Vérifier si une année existe déjà au sein d'une même école
     boolean existsByAnneeAndSchoolId(String annee, Long schoolId);
 
+    // Récupérer une année spécifique par son nom et l'ID de l'école (Utile pour les validations de mise à jour)
+    Optional<AcademicYear> findByAnneeAndSchoolId(String annee, Long schoolId);
+
     // Récupérer l'année scolaire active pour une école donnée
     Optional<AcademicYear> findByActiveTrueAndSchoolId(Long schoolId);
 

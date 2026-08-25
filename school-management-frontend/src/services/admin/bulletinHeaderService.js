@@ -2,36 +2,38 @@ import api from '../api';
 
 const BulletinHeaderService = {
     /**
-     * Récupère la configuration actuelle de l'en-tête du bulletin
+     * Récupère la configuration de l'en-tête du bulletin.
+     * Mappe le comportement 200 OK / 204 No Content du BulletinHeaderController.java
      */
     getHeader: async () => {
-        const response = await api.get('/bulletin-headers');
-        return response.data;
+        try {
+            const response = await api.get('/bulletin-headers');
+            if (response.status === 204 || !response.data) {
+                return null;
+            }
+            return response.data?.data || response.data;
+        } catch (error) {
+            console.error("Erreur lors du chargement de l'en-tête du bulletin :", error);
+            throw error;
+        }
     },
 
     /**
-     * Sauvegarde ou met à jour la configuration de l'en-tête
-     * @param {Object} data - Les données textes (pays, ministère, etc.)
-     * @param {File} flagImage - Fichier image du drapeau
-     * @param {File} ministryLogo - Fichier image du logo du ministère
-     * @param {File} watermarkLogo - Fichier image du filigrane
+     * Sauvegarde ou met à jour l'en-tête via FormMultipart avec Blob JSON 'headerData'
+     * Correspond exactement à la signature de BulletinHeaderController.java
      */
     saveOrUpdateHeader: async (data, flagImage, ministryLogo, watermarkLogo) => {
         const formData = new FormData();
         
-        // Ajout de l'objet JSON (Stringifié car Spring Boot l'attend via @RequestPart)
+        // Envoi du JSON sous la clé 'headerData' réclamée par @RequestPart("headerData")
         formData.append('headerData', new Blob([JSON.stringify(data)], {
             type: "application/json"
         }));
 
-        // Ajout des fichiers physiques s'ils existent
         if (flagImage) formData.append('flagImage', flagImage);
         if (ministryLogo) formData.append('ministryLogo', ministryLogo);
         if (watermarkLogo) formData.append('watermarkLogo', watermarkLogo);
 
-        // CORRECTION MAJEURE ICI :
-        // On supprime délibérément l'en-tête Content-Type pour qu'Axios et le navigateur 
-        // génèrent automatiquement le leur avec le "boundary" requis par Spring Boot.
         const response = await api.post('/bulletin-headers', formData, {
             transformRequest: [(data, headers) => {
                 delete headers['Content-Type'];
@@ -40,7 +42,7 @@ const BulletinHeaderService = {
             }]
         });
         
-        return response.data;
+        return response.data?.data || response.data;
     }
 };
 

@@ -5,6 +5,7 @@ import com.school.management.dto.academic.bulletin.StudentBulletinRowDTO;
 import com.school.management.model.academic.TeacherBulletinNotification;
 
 import java.util.List;
+import java.util.Map;
 
 public interface BulletinTitulaireService {
 
@@ -15,6 +16,8 @@ public interface BulletinTitulaireService {
     List<BulletinFolderDTO> getBulletinFolders(Long teacherId, Long academicYearId, Long schoolId);
 
     List<StudentBulletinRowDTO> getStudentsInFolder(Long folderId);
+
+    Map<String, Object> getStudentBulletinData(Long classroomId, Long studentId);
 
     List<TeacherBulletinNotification> getTeacherNotifications(Long teacherId, Long schoolId);
 

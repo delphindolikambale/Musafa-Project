@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Service métier pour la gestion des années scolaires.
@@ -32,7 +33,9 @@ public class AcademicYearService {
         academicYear.setSchool(School.builder().id(schoolId).build());
 
         // 1. Vérifier si l'année existe déjà (uniquement pour l'école concernée)
-        if (academicYear.getId() == null && academicYearRepository.existsByAnneeAndSchoolId(academicYear.getAnnee(), schoolId)) {
+        // La vérification sécurise à la fois la création (POST) et la modification (PUT)
+        Optional<AcademicYear> existingYear = academicYearRepository.findByAnneeAndSchoolId(academicYear.getAnnee(), schoolId);
+        if (existingYear.isPresent() && !existingYear.get().getId().equals(academicYear.getId())) {
             throw new IllegalArgumentException("L'année scolaire " + academicYear.getAnnee() + " existe déjà dans votre établissement.");
         }
 

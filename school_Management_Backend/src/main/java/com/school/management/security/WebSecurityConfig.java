@@ -78,15 +78,16 @@ public class WebSecurityConfig implements WebMvcConfigurer {
         // Ajout de la méthode HEAD souvent utilisée par les plateformes cloud pour le Health Check
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS", "HEAD"));
 
-        // CORRECTION : Remplacement du wildcard "*" par une déclaration explicite des en-têtes.
-        // Les navigateurs bloquent l'envoi du token d'autorisation si allowCredentials = true et allowedHeaders = "*"
+        // CORRECTION : Ajout de "X-School-Id" dans la liste des en-têtes autorisés.
+        // Les navigateurs bloquent l'envoi du token et des en-têtes personnalisés si allowCredentials = true et qu'ils ne sont pas listés.
         configuration.setAllowedHeaders(Arrays.asList(
                 "Authorization",
                 "Content-Type",
                 "Accept",
                 "X-Requested-With",
                 "Cache-Control",
-                "Origin"
+                "Origin",
+                "X-School-Id" // ✅ AJOUT POUR RÉSOUDRE L'ERREUR CORS
         ));
 
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Disposition"));
